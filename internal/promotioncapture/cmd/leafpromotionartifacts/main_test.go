@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture"
 )
 
 func TestReadPrivateJSONRequiresClosedOwnerOnlyRegularInput(t *testing.T) {

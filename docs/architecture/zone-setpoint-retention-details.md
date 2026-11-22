@@ -1,7 +1,7 @@
 # Zone setpoint retention and aggregate accounting
 
-This pure mapper hardening advances [gateway #1220](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1220)
-and partially advances [gateway #952](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/952).
+This pure mapper hardening advances [gateway #1220](https://github.com/Project-Helianthus/helianthus-gateway/issues/1220)
+and partially advances [gateway #952](https://github.com/Project-Helianthus/helianthus-gateway/issues/952).
 The [native zone setpoint cutover contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/zone-setpoint-semreg-cutover.md)
 remains the source for roles, qualification and representability; its
 [native catalog](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/protocols/vaillant/ebus-vaillant-b524-register-map.md)

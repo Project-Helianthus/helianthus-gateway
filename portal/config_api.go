@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/portalconfig"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/portalconfig"
 )
 
 // ConfigCallbacks are host-owned persistence callbacks. They do not apply runtime changes.

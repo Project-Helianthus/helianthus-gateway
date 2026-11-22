@@ -19,7 +19,7 @@ import (
 // package sources.
 
 const (
-	ownershipGatewayModule = "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ownershipGatewayModule = "github.com/Project-Helianthus/helianthus-gateway"
 	ownershipEbusgoModule  = "github.com/Project-Helianthus/helianthus-ebusgo"
 	ownershipPollerType    = "vaillantSemanticPoller"
 	ownershipPublisherType = "vaillantSemanticPublisher"

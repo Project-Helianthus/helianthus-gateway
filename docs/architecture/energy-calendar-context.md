@@ -2,7 +2,7 @@
 
 The internal `energycalendar` package implements the immutable startup-context
 prerequisite of the accepted [native calendar policy](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/energy-calendar-policy.md).
-It is a private building block for [the calendar follow-up](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1022),
+It is a private building block for [the calendar follow-up](https://github.com/Project-Helianthus/helianthus-gateway/issues/1022),
 not a completed consumer integration or a public configuration contract.
 
 `New` distinguishes omitted configuration (`nil`) from an explicitly supplied

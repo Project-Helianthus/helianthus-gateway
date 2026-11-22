@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/b503session"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/b503session"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 // --- Row 1: cold-boot, no successful dispatch yet → UNKNOWN ---

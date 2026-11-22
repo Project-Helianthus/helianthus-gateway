@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/m8sourcestate"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/m8sourcestate"
 )
 
 // The B555 reads and the time-program writes of the poller use the native

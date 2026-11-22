@@ -3,7 +3,7 @@ package main
 import (
 	"slices"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 // publishFM5View publishes the FM5 interpretation, solar and cylinders from

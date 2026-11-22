@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway"
+	"github.com/Project-Helianthus/helianthus-gateway"
 )
 
 // vaillantConfigWriteResult is the native outcome of a boiler or system

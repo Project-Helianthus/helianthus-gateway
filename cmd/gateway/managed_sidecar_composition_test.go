@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimestate"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimestate"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
@@ -659,7 +659,7 @@ func TestManagedSidecarRegistersGrowattCANContractNames(t *testing.T) {
 	want := map[runtimecontrol.DriverID]struct{ owner, contract string }{
 		managedGrowattPCSID:  {"github.com/Project-Helianthus/helianthus-canbusreg", "GrowattPCSCANReceiveOnly"},
 		managedGrowattLINKID: {"github.com/Project-Helianthus/helianthus-canbusreg", "GrowattLINKCANReceiveOnly"},
-		managedGrowattCANID:  {"github.com/Project-Helianthus/helianthus-ebusgateway", "GrowattBMSCANReceiveOnly"},
+		managedGrowattCANID:  {"github.com/Project-Helianthus/helianthus-gateway", "GrowattBMSCANReceiveOnly"},
 	}
 	seen := map[runtimecontrol.DriverID]bool{}
 	for _, d := range sidecars.registry.List().Drivers {

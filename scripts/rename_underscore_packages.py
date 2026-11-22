@@ -40,7 +40,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PREFIX = "github.com/Project-Helianthus/"
-GATEWAY = "helianthus-ebusgateway"
+GATEWAY = "helianthus-gateway"
 EBUSREG = "helianthus-ebusreg"
 EBUSGO = "helianthus-ebusgo"
 
@@ -192,9 +192,13 @@ NEW_LIBRARY_PATH = re.compile(
 # library at that revision, also when the comment wraps before the path.
 REVISION_CITED = re.compile(
     r"(?<![\w.-])(?:helianthus-)?(?:ebusreg|ebusgo)@[0-9a-f]{7,40}\s+(?:(?://|#)[ \t]*)?[\w./-]+")
-# Recorded `go test` result lines name the package path of the run they record.
+# Recorded `go test` result lines name the package path of the run they record,
+# under the gateway module identity of that run (also the earlier one). Only
+# this anchored line syntax is recognized; prose and imports are still checked.
+HISTORICAL_GATEWAY = "helianthus-ebusgateway"
 GO_TEST_RESULT = re.compile(
-    r"^(?:ok|FAIL|\?)[ \t]+" + re.escape(MODULE_PREFIX + GATEWAY) + r"/[\w./-]+", re.M)
+    r"^(?:ok|FAIL|\?)[ \t]+" + re.escape(MODULE_PREFIX) + "(?:" + "|".join(map(re.escape, (GATEWAY, HISTORICAL_GATEWAY)))
+    + r")/[\w./-]+", re.M)
 
 
 def kept_spans(text):

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/ptytest"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/ptytest"
 )
 
 func TestSerialNetworkNamesAgree(t *testing.T) {

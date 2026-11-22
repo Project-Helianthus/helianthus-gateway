@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/portalconfig"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/portalconfig"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 )
 
 func m29Record() portalconfig.Record {

@@ -1,9 +1,9 @@
 # eBUS raw-evidence ownership inventory
 
 Status: current-code reconciliation after the W12/W13/W14 storage extractions.
-The [original inventory #1097](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1097)
+The [original inventory #1097](https://github.com/Project-Helianthus/helianthus-gateway/issues/1097)
 is historical context.
-Refs [parent #1021](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1021);
+Refs [parent #1021](https://github.com/Project-Helianthus/helianthus-gateway/issues/1021);
 this partial slice does not close the parent or complete driver-owned writers.
 
 ## Evidence boundary and entry points
@@ -15,7 +15,7 @@ construction and observer wiring. Package extraction is not completed driver
 lifecycle ownership. The gateway hosts drivers; eBUS is a southbound driver.
 
 The delivered public contract from docs #639 is
-[runtime-driver-lifecycle.md, S7: retained eBUS evidence and deferred store move](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md#s7-retained-ebus-evidence-and-deferred-store-move).
+[runtime-driver-lifecycle.md, S7: retained eBUS evidence and deferred store move](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md#s7-retained-ebus-evidence-and-deferred-store-move).
 It requires process-scoped retained evidence, capture paused while unadmitted,
 and original identity, provenance and age across STOP/START/RESTART. S7's
 reserved `evidence` hook clause says the hook remains unimplemented and declaring
@@ -28,9 +28,9 @@ Current entry is [main.go](../../cmd/gateway/main.go): `main` calls `run`, which
 delegates to `runGatewayLifecycle` in
 [gateway_run_lifecycle.go](../../cmd/gateway/gateway_run_lifecycle.go).
 `runGatewayLifecycle` is the entry over four owners whose contracts are stated
-in [gateway composition owners](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/gateway-composition-owners.md). The API
+in [gateway composition owners](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/gateway-composition-owners.md). The API
 composition `gatewayAPIComposition` in
-[gateway_api_composition.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/gateway_api_composition.go)
+[gateway_api_composition.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/gateway_api_composition.go)
 calls the startup source-selection setup and the bus-observability providers in
 [gateway_lifecycle_observability.go](../../cmd/gateway/gateway_lifecycle_observability.go);
 the observer factory
@@ -105,7 +105,7 @@ all derived status fields while stopped. Never reset age by serving a snapshot.
 Evidence grades Proven/Hypothesis/Unknown describe support for a claim;
 qualification/admission is a separate axis. Raw capture and discovery promotion
 alone establish neither. Public native contracts remain authoritative, including
-[runtime-state hint versus current admission](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-state.md).
+[runtime-state hint versus current admission](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-state.md).
 The public [native identification contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/ebus_standard/03-identification.md)
 requires preservation of raw bytes and diagnostics. Byte layouts in the table
 describe current observer storage, not new wire or decoding requirements.
@@ -118,7 +118,7 @@ consumers retain detached read access across unavailability. The shadow's native
 acquisition/value ownership must be split from semantic publication by its
 existing owner before relocation. Mixed-source synchronized storage and durable
 runtime-state persistence remain gateway facilities; only an accepted eBUS
-acquisition adapter would move behind the driver. The accepted [S7 evidence-hook clause](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md#s7-retained-ebus-evidence-and-deferred-store-move)
+acquisition adapter would move behind the driver. The accepted [S7 evidence-hook clause](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md#s7-retained-ebus-evidence-and-deferred-store-move)
 reserves `evidence` and rejects its declaration; it does not provide a usable
 read-view or capture hook. K04/M49/W17 remain historical slices, not work
 reimplemented by this reconciliation.
@@ -152,7 +152,7 @@ Unresolved edges blocking implementation:
 
 | Later file group | Minimal responsibility / required evidence |
 | --- | --- |
-| `gateway_admission.go`, `ebus_driver_runtime.go`, `gateway_process_shell.go`, `gateway_api_composition.go`, `gateway_run_lifecycle.go` (linked above) | Move eBUS construction/writer lifetime under driver, retain shell provider handles; keep native generation fencing and current failure isolation. Follow the delivered [S7 contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md#s7-retained-ebus-evidence-and-deferred-store-move) and managed eBUS admission boundary; accepted lifecycle work is not an outstanding pre-G5 hold or proof that evidence writers have moved. |
+| `gateway_admission.go`, `ebus_driver_runtime.go`, `gateway_process_shell.go`, `gateway_api_composition.go`, `gateway_run_lifecycle.go` (linked above) | Move eBUS construction/writer lifetime under driver, retain shell provider handles; keep native generation fencing and current failure isolation. Follow the delivered [S7 contract](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md#s7-retained-ebus-evidence-and-deferred-store-move) and managed eBUS admission boundary; accepted lifecycle work is not an outstanding pre-G5 hold or proof that evidence writers have moved. |
 | `identification_evidence_wiring.go`, `bus_observability_provider.go` | Replace process publication/direct concrete-store coupling with driver-owned retained snapshots; prove absent/stopped/failed reads perform zero bus I/O and preserve historical provenance. |
 | `internal/ebus/evidence/{discovery,identification,specimens}`, root `identification_evidence.go`, `evidence_buffer.go`, `bus_observability_store.go`, `bus_observability_api.go` | Preserve the extracted mechanics and facade contracts, bounded retention/copy ownership, deterministic public ordering and age; separate gateway diagnostic fields; distinguish pause, worker close, eviction and explicit destruction. |
 | `passive_transaction_reconstructor.go`, `active_passive_deduplicator.go`, `shadow_cache.go` and poller/scheduler files above | Coordinate subscription withdrawal, stale callback fencing, new-generation admission and source-aware last-known-good behavior with their owners; do not silently change retry, dedup, qualification or semantic policy. |

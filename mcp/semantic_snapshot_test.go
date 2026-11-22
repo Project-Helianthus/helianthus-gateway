@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	gql "github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticview"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
+	gql "github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/evse"

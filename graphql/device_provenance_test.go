@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	graphqlgo "github.com/graphql-go/graphql"
 )
 

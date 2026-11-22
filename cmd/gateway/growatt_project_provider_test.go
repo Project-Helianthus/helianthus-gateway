@@ -12,7 +12,7 @@ import (
 
 	canbus "github.com/Project-Helianthus/helianthus-canbus"
 	canbusreg "github.com/Project-Helianthus/helianthus-canbusreg"
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 type cx18Receiver struct {

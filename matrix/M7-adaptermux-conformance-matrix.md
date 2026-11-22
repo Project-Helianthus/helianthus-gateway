@@ -1,26 +1,26 @@
 # M7 — AdapterMux conformance matrix v2 (schema)
 
 Status: planning deliverable (b) and (c) of
-[#1378](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1378),
+[#1378](https://github.com/Project-Helianthus/helianthus-gateway/issues/1378),
 following the operator steer of 2026-10-27 recorded on that issue. This page
 defines the schema of the matrix that replaces the 88-case transport matrix. It
 is not in force, claims no result and changes no code: until the new matrix has
 run once on hardware, the 88-case `TRANSPORT_MATRIX_REPORT` check, the
-AD01..AD12 block of [scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/transport_gate.sh)
+AD01..AD12 block of [scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/transport_gate.sh)
 and the owner override citing
-[#1099](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1099)
+[#1099](https://github.com/Project-Helianthus/helianthus-gateway/issues/1099)
 remain the gate. Companion pages:
 
-- [M7-adaptermux-conformance-cell-map.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/matrix/M7-adaptermux-conformance-cell-map.md):
+- [M7-adaptermux-conformance-cell-map.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/matrix/M7-adaptermux-conformance-cell-map.md):
   where each of T01–T88 goes (deliverable a).
-- [transport-gate-policy-v2.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/testing/transport-gate-policy-v2.md):
+- [transport-gate-policy-v2.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/testing/transport-gate-policy-v2.md):
   what the gate, the ship scripts and the override point at once this matrix has
   run (deliverable d).
 
 ## 1. Shape of the product
 
 The proxy is deprecated and its multiplexing role is carried by the AdapterMux
-([internal/adaptermux](https://github.com/Project-Helianthus/helianthus-ebusgateway/tree/main/internal/adaptermux)). The matrix is one product with
+([internal/adaptermux](https://github.com/Project-Helianthus/helianthus-gateway/tree/main/internal/adaptermux)). The matrix is one product with
 one report:
 
 - a **grid** of axis 1 (southbound transport: where the symbol stream comes
@@ -44,8 +44,8 @@ for. Hardware is needed once per transport, never once per permutation (§8).
 | `UARTENH` | UART-direct, ENH-over-serial | ENH framing at 9600 baud on a serial line (`protocols/ens.md`) | no | reserved: blocked-infra (BI-02) |
 | `UARTRAW` | UART-direct, RAW | raw eBUS symbols from a line interface; no public native serial contract exists yet (Unknown) | no | reserved: blocked-infra (BI-02) |
 
-"Mux today" is read from [internal/adaptermux/mux.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/adaptermux/mux.go)
-and [cmd/gateway/gateway_adapter_direct.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/gateway_adapter_direct.go).
+"Mux today" is read from [internal/adaptermux/mux.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/adaptermux/mux.go)
+and [cmd/gateway/gateway_adapter_direct.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/gateway_adapter_direct.go).
 The UART-direct rows are reserved now and stay blocked-infra until the hardware
 exists, as the steer requires.
 
@@ -61,7 +61,7 @@ What changes between rows, and therefore why each invariant runs on each row:
 
 Twenty-four invariants: AD01–AD10 and AD12 (AD11 is retired, §6), PX01–PX12,
 and CX01. AD assertions are quoted from the AD01..AD12 block of
-[scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/transport_gate.sh); their public
+[scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/transport_gate.sh); their public
 contracts and offline candidates are indexed in `helianthus-docs-ebus`
 (`development/ad01-ad12-evidence-index.md`). The multiplexer architecture page
 in that repository numbers its design decisions AD01–AD12 as well; those are a
@@ -101,7 +101,7 @@ become cells of the mux, with these scope notes:
 
 - PX05–PX08 assert FIFO registration order between external contenders
   ("not initiator priority"). Address priority replaced FIFO order
-  ([adapter-arbitration-decision.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/adapter-arbitration-decision.md)):
+  ([adapter-arbitration-decision.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/adapter-arbitration-decision.md)):
   the lowest initiator low nibble wins, then the lowest high nibble, then the
   lowest session identity, so these statements cannot hold. The cells stay in
   the inventory and are reserved under PL-04 (`planned`,
@@ -112,10 +112,10 @@ become cells of the mux, with these scope notes:
 - PX09–PX11 need a local emulated target with a responder window. The proxy had
   one (its emulation target registry); the mux has none. Registered responder
   ownership in the mux is
-  [#991](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/991),
+  [#991](https://github.com/Project-Helianthus/helianthus-gateway/issues/991),
   which is deferred, so these cells are planned (PL-02). They wait for the
   design in
-  [registered target-address subscribers](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/adaptermux-responder-subscribers.md).
+  [registered target-address subscribers](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/adaptermux-responder-subscribers.md).
 - The proxy's outcome policy carries over: `xpass` is never accepted.
 - The external contender in PX cells may be a synthetic ENH client from the
   test harness; that is software, not additional hardware.
@@ -151,7 +151,7 @@ gateway runs its active identification and read transactions while the
 guarded ebusd command workload (`state`, an identification scan of the
 workload target, 07 04 as a hex telegram) bids at the same SYN boundaries.
 Selection follows
-[adapter-arbitration-decision.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/adapter-arbitration-decision.md):
+[adapter-arbitration-decision.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/adapter-arbitration-decision.md):
 an owner or a busy bus prevents selection and keeps every pending bid;
 otherwise the lowest initiator low nibble wins, then the lowest high nibble,
 then the lowest session identity, and equal priority keeps the first bid;
@@ -164,7 +164,7 @@ has no age limit and there is no fairness rotation.
 
 The smoke checks of these three cells also read AdapterMux series that the
 gateway does not publish yet
-([cmd/matrix-runner/README.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/matrix-runner/README.md), smoke
+([cmd/matrix-runner/README.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/matrix-runner/README.md), smoke
 command). Until it does, each check ends with its own status and names the
 missing series, and the cell does not pass.
 
@@ -197,8 +197,8 @@ through one of these):
 | BI-02 | `blocked-infra` | every `UARTENS-*`, `UARTENH-*`, `UARTRAW-*` cell, without execution | `uart_direct_hardware_absent` | steer: UART-direct reserved |
 | PL-01 | `planned` | every `UDP-*` and `TCP-*` grid cell | `mux_southbound_plain_not_implemented` | the mux accepts only `enh`/`ens` upstream; no open ticket implements plain southbound framing |
 | PL-02 | `planned` | every `*-PX09`, `*-PX10`, `*-PX11` cell | `mux_local_responder_not_implemented` | #991 (deferred) |
-| PL-03 | `planned` | `ENS-AD05`, `ENH-AD05`, `ENS-AD08`, `ENH-AD08`, `ENS-AD12`, `ENH-AD12` | `mux_raw_symbol_forwarding_not_implemented` | the raw-symbol contract is settled but not implemented: ENH/ENS decoding still collapses escape pairs before the mux sees them, so raw-pair delivery to an external session (AD05), per-symbol echo of raw symbols (AD08) and the wire-symbol assertions (AD12) cannot hold ([mux-raw-symbol-continuity.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/mux-raw-symbol-continuity.md)); the cells leave PL-03 when the raw-forwarding slice of #1003 lands and the inventory version is bumped |
-| PL-04 | `planned` | `ENS-PX05`, `ENH-PX05`, `ENS-PX06`, `ENH-PX06`, `ENS-PX07`, `ENH-PX07`, `ENS-PX08`, `ENH-PX08` | `fifo_order_superseded_by_address_priority` | address priority replaced FIFO order ([adapter-arbitration-decision.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/adapter-arbitration-decision.md)), so the FIFO registration-order statements of PX05–PX08 cannot hold; the cells stay in the inventory and leave PL-04 when they are re-specified for address priority and the inventory version is bumped |
+| PL-03 | `planned` | `ENS-AD05`, `ENH-AD05`, `ENS-AD08`, `ENH-AD08`, `ENS-AD12`, `ENH-AD12` | `mux_raw_symbol_forwarding_not_implemented` | the raw-symbol contract is settled but not implemented: ENH/ENS decoding still collapses escape pairs before the mux sees them, so raw-pair delivery to an external session (AD05), per-symbol echo of raw symbols (AD08) and the wire-symbol assertions (AD12) cannot hold ([mux-raw-symbol-continuity.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/mux-raw-symbol-continuity.md)); the cells leave PL-03 when the raw-forwarding slice of #1003 lands and the inventory version is bumped |
+| PL-04 | `planned` | `ENS-PX05`, `ENH-PX05`, `ENS-PX06`, `ENH-PX06`, `ENS-PX07`, `ENH-PX07`, `ENS-PX08`, `ENH-PX08` | `fifo_order_superseded_by_address_priority` | address priority replaced FIFO order ([adapter-arbitration-decision.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/adapter-arbitration-decision.md)), so the FIFO registration-order statements of PX05–PX08 cannot hold; the cells stay in the inventory and leave PL-04 when they are re-specified for address priority and the inventory version is bumped |
 
 Precedence for the reported reason when categories overlap: BI-02, then PL-01,
 then PL-02, then PL-03, then PL-04. Old expected-failure reasons that are not carried (T07/T08, and
@@ -254,8 +254,8 @@ an unexecuted design; no artifact is required for AD11.
 architecture text "ENH protocol delivers logical bytes (no escape sequences)"
 contradicts the native ENH receive path, as the evidence index already records.
 The settled contract
-([#1003](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1003),
-[mux-raw-symbol-continuity.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/mux-raw-symbol-continuity.md)):
+([#1003](https://github.com/Project-Helianthus/helianthus-gateway/issues/1003),
+[mux-raw-symbol-continuity.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/mux-raw-symbol-continuity.md)):
 
 - raw wire symbols at the mux boundary: each escape lead and suffix, and each
   unescaped `0xAA`, is its own symbol, delivered immediately and in order to
@@ -285,8 +285,8 @@ pairing note in `development/ad10-migration-equivalence.md`.
 
 ## 7. matrix-runner case naming for 0.7 (proposal, not implemented)
 
-Current scheme, read from [internal/matrix](https://github.com/Project-Helianthus/helianthus-ebusgateway/tree/main/internal/matrix) and
-[cmd/matrix-runner](https://github.com/Project-Helianthus/helianthus-ebusgateway/tree/main/cmd/matrix-runner): case IDs are an upper-case prefix
+Current scheme, read from [internal/matrix](https://github.com/Project-Helianthus/helianthus-gateway/tree/main/internal/matrix) and
+[cmd/matrix-runner](https://github.com/Project-Helianthus/helianthus-gateway/tree/main/cmd/matrix-runner): case IDs are an upper-case prefix
 and two digits (`T01`–`T88`, `P01`–`P06`); suites are `full88` (default) and
 `passive`; expected-failure keys are upper-cased (`normalizeExpectedFailures`);
 each case writes `<output-dir>/<case_id>/configs`, `logs/runner.log` and
@@ -376,7 +376,7 @@ gateway leg, proxy southbound and ebusd leg; none of those permutations exists
 any more.
 
 The consolidated session on the 0.7 candidate
-([#1099](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1099))
+([#1099](https://github.com/Project-Helianthus/helianthus-gateway/issues/1099))
 is the last run of `full88` and the first run of `adaptermux-v2`, on the same
 hardware session and the same per-transport setups.
 

@@ -3,7 +3,7 @@ package runtimecontrol
 import (
 	"sync"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
 // EventKind is the closed kind of one service event.

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/executionpolicy"
 	ebusstd "github.com/Project-Helianthus/helianthus-ebusreg/catalog/ebusstandard"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/executionpolicy"
 )
 
 func u8(v uint8) *uint8 { return &v }

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func recordBusAdmissionTransitionWithStabilityRefresh(ctx context.Context, store *ebusgateway.BusObservabilityStore, state string, source, companionTarget byte, reason string) {

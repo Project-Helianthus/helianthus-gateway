@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
 // Bounded reconciliation. Each driver has one reconciler goroutine that reads

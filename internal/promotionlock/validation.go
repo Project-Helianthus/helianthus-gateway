@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture"
 )
 
 const (

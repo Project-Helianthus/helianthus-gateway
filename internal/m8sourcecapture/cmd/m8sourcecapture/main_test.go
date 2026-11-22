@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/m8sourcecapture"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/m8sourcecapture"
 )
 
 func TestProcessInstanceIDBindsContainerAndStart(t *testing.T) {

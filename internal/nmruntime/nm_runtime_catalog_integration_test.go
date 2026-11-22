@@ -7,8 +7,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/nmruntime"
 	ebusstd "github.com/Project-Helianthus/helianthus-ebusreg/catalog/ebusstandard"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/nmruntime"
 )
 
 // TestEmit_AgainstEmbeddedCatalog is the catalog-grounded regression gate

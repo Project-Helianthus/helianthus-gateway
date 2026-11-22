@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/matter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/catalogv1"
+	"github.com/Project-Helianthus/helianthus-gateway/matter"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/projection"
 )

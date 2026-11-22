@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 // The only EVSE source accepted by issue #961 is an in-process injected

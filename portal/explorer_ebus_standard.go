@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	estd "github.com/Project-Helianthus/helianthus-ebusgateway/mcp/ebusstandard"
+	estd "github.com/Project-Helianthus/helianthus-gateway/mcp/ebusstandard"
 )
 
 // parsePBSBByte parses a PB/SB selector as a 1-byte value, using smart

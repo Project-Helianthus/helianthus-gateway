@@ -5,7 +5,7 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
 // ErrNilRuntime reports a factory that returned no error and no usable

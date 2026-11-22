@@ -18,7 +18,7 @@ canonical equivalent here. Native observations remain available separately.
 
 The reason is the existing gateway read-projection definition
 `semantic.read.reason.value_unknown`, owned by
-[`internal/semanticview.project`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/semanticview/view.go).
+[`internal/semanticview.project`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/semanticview/view.go).
 That owner initializes it for non-exact rows without a known canonical value.
 Reusing this reason describes the unresolved canonical value; it does not
 establish native equivalence or add a thermal-pack reason. The thermal pack

@@ -1,7 +1,7 @@
 # Detached DHW measured-temperature candidate
 
-This partial slice advances [issue #1232](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1232)
-and [parent #952](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/952).
+This partial slice advances [issue #1232](https://github.com/Project-Helianthus/helianthus-gateway/issues/1232)
+and [parent #952](https://github.com/Project-Helianthus/helianthus-gateway/issues/952).
 Nothing here is stable before Helianthus 1.0. It is a pure application seam,
 not acquisition, registration, a common production provider, or live cutover.
 

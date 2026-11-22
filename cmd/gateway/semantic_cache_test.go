@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 func TestSemanticCacheStoreLoad_MissLogsMarker(t *testing.T) {

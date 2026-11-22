@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGE = "docs/observability/semantic-prometheus-coverage.md"
-PUBLIC_MAIN = "https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/"
+PUBLIC_MAIN = "https://github.com/Project-Helianthus/helianthus-gateway/blob/main/"
 SOURCES = [
     "bus_observability_store.go", "runtime_transport_metrics.go",
     "baud_observation_metrics.go", "semantic_prometheus.go",

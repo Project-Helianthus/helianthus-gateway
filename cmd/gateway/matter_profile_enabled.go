@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"net/http"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/m2mgraphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/matter/feedv1"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/catalogv1"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/m2mgraphql"
+	"github.com/Project-Helianthus/helianthus-gateway/matter/feedv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 )
 
 const matterProfileEnabled = true

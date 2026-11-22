@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticoperations"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticoperations/semoptest"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations/semoptest"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/operation"

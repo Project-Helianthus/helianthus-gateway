@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 )
 
 func TestMapPortalPromotedSemantic_AllLeavesFillOnlyMissingAndClear(t *testing.T) {

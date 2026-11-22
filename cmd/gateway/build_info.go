@@ -5,7 +5,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/syncevidence"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/syncevidence"
 )
 
 type gatewayBuildInfo struct {

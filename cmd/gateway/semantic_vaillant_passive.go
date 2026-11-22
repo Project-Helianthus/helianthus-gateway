@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func (p *vaillantSemanticPoller) AttachPassiveShadowProducer(ctx context.Context, deduplicator *ebusgateway.ActivePassiveDeduplicator) error {

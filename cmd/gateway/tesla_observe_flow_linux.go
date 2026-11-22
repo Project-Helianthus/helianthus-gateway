@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/teslaobserve"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/teslaobserve"
 )
 
 // teslaSerialOps are the terminal operations the opener performs after

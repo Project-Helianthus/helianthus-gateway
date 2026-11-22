@@ -11,7 +11,7 @@ one directory per case (`configs/`, `logs/runner.log`, `verdict.json`) and an
 | `full88` (default flag value) | `T01`–`T88` | historical; the gate rejects it |
 
 The transport gate accepts only an `adaptermux-v2` index
-([transport-gate-policy-v2.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/testing/transport-gate-policy-v2.md)).
+([transport-gate-policy-v2.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/testing/transport-gate-policy-v2.md)).
 `full88` stays the flag's default and stays generable to reproduce historical
 reports; its proxy topologies are retired, and the T01–T08 questions are
 asked by the compatibility cells of `adaptermux-v2`.
@@ -29,7 +29,7 @@ identifier and the add-on's transport, network and address flags for the case,
 and fails the case when the gateway log shows the eBUS driver withheld.
 
 The schema is defined in
-[M7-adaptermux-conformance-matrix.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/matrix/M7-adaptermux-conformance-matrix.md).
+[M7-adaptermux-conformance-matrix.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/matrix/M7-adaptermux-conformance-matrix.md).
 
 Without `--execute` every suite is a dry run: nothing is executed, and each
 log lists the commands a real run would execute.
@@ -58,7 +58,7 @@ more than one category, the first matching row below wins:
 
 PL-04 holds the cells that assert FIFO registration order between external
 contenders: address priority replaced FIFO order
-([adapter-arbitration-decision.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/adapter-arbitration-decision.md)),
+([adapter-arbitration-decision.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/adapter-arbitration-decision.md)),
 so they stay reserved until they are re-specified for address priority. The
 category RS (`cell_awaiting_respecification`, not accepted by the gate) stays
 defined for a future re-specification, and no cell carries it.

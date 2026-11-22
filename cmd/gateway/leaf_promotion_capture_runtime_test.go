@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 func TestIssue784CheckpointPublicationIsImmutableAndRestartIdempotent(t *testing.T) {

@@ -1,9 +1,9 @@
 # Recovery checkpoint validation supplement
 
 This supplement bounds recovery corruption checks for
-[issue #1124](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1124),
+[issue #1124](https://github.com/Project-Helianthus/helianthus-gateway/issues/1124),
 a partial follow-up under
-[issue #1032](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1032).
+[issue #1032](https://github.com/Project-Helianthus/helianthus-gateway/issues/1032).
 It describes the internal checkpoint seam; it grants no runtime authority or
 public lifecycle API. Nothing is stable before Helianthus 1.0.
 

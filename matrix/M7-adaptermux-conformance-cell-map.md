@@ -1,29 +1,29 @@
 # M7 — AdapterMux conformance cell map (T01–T88 → matrix v2)
 
 Status: planning deliverable (a) of
-[#1378](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1378),
+[#1378](https://github.com/Project-Helianthus/helianthus-gateway/issues/1378),
 written against the operator steer of 2026-10-27 recorded on that issue. It
 maps every case of the current 88-case transport matrix to the conformance
 matrix v2 defined in
-[M7-adaptermux-conformance-matrix.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/matrix/M7-adaptermux-conformance-matrix.md).
+[M7-adaptermux-conformance-matrix.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/matrix/M7-adaptermux-conformance-matrix.md).
 No case below has a result, and nothing here retires a case from the gate in
 force: until the new matrix has run once on hardware, the 88-case
 `TRANSPORT_MATRIX_REPORT` check in
-[scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/transport_gate.sh), its AD01..AD12 block
+[scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/transport_gate.sh), its AD01..AD12 block
 and the owner override that cites
-[#1099](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1099)
+[#1099](https://github.com/Project-Helianthus/helianthus-gateway/issues/1099)
 stay as they are. The policy that later re-points them is
-[transport-gate-policy-v2.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/testing/transport-gate-policy-v2.md).
+[transport-gate-policy-v2.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/testing/transport-gate-policy-v2.md).
 
 ## Source of the old cases
 
 The 88 cases are generated, not hand-listed. Their identity and order come from
-`GenerateTopologyCases` in [internal/matrix/topology.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/matrix/topology.go)
+`GenerateTopologyCases` in [internal/matrix/topology.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/matrix/topology.go)
 (transports in the order ENS, ENH, UDP-plain, TCP-plain; `T%02d` numbering), and
 their default expectation from `defaultExpectedFailure` in
-[internal/matrix/runner.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/matrix/runner.go), asserted by
+[internal/matrix/runner.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/matrix/runner.go), asserted by
 `TestDefaultExpectedFailureCoverage` in
-[internal/matrix/runner_test.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/matrix/runner_test.go): 40 cases
+[internal/matrix/runner_test.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/matrix/runner_test.go): 40 cases
 default to an expected failure (T07, T08 and 38 dual-client cases). The public
 runbook in `helianthus-docs-ebus` (`development/smoke-matrix.md`) still states
 42 cases and a T06..T08 range; the code is authoritative and that runbook text
@@ -40,22 +40,22 @@ is a known discrepancy for its own follow-up.
 
 1. **ebusd as the configured transport is still supported**, so the single
    ebusd-tcp compatibility cell is kept. Evidence in this repository:
-   `TransportEbusdTCP` (`"ebusd-tcp"`) in [config.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/config.go); the
-   `-transport` flag in [cmd/gateway/gateway_cli.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/gateway_cli.go)
+   `TransportEbusdTCP` (`"ebusd-tcp"`) in [config.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/config.go); the
+   `-transport` flag in [cmd/gateway/gateway_cli.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/gateway_cli.go)
    accepts `enh, ens, udp-plain, tcp-plain, or ebusd-tcp`; ebusd-tcp timeout
-   clamping in [gateway.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/gateway.go); the ebusd-tcp scan preload in
-   [cmd/gateway/startup_scan.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/startup_scan.go); and the fixed
+   clamping in [gateway.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/gateway.go); the ebusd-tcp scan preload in
+   [cmd/gateway/startup_scan.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/startup_scan.go); and the fixed
    ebusd-tcp row of the responder capability in
-   [cmd/gateway/gateway_responder_capability.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/gateway_responder_capability.go).
-   [AGENTS.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/AGENTS.md) does not withdraw it; its gate rule names the
+   [cmd/gateway/gateway_responder_capability.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/gateway_responder_capability.go).
+   [AGENTS.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/AGENTS.md) does not withdraw it; its gate rule names the
    T01..T88 result, which includes T05–T08. In ebusd-tcp mode the AdapterMux is
    not in the path (`wireAdapterDirectWithConnectionLost` in
-   [cmd/gateway/gateway_adapter_direct.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/gateway_adapter_direct.go)
+   [cmd/gateway/gateway_adapter_direct.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/gateway_adapter_direct.go)
    composes the mux only for `adapter-direct` and `adapter-direct-ens`), so the
    kept cell sits in the compatibility block, outside the two axes.
 2. **The non-mux direct transports are still supported.** `enh`, `ens`,
    `udp-plain` and `tcp-plain` without the `adapter-direct://` scheme do not
-   compose the mux, and [internal/adaptermux/mux.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/adaptermux/mux.go)
+   compose the mux, and [internal/adaptermux/mux.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/adaptermux/mux.go)
    accepts only the `enh` and `ens` upstream protocols. T01–T04 therefore keep
    their subject and are kept as compatibility cells. If a later decision routes
    every configured transport through the mux, these four cells become absorbed
@@ -70,7 +70,7 @@ is a known discrepancy for its own follow-up.
    an ebusd → proxy leg in ENS or ENH is the external ENH client of CX01. A plain
    UDP or TCP northbound leg has no listener in the mux; that question moves to
    the selective sharing formats of
-   [#1001](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1001).
+   [#1001](https://github.com/Project-Helianthus/helianthus-gateway/issues/1001).
    With the proxy over an ENS or ENH southbound, ebusd over plain TCP was
    expected to pass and over plain UDP was expected to fail.
 
@@ -237,7 +237,7 @@ adjunct of the proxy repository whose cases move into the mux's arbitration
 ## Adjacent passive suite (outside the 88)
 
 The passive smoke suite is `P01`, `P02` and `P06`
-([scripts/passive_smoke_gate.sh](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/passive_smoke_gate.sh)).
+([scripts/passive_smoke_gate.sh](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/passive_smoke_gate.sh)).
 It is not part of T01–T88. `P03`, `P04` and `P05` depended on proxy topologies
 and leave that suite. The cells below carry part of their assertions with their
 own checks, unchanged; the last column names the part no cell carries. The

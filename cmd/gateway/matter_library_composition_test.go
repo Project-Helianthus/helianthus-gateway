@@ -13,8 +13,8 @@ import (
 	"sync"
 	"testing"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/matter/libraryhost"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/matter/libraryhost"
 )
 
 var aa17Selection = libraryhost.Selection{Tag: "tag-a", Target: "target-a", Profile: "profile-a", Evidence: "evidence-a"}

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture"
 	"github.com/Project-Helianthus/helianthus-eebusreg/eebusraw"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture"
 )
 
 func TestIssue784LiveNumericDecodersPreserveProtocolGranularity(t *testing.T) {

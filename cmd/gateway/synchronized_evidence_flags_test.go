@@ -5,8 +5,8 @@ import (
 	"flag"
 	"testing"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/syncevidence"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/syncevidence"
 )
 
 func TestIssue764SynchronizedEvidenceOneShotFlagIsExplicitOptIn(t *testing.T) {

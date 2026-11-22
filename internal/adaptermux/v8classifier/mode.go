@@ -1,5 +1,5 @@
 // Package v8classifier implements the frame-atomic-visibility v8
-// classifier surface for helianthus-ebusgateway's adapter
+// classifier surface for helianthus-gateway's adapter
 // multiplexer. The classifier interposes between the gateway's
 // adapter-facing stream (ebusgo ENHTransport / ENSTransport) and
 // the mux's existing read path, filtering AA-injection bytes and

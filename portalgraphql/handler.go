@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/catalogv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 )
 
 const Path = "/graphql/portal/v1"

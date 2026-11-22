@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 // These synthetic replies characterize assignment by the process calendar;

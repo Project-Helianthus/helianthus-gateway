@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
 // Issue #1369: under the persistent policy only a failure that retrying

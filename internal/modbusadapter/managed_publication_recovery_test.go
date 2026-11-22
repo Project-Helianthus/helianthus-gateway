@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"

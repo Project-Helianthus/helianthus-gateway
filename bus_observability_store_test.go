@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 	"github.com/Project-Helianthus/helianthus-ebusgo/types"
 	"github.com/Project-Helianthus/helianthus-ebusreg/router"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 func TestBusObservabilityStoreRecentRingEvictsOldestButCountersAdvance(t *testing.T) {

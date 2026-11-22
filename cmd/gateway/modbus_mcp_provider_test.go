@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
 	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"

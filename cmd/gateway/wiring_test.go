@@ -3,11 +3,11 @@ package main
 import (
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp/ebusstandard"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal"
 	ebusgoTransport "github.com/Project-Helianthus/helianthus-ebusgo/transport"
+	"github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp/ebusstandard"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 )
 
 // muxBypassTransport is a RawTransport that does NOT satisfy

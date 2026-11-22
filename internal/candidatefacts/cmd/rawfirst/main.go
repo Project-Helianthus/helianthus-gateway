@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/candidatefacts"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/syncevidence"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/candidatefacts"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/syncevidence"
 )
 
 type summaryV1 struct {

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/syncevidence"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/syncevidence"
 )
 
 const sourceTerminalOwnerCommit = "35d2eba256a77b6575a2b45c07e73f054ff74ced"

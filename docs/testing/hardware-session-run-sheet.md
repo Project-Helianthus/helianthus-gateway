@@ -1,7 +1,7 @@
 # Run sheet of the consolidated hardware session
 
-Refs [gateway #1099](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1099)
-and [gateway #551](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/551).
+Refs [gateway #1099](https://github.com/Project-Helianthus/helianthus-gateway/issues/1099)
+and [gateway #551](https://github.com/Project-Helianthus/helianthus-gateway/issues/551).
 This page is the run sheet of the single operator session on the release
 candidate in the `adaptermux-v2` form of the transport matrix, with the last
 run of the `full88` form on the same setups. It extends the
@@ -33,7 +33,7 @@ After any stop, the as-found state is restored first and reported afterwards.
 | ID | Condition | Who |
 |---|---|---|
 | E1 | The candidate is frozen and its private candidate record names every component and pin; the add-on contents equal that record. | orchestrator |
-| E2 | Offline acceptance ([offline acceptance matrix](offline-acceptance-matrix.md), [gateway #1449](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1449)) is closed on that record, graph axis included. | orchestrator |
+| E2 | Offline acceptance ([offline acceptance matrix](offline-acceptance-matrix.md), [gateway #1449](https://github.com/Project-Helianthus/helianthus-gateway/issues/1449)) is closed on that record, graph axis included. | orchestrator |
 | E3 | The matrix tooling is on main and in the candidate: the `adaptermux-v2` suite of the [matrix runner](../../cmd/matrix-runner/README.md), its smoke command, the AD10 comparison and the add-on target commands. No cell awaits re-specification. | orchestrator |
 | E4 | The private site profiles are filled in, the restore steps are written and dry-run, and the as-found snapshot of each site is taken at the start of its part. | orchestrator |
 | E5 | The operator's word for the session at each site names every changing step: add-on installs and restarts, option changes, adapter host-link switches, the class W adapter actions (including `UDP-DS01` and `TCP-DS01`), the compatibility compositions (the proxy listener is gone while they run), the optional native point export switch, VB-L2 while adapter-direct mux is still the running composition at the end of step 4 on the `ENS` setup, the composition of the one `T13` or `T14` case run immediately after `AD10`, the return to adapter-direct mux after that case and before the explorer run, the compositions of the other `full88` cases of each setup, and separately each operator-only row of the last table. | operator |
@@ -369,7 +369,7 @@ reach the bus.
 
 The rows of [M6a-vaillant-b503.md](../../matrix/M6a-vaillant-b503.md) marked
 `PASS (stub)` need live re-verification on a boiler-class heat source
-([gateway #551](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/551)).
+([gateway #551](https://github.com/Project-Helianthus/helianthus-gateway/issues/551)).
 Those rows are VB-01 to VB-04, VB-19 and VB-20, recorded here as VB-L1, VB-L3
 and VB-L4. VB-05 is marked `PASS`, not `PASS (stub)`; VB-L2 is that live
 monitor lifecycle on the mux composition and is not a stub row. These rows run

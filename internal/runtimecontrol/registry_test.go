@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
-const modulePath = "github.com/Project-Helianthus/helianthus-ebusgateway"
+const modulePath = "github.com/Project-Helianthus/helianthus-gateway"
 
 type fakeRuntime struct{ family string }
 

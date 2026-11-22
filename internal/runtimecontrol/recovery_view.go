@@ -3,7 +3,7 @@ package runtimecontrol
 import (
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
 // RecoveryView is the recovery schedule of one driver as the MCP runtime

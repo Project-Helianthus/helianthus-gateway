@@ -17,8 +17,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/eebusadmin"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/eebusadmin"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 // Location of the eeBUS operator MCP socket.

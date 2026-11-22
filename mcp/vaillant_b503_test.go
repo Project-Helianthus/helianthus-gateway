@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/b503session"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/b503session"
 )
 
 // stubB503Dispatcher is an in-memory RPCDispatcher for b503 MCP tests.

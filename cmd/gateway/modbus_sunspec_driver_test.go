@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
 )
 
 type sunSpecDriverProducerSpy struct {

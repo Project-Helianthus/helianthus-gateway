@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol/contractcheck"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol/contractcheck"
 )
 
 // contractRejectsCause is the contract's failure_cause rule.

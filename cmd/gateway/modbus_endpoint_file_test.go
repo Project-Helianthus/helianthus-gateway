@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func writeProtectedEndpointFile(t *testing.T, content string, mode os.FileMode) string {

@@ -6,8 +6,8 @@ import (
 	"context"
 	"flag"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/catalogv1"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 )
 
 const matterProfileEnabled = false

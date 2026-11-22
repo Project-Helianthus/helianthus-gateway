@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/syncevidence"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	eebusruntime "github.com/Project-Helianthus/helianthus-eebusreg"
 	"github.com/Project-Helianthus/helianthus-eebusreg/eebusraw"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/syncevidence"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 const synchronizedEvidenceSourceVersion = "git:520b6439441cb6e8ef9ff291bde28f4efa4db254"

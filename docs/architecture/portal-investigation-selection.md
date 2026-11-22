@@ -1,17 +1,17 @@
 # Detached public selection for investigation bundles
 
 This implements the pure selection slice of
-[issue #1235](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1235),
-advancing [#1002](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1002).
-The [bundle contract](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/portal-investigation-bundle.md)
+[issue #1235](https://github.com/Project-Helianthus/helianthus-gateway/issues/1235),
+advancing [#1002](https://github.com/Project-Helianthus/helianthus-gateway/issues/1002).
+The [bundle contract](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/portal-investigation-bundle.md)
 remains the governing public-selection proposal. Correlation and selection-loss
-clarifications follow [issue #1255](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1255),
-deferred from [#1254](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1254). Nothing here is stable before
+clarifications follow [issue #1255](https://github.com/Project-Helianthus/helianthus-gateway/issues/1255),
+deferred from [#1254](https://github.com/Project-Helianthus/helianthus-gateway/issues/1254). Nothing here is stable before
 Helianthus 1.0.
 
 ## Input and selection
 
-[SelectInvestigationPublic](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/portal/investigation_selection.go)
+[SelectInvestigationPublic](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/portal/investigation_selection.go)
 accepts an existing export serialized as JSON in a caller-supplied memory buffer.
 The root and `evidence` must be objects. The input limit is 256 KiB, checked
 before JSON parsing. This interface deliberately avoids traversing or serializing
@@ -137,12 +137,12 @@ missing count. Both have freshness Unknown. Neither case asserts zero zones,
 missing native equipment, or source failure.
 
 The
-[focused tests](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/portal/investigation_selection_test.go)
+[focused tests](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/portal/investigation_selection_test.go)
 exercise synthetic adversarial payloads without HTTP listeners. Manual review
 covers source claims, transitions, omission classes, examples, and repository
 link destinations; remote availability is not checked offline. The
-[handler](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/portal/handler.go)
-and [Explorer](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/portal/explorer.go)
+[handler](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/portal/handler.go)
+and [Explorer](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/portal/explorer.go)
 remain unchanged. Adoption by the reserved integration owner, archive writing,
 filesystem intake, endpoint registration, renderer privacy/byte accounting,
 independent review and committed-head gates remain outside this slice. No MCP

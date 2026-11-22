@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/ebus/evidence/identification"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/ebus/evidence/identification"
 )
 
 func identEvent(target byte, response []byte) protocol.BusEvent {

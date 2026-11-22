@@ -1,7 +1,7 @@
 // Package runtimestate is the gateway-owned loader/persister for
 // /data/runtime_state.json. Plan: runtime-state-w19-26.locked. v1 namespaces:
 // meta + ebus.{self, known_bus_members[]}, plus the independently versioned
-// runtime_control namespace (runtime_control.go). See docs-ebus
+// runtime_control namespace (runtime_control.go). See helianthus-docs
 // architecture/runtime-state.md and architecture/runtime-driver-lifecycle.md
 // for the normative schema and contract.
 package runtimestate

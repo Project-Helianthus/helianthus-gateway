@@ -43,7 +43,7 @@ EXPECTED: dict[str, tuple[list[str], list[str]]] = {
         ],
         [
             '	"crypto/rand"',
-            '	"github.com/Project-Helianthus/helianthus-ebusgateway/matter/feedv1"',
+            '	"github.com/Project-Helianthus/helianthus-gateway/matter/feedv1"',
             "	return newM2MGraphQLRuntimeWithMatter(config, adapter, growatt, tesla, nil)",
             "}",
             "",

@@ -30,5 +30,5 @@ first fresh qualified observation without changing the legacy return. It then
 checks that the first boiler merge clears the restored return while the
 qualified flow remains published and no return fact is emitted.
 
-See the [cache conversion](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_cache.go)
-and [boiler publication tests](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/thermal_boiler_publication_test.go).
+See the [cache conversion](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_cache.go)
+and [boiler publication tests](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/thermal_boiler_publication_test.go).

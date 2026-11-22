@@ -1,7 +1,7 @@
 # Runtime driver/provider and north-south contract v1
 
 Status: pre-1.0 contract mirror with partial implementation for G5
-([#1032](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1032)).
+([#1032](https://github.com/Project-Helianthus/helianthus-gateway/issues/1032)).
 The gateway exposes an internal desired-state service and five ordinary MCP
 lifecycle tools over the shared production registry: the lifecycle-only
 `ebus.primary`, eeBUS, Growatt and configured Modbus TCP drivers, including
@@ -10,7 +10,7 @@ This is not a universal public provider SPI or acceptance of every scenario
 below, and does not close #1032. No namespace is stable before Helianthus 1.0.
 
 The merged public
-[runtime driver lifecycle contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)
+[runtime driver lifecycle contract](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)
 is the normative G5 registration/lifecycle companion. Its final D1/D3/D4/D5
 rules supersede revision 9's experimental/operator-boundary proposal:
 START and STOP are idempotent by desired state, RESTART executes, and there
@@ -44,8 +44,8 @@ P14 bounds observation publication but does not deliver source/native
 identity propagation: `Service.corr` still does not populate `SourceID`,
 and durable source/native-generation mapping remains undelivered. Owner
 review of the final S0–S7/CTL/LIFE matrix and production residuals remains,
-including [#1263](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1263)
-and [#1296](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1296).
+including [#1263](https://github.com/Project-Helianthus/helianthus-gateway/issues/1263)
+and [#1296](https://github.com/Project-Helianthus/helianthus-gateway/issues/1296).
 J17 is merged; no J17 fence hold remains.
 
 A fence or retirement batch uses the caller's `ObservedAt` and monotonic point
@@ -84,7 +84,7 @@ Deviation record (the normative passages are amended where they apply):
 Contract ID: `helianthus.gateway.driver-runtime/v1`
 
 Gateway source:
-[public runtime repository](https://github.com/Project-Helianthus/helianthus-ebusgateway/tree/main).
+[public runtime repository](https://github.com/Project-Helianthus/helianthus-gateway/tree/main).
 
 Program source:
 [software 0.7 guide](https://github.com/Project-Helianthus/helianthus-execution-plans/tree/main/software-stabilization-07-08.implementing).
@@ -517,9 +517,9 @@ side effect.
 
 ### S0 registry and typed provider seam
 
-Package [`internal/runtimecontrol`](https://github.com/Project-Helianthus/helianthus-ebusgateway/tree/main/internal/runtimecontrol) implements
+Package [`internal/runtimecontrol`](https://github.com/Project-Helianthus/helianthus-gateway/tree/main/internal/runtimecontrol) implements
 the S0 slice of the registration companion
-[runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)
+[runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)
 (A1): descriptor format `v1`, validation before effects, a frozen in-memory
 registry with coherent list/get reads, and the typed lifecycle-adapter seam
 (`NewAdapter` over a factory returning a `drivermanager.Runtime`). By itself
@@ -571,8 +571,8 @@ transition barrier completes.
 Lifecycle calls acknowledge a persistent control decision. They do not claim
 that native startup, shutdown, or replacement has completed.
 
-D3 amendment: the docs-ebus
-[runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)
+D3 amendment: the helianthus-docs
+[runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)
 sections "S1/D3: minimal durable control decisions" and "S3/D2: bootstrap,
 load failures and explicit repair" supersede the receipt, idempotency-key,
 principal-scoped ledger, request-hash and completed-operation rules of this
@@ -583,7 +583,7 @@ storage seam implements.
 
 ### S3 durable control store (implemented storage seam)
 
-Package [`internal/runtimestate`](https://github.com/Project-Helianthus/helianthus-ebusgateway/tree/main/internal/runtimestate) owns the
+Package [`internal/runtimestate`](https://github.com/Project-Helianthus/helianthus-gateway/tree/main/internal/runtimestate) owns the
 independently versioned `runtime_control` namespace (format version 1) under
 the sole runtime-state writer. Top-level, meta and eBUS versions are
 unchanged; unknown namespaces keep round-tripping. The namespace holds only:
@@ -710,7 +710,7 @@ the state before retrying; it never claims that the original was preserved.
 
 The receipt, idempotency-ledger and operation-record transaction that this
 section described before the D3 amendment is withdrawn. Package
-[`internal/runtimecontrol`](https://github.com/Project-Helianthus/helianthus-ebusgateway/tree/main/internal/runtimecontrol) implements the
+[`internal/runtimecontrol`](https://github.com/Project-Helianthus/helianthus-gateway/tree/main/internal/runtimecontrol) implements the
 S1/S2.1/S5/S6.1 slice of the lifecycle page as an internal `Service`. It
 performs no endpoint I/O of its own and has no authentication (D4). Its
 production registration is section 7 (S4/S6/S7 shell integration), its only
@@ -919,12 +919,12 @@ refusal-table code and row. Executable evidence is
 ### S2/D4 ordinary MCP lifecycle tools (implemented MCP adapter)
 
 Issue
-[#1227](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1227)
+[#1227](https://github.com/Project-Helianthus/helianthus-gateway/issues/1227)
 implements the first external control surface of the lifecycle contract: the
-D4 amendment to the docs-ebus
-[MCP page](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/mcp.md)
+D4 amendment to the helianthus-docs
+[MCP page](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/mcp.md)
 and the
-[runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)
+[runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)
 section "S2/D4: ordinary MCP external control", proposed in
 [docs-ebus #718](https://github.com/Project-Helianthus/helianthus-docs-ebus/pull/718).
 It replaces revision 9's kernel operator boundary and experimental tools.
@@ -1013,9 +1013,9 @@ retry after settlement restarts again.
 
 **Recovery member.** `DriverStatus.Recovery` renders the optional `recovery`
 object of the
-[MCP page](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/mcp.md)
+[MCP page](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/mcp.md)
 from the cached view, and the Portal driver row of the
-[configuration API](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/portal-config-sharing.md)
+[configuration API](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/portal-config-sharing.md)
 carries the same object. It exists only while the entry is in `BACKOFF` and
 the executor reported a schedule, an attempt number from one and a due time;
 every other state has no member, whatever its reason, and a `BACKOFF` without a
@@ -2215,7 +2215,7 @@ generation and that a fenced contributor's capability is refused.
 
 `Hub.AdmitSuccessor(Succession{Previous, Operation})` is the publication-free
 hub seam for the A2 lifecycle amendment
-([docs-ebus runtime driver lifecycle, A2](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)).
+([helianthus-docs runtime driver lifecycle, A2](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)).
 `Previous` is a handle of the predecessor admission and `Operation` is the
 opaque correlation of the accepted lifecycle operation (an explicit RESTART or
 a START after a completed STOP). The operation needs no asset declaration and
@@ -2303,7 +2303,7 @@ new cleanup reservation and never releases the consumed generation for reuse.
 ### S4 manager-to-hub bridge (implemented callable composition)
 
 This subsection records the implemented S4/A3/A4 bridge of the
-[docs-ebus runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)
+[helianthus-docs runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)
 for the lifecycle-only `ebus.primary` driver. The next subsection records
 how process startup installs it.
 
@@ -2416,7 +2416,7 @@ after `RUNNING` is visible in the service view as well as the bridge view.
 This subsection records how `runGatewayLifecycle` installs the bridge, the
 desired-state service and the generation task runner. It implements the
 "Shell and preparation order", "STOP and generation task ownership", S6 and
-S7 sections of the docs-ebus runtime driver lifecycle for `ebus.primary`.
+S7 sections of the helianthus-docs runtime driver lifecycle for `ebus.primary`.
 
 Composition order (before any eBUS endpoint, before the HTTP shell):
 
@@ -3263,40 +3263,40 @@ outside this composition.
 Exact public source anchors for these statements:
 
 - eBUS manager configuration and declared capabilities:
-  [`cmd/gateway/ebus_driver_runtime.go#L18-L94`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/ebus_driver_runtime.go#L18-L94)
+  [`cmd/gateway/ebus_driver_runtime.go#L18-L94`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/ebus_driver_runtime.go#L18-L94)
 - eBUS source/write admission and lifecycle callbacks:
-  [`cmd/gateway/ebus_driver_runtime.go#L241-L282`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/ebus_driver_runtime.go#L241-L282) and
-  [`#L345-L573`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/ebus_driver_runtime.go#L345-L573)
+  [`cmd/gateway/ebus_driver_runtime.go#L241-L282`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/ebus_driver_runtime.go#L241-L282) and
+  [`#L345-L573`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/ebus_driver_runtime.go#L345-L573)
 - eBUS public tool inventory, invoke guard, and B503 read-only surface:
-  [`mcp/server_tools.go#L1-L369`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/mcp/server_tools.go#L1-L369),
-  [`mcp/server.go#L1932-L1989`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/mcp/server.go#L1932-L1989), and
-  [`mcp/vaillant_b503.go#L46-L152`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/mcp/vaillant_b503.go#L46-L152)
+  [`mcp/server_tools.go#L1-L369`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/mcp/server_tools.go#L1-L369),
+  [`mcp/server.go#L1932-L1989`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/mcp/server.go#L1932-L1989), and
+  [`mcp/vaillant_b503.go#L46-L152`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/mcp/vaillant_b503.go#L46-L152)
 - current manager lifecycle, late admission retirement, generation callback
   fencing, and admission:
-  [`internal/drivermanager/manager.go#L93-L189`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/drivermanager/manager.go#L93-L189),
-  [`#L325-L658`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/drivermanager/manager.go#L325-L658), and
-  [`#L764-L845`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/drivermanager/manager.go#L764-L845)
+  [`internal/drivermanager/manager.go#L93-L189`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/drivermanager/manager.go#L93-L189),
+  [`#L325-L658`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/drivermanager/manager.go#L325-L658), and
+  [`#L764-L845`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/drivermanager/manager.go#L764-L845)
 - eeBUS slot replacement/retirement and provider adapter:
-  [`cmd/gateway/eebus_runtime_adapter.go#L26-L156`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/eebus_runtime_adapter.go#L26-L156)
+  [`cmd/gateway/eebus_runtime_adapter.go#L26-L156`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/eebus_runtime_adapter.go#L26-L156)
 - eeBUS public read inventory and owner-only raw command inventory:
-  [`mcp/eebus_v1.go#L19-L108`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/mcp/eebus_v1.go#L19-L108) and
-  [`mcp/eebus_v1_commands.go#L18-L69`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/mcp/eebus_v1_commands.go#L18-L69)
+  [`mcp/eebus_v1.go#L19-L108`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/mcp/eebus_v1.go#L19-L108) and
+  [`mcp/eebus_v1_commands.go#L18-L69`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/mcp/eebus_v1_commands.go#L18-L69)
 - eeBUS native authorization and optional mutation runtime:
-  [`internal/eebuscommand/router.go#L50-L127`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/eebuscommand/router.go#L50-L127)
+  [`internal/eebuscommand/router.go#L50-L127`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/eebuscommand/router.go#L50-L127)
   and the closed mutation-lab profile loader
-  [`cmd/gateway/eebus_mutation_lab_profile.go#L12-L84`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/eebus_mutation_lab_profile.go#L12-L84)
+  [`cmd/gateway/eebus_mutation_lab_profile.go#L12-L84`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/eebus_mutation_lab_profile.go#L12-L84)
 - Modbus public tool/provider surface and composition:
-  [`mcp/modbus_v1.go#L15-L152`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/mcp/modbus_v1.go#L15-L152),
-  [`cmd/gateway/modbus_mcp_provider.go#L32-L159`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/modbus_mcp_provider.go#L32-L159), and
+  [`mcp/modbus_v1.go#L15-L152`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/mcp/modbus_v1.go#L15-L152),
+  [`cmd/gateway/modbus_mcp_provider.go#L32-L159`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/modbus_mcp_provider.go#L32-L159), and
   the composition owners: `gatewayAPIComposition.startControlPlane` creates the
   managed Modbus provider and `newHTTPControlPlaneProviders` registers the
   Modbus tools over it
 - Modbus adapter ownership and reconnect boundary:
-  [`internal/modbusadapter/adapter.go#L19-L75`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/modbusadapter/adapter.go#L19-L75) and
-  [`#L257-L299`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/modbusadapter/adapter.go#L257-L299)
+  [`internal/modbusadapter/adapter.go#L19-L75`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/modbusadapter/adapter.go#L19-L75) and
+  [`#L257-L299`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/modbusadapter/adapter.go#L257-L299)
 - independent driver startup and process availability behavior:
   `gatewayProcessShell.acquireDriverAndControl`, the process-shell owner (see
-  [gateway composition owners](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/gateway-composition-owners.md))
+  [gateway composition owners](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/gateway-composition-owners.md))
 
 ## 12. SemReg cutover and retained native evidence
 
@@ -3444,7 +3444,7 @@ the undeclared claimant.
 
 Each scenario becomes an executable fixture or integration test in its later
 owning issue. The expected result is normative. CTL-01 to CTL-11 below are the
-D3 concurrency and readback rows of the docs-ebus runtime driver lifecycle page.
+D3 concurrency and readback rows of the helianthus-docs runtime driver lifecycle page.
 They replace the former idempotency-key, authority and receipt rows; no test
 of those rows applies any more. CTL-12 to CTL-19 remain on the lifecycle page.
 The service tests prove the rows against the durable store; the ordinary MCP
@@ -3455,7 +3455,7 @@ adding any receipt, key or authority row.
 ### G5 current acceptance ledger
 
 The normative row definitions remain in this section and the merged
-[docs-ebus lifecycle page](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)
+[helianthus-docs lifecycle page](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)
 (S0/A1, S1/D3, S2/D4, S3/D2/D3, S4/A3/A4, S5, S6, S7 and amended CTL vectors).
 **Delivered** means the bounded implementation and named test source exist;
 **partial** identifies a delivered subset with remaining obligations;
@@ -3467,13 +3467,13 @@ qualification, freshness and physical acceptance.
 
 | Slice / vectors | Delivered source and existing test evidence (inspection only) | Partial / remaining acceptance |
 |---|---|---|
-| S0; CTL-01/02 registration | [internal/runtimecontrol/registry.go](../../internal/runtimecontrol/registry.go), `provider.go`; `registry_test.go` covers validation before effects, detached frozen descriptors, ordering, distinct identity types and unrelated fixture families | Delivered internal seam and production registration through [cmd/gateway/managed_sidecar_composition.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/managed_sidecar_composition.go): `ebus.primary`, eeBUS, Growatt and configured Modbus TCP descriptors, including disabled entries. The universal public provider SPI remains undelivered; registration alone does not establish acceptance of every contributed hook. |
+| S0; CTL-01/02 registration | [internal/runtimecontrol/registry.go](../../internal/runtimecontrol/registry.go), `provider.go`; `registry_test.go` covers validation before effects, detached frozen descriptors, ordering, distinct identity types and unrelated fixture families | Delivered internal seam and production registration through [cmd/gateway/managed_sidecar_composition.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/managed_sidecar_composition.go): `ebus.primary`, eeBUS, Growatt and configured Modbus TCP descriptors, including disabled entries. The universal public provider SPI remains undelivered; registration alone does not establish acceptance of every contributed hook. |
 | S1; CTL-03–11 | [internal/runtimecontrol/service.go](../../internal/runtimecontrol/service.go), `reconcile.go`, `service_test.go`; P10 in `decision_edges_test.go` covers failed-commit hold balancing, adopted publication ownership, resolver acceptance order and recovered cleanup correlation | Delivered desired-state control under final D3. Source/native-generation propagation and owner acceptance of the complete concurrency matrix remain; no receipt/key/authority acceptance rows apply. |
 | S2; CTL-01–19 adapter obligations | [mcp/runtime_control.go](../../mcp/runtime_control.go), `runtime_control_test.go`, `runtime_control_characterization_test.go` delegate the ordinary five tools to the service, with closed decoding and deterministic envelopes | Delivered ordinary MCP adapter over the shared production registry, including managed sidecars; complete current-source CTL matrix acceptance remains unverified. No experimental namespace or lifecycle GraphQL graduation is claimed. |
 | S3; CTL-12–19 | [internal/runtimestate/runtime_control.go](../../internal/runtimestate/runtime_control.go), `runtime_control_test.go` cover reset fencing, issued-revision mark, serialization/readback, bootstrap and disabled state. P09 tests cover requested-kind allocation, monotonic work progression, valid correlation progression and preservation of the reserved slot | Delivered durable storage safeguards; clearing the final slot still relies on the service to settle terminal obligations. Full production recovery acceptance remains unverified. |
 | S3.7–S3.9; LIFE-06/19/21/23/24/26–30 recovery aspects | [internal/runtimecontrol/recovery.go](../../internal/runtimecontrol/recovery.go), `recovery_test.go`; P11 in `recovery_restore_edges_test.go` covers retained-intent clock highs, scoped install refusal, reprojection failure and empty restore without replay. P06 in [internal/semhub/restore.go](../../internal/semhub/restore.go), `restore_test.go` validates fence/control coverage, exact prior admission, declaration/published ownership, succession ordinals and historical control re-export | Delivered synthetic recorder/checkpoint safeguards. Reprojection failure keeps reads closed without inventing a driver restore failure. Direct publishers are not migrated; shared-asset and full production D5 restoration remain partial/unverified. |
 | S4; LIFE-01–10/25/26/31/32 asset-free subset | [cmd/gateway/ebus_control_runtime.go](../../cmd/gateway/ebus_control_runtime.go), `ebus_control_runtime_test.go`, with service tests for failure isolation, implement admission, classified close, independent obligations and successor reservation for the lifecycle-only source | Delivered bounded bridge, not semantic-asset activation or family qualification. Durable source/native mapping and production residual acceptance remain. |
-| S5 | Registry hook refusals in [internal/runtimecontrol/registry_test.go](../../internal/runtimecontrol/registry_test.go); [cmd/gateway/managed_sidecar_composition_test.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/managed_sidecar_composition_test.go) covers shared registry/service/MCP listing, disabled and desired-stopped selection, sidecar STOP/RESTART, failure isolation, replacement drain and no duplicate eager starts | Managed sidecar composition is delivered. Complete S5/DM-HOOKS acceptance for each registered family remains to be established; typed registration and these bounded fixtures do not establish universal lifecycle coverage. |
+| S5 | Registry hook refusals in [internal/runtimecontrol/registry_test.go](../../internal/runtimecontrol/registry_test.go); [cmd/gateway/managed_sidecar_composition_test.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/managed_sidecar_composition_test.go) covers shared registry/service/MCP listing, disabled and desired-stopped selection, sidecar STOP/RESTART, failure isolation, replacement drain and no duplicate eager starts | Managed sidecar composition is delivered. Complete S5/DM-HOOKS acceptance for each registered family remains to be established; typed registration and these bounded fixtures do not establish universal lifecycle coverage. |
 | S6; LIFE-02 and status parity | [cmd/gateway/gateway_run_setup.go](../../cmd/gateway/gateway_run_setup.go), `runtime_control_test.go`, `runtime_control_characterization_test.go`; [mcp/runtime_control_characterization_test.go](../../mcp/runtime_control_characterization_test.go) covers shell/status and payload behavior | Delivered shell integration and cached status surfaces. Full current-source parity/CI and production failure acceptance remain unverified; retained identity cannot grant admission. |
 | S7; task drain and retained evidence | [cmd/gateway/ebus_generation_tasks.go](../../cmd/gateway/ebus_generation_tasks.go), `ebus_generation_tasks_test.go`; P13 tracks active invocations after their parent task returns, reports pending names and requires fencing, the exclusive gate and zero active work before join. MCP characterization covers retained evidence across STOP | Delivered pending-work/join semantics; process-scoped evidence keeps identity, provenance, age and partial last-known-good fields. Store/observer relocation remains #1021/DM-RAW; no #1020 or native wire acceptance closure. |
 | P14 observation seam; LIFE-08/09 | [internal/runtimecontrol/native.go](../../internal/runtimecontrol/native.go), `service.go`, `executor_observations_test.go` reject superseded epoch/generation publication and signal a resynchronization gap for superseded deferred events | Partial: `reconcile.go`'s `corr` omits `SourceID`; these guards do not prove full source identity or durable native-generation mapping. Those mappings remain undelivered. |
@@ -3490,8 +3490,8 @@ family's applicable publication/restore and contributed-hook obligations.
 The asset-free eBUS bridge evidence above cannot discharge those obligations.
 
 The open acceptance ledger retains
-[#1263](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1263)
-and [#1296](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1296),
+[#1263](https://github.com/Project-Helianthus/helianthus-gateway/issues/1263)
+and [#1296](https://github.com/Project-Helianthus/helianthus-gateway/issues/1296),
 source/native-generation propagation, the owner-reviewed final matrix and
 production residuals. Their closure is not established by this mirror.
 Full independent committed-change review, full repository CI and applicable

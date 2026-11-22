@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
 	"github.com/Project-Helianthus/helianthus-ebusreg/vaillant/productids"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 // The publication owner maps the native views that the acquisition side

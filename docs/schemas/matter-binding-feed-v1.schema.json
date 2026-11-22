@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/schemas/matter-binding-feed-v1.schema.json",
+  "$id": "https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/schemas/matter-binding-feed-v1.schema.json",
   "title": "Helianthus Gateway Matter binding feed v1",
   "description": "Detached HTTP/JSON feed. It creates no Matter node, endpoint, fabric, route, or native dispatch.",
   "oneOf": [

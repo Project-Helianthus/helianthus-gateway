@@ -3,7 +3,7 @@ package ebusgateway
 import (
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/ebus/evidence/discovery"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/ebus/evidence/discovery"
 	"time"
 )
 

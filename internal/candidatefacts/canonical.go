@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/syncevidence"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/syncevidence"
 )
 
 const maxSafeIntegerV1 = int64(9007199254740991)

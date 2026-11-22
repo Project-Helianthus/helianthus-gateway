@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/ptytest"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/ptytest"
 	"golang.org/x/sys/unix"
 )
 

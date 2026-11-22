@@ -1,7 +1,7 @@
 # Bidirectional driver registration and northbound hooks
 
-Status: proposed design for [issue #1230](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1230),
-a partial contract slice of [parent #1125](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1125).
+Status: proposed design for [issue #1230](https://github.com/Project-Helianthus/helianthus-gateway/issues/1230),
+a partial contract slice of [parent #1125](https://github.com/Project-Helianthus/helianthus-gateway/issues/1125).
 This page explicitly supersedes the old **M39 planning entry** for bidirectional
 registration. Retirement of that entry and its ticket registry is separate work;
 this page does not claim the parent is complete. Implementation planning belongs
@@ -15,9 +15,9 @@ neither wires a hook nor decides who persists Portal selection.
 ## Authoritative boundaries
 
 Read this extension with the final amendments in the public
-[runtime driver lifecycle contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)
+[runtime driver lifecycle contract](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)
 and the gateway
-[driver/provider contract](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/runtime-driver-provider-contract-v1.md).
+[driver/provider contract](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/runtime-driver-provider-contract-v1.md).
 The final G5 D1–D5 decisions take precedence over superseded examples in the
 provider contract. G5 D1–D5/O8 remain unchanged and retain their existing owners;
 this page defines no alternative recovery, control or storage service.
@@ -124,7 +124,7 @@ original bounded budgets. Output hooks cannot bypass or duplicate that path.
 ## Sole semantic read and truthful projection loss
 
 Every semantic output reads accepted SemReg snapshots through the
-[shared snapshot-read contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/semantic-snapshot-read.md).
+[shared snapshot-read contract](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/semantic-snapshot-read.md).
 Native diagnostics may retain native evidence but are never an alternative
 semantic read source. No native registry fallback, shadow semantic cache,
 on-demand acquisition or target-specific reinterpretation may fill missing data.
@@ -187,7 +187,7 @@ feedback controller, new authority decision or new native write path here.
 ## Portal selection versus explicit publication
 
 Follow the proposed
-[Portal endpoint lifecycle](https://github.com/Project-Helianthus/helianthus-matter-binding/blob/main/docs/PORTAL_ENDPOINT_LIFECYCLE.md).
+[Portal endpoint lifecycle](https://github.com/Project-Helianthus/helianthus-matterreg/blob/main/docs/PORTAL_ENDPOINT_LIFECYCLE.md).
 Discovery and direction declarations only expose options. Portal selection
 records publication intent, separately from endpoint/fabric state. Selection
 alone must not allocate, commission, report, choose a native route or make
@@ -265,7 +265,7 @@ separation, losses and all BR examples against the contracts linked above.
 Public links identify owner files on `main`; they are not frozen dependency
 references or evidence that a future API has shipped.
 
-**MERGE HOLD:** I30, the independent public docs-ebus bidirectional registration
+**MERGE HOLD:** I30, the independent public helianthus-docs bidirectional registration
 companion, must merge before or with this design and use the same proposed
 contract. No sibling output is a build dependency. This partial slice advances
 parent #1125 without closing it. Runtime hook wiring, synthetic-peer execution,

@@ -1,9 +1,9 @@
 package main
 
 import (
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp/ebusstandard"
 	ebusgoTransport "github.com/Project-Helianthus/helianthus-ebusgo/transport"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp/ebusstandard"
 )
 
 func buildResponderCapabilityProvider(cfg ebusgateway.Config, actualTransport ebusgoTransport.RawTransport) ebusstandard.ResponderCapabilityProvider {

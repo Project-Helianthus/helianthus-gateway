@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 
-MODULE = "github.com/Project-Helianthus/helianthus-ebusgateway"
+MODULE = "github.com/Project-Helianthus/helianthus-gateway"
 PROTECTED = (
     "internal/semgraph",
     "internal/semhub",

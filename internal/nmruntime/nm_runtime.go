@@ -22,9 +22,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/executionpolicy"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/rpcsource"
 	ebusstd "github.com/Project-Helianthus/helianthus-ebusreg/catalog/ebusstandard"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/executionpolicy"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/rpcsource"
 )
 
 // EmitEvent names the NM emit events supported in M4b first-delivery. The

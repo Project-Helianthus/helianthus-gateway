@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 // lifecycleCompositionFileNames lists the production files that hold the

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
 )
 
 func TestGrowattBMSCANSocketUnsupportedPlatformFailsClosed(t *testing.T) {

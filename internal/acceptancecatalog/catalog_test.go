@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/matrix"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/matrix"
 )
 
 func repoFile(t *testing.T, name string) []byte {

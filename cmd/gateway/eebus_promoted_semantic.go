@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture"
 )
 
 // eebusPromotedSemanticProvider keeps the overlay of eeBUS heating values that

@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/v8classifier"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/v8classifier"
 )
 
 func wireAdapterDirect(ctx context.Context, cfg *ebusgateway.Config) (func() error, activeTxnClassifier, error) {

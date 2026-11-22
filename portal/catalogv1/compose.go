@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 )
 
 // Catalog is a bounded optimistic detached capture. Sources are called once per

@@ -9,7 +9,7 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/syncevidence"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/syncevidence"
 )
 
 const synchronizedEvidenceCaptureToolName = "helianthus_v1_synchronized_evidence_capture"

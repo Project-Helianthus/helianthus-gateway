@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/ptytest"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/ptytest"
 )
 
 // Kills: a classification by path prefix alone, which would leave a character

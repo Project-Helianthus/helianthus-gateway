@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/executionpolicy"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/nmruntime"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/rpcsource"
 	ebusstd "github.com/Project-Helianthus/helianthus-ebusreg/catalog/ebusstandard"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/executionpolicy"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/nmruntime"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/rpcsource"
 )
 
 const testRuntimeSource byte = 0x7F

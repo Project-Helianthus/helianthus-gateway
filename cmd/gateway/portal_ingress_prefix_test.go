@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 )
 
 // ingressTestPrefix has the shape of the Supervisor Ingress path; the token is

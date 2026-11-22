@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 type adapterInfoResponse struct {
@@ -893,8 +893,8 @@ func expvarFloatValue(t *testing.T, name string) float64 {
 // to the publication owner: neither file imports the GraphQL or MCP package.
 func TestAdapterInfoAndDHWBoundFilesImportNoPublicationPackage(t *testing.T) {
 	forbidden := map[string]bool{
-		"github.com/Project-Helianthus/helianthus-ebusgateway/graphql": true,
-		"github.com/Project-Helianthus/helianthus-ebusgateway/mcp":     true,
+		"github.com/Project-Helianthus/helianthus-gateway/graphql": true,
+		"github.com/Project-Helianthus/helianthus-gateway/mcp":     true,
 	}
 	for _, file := range []string{"semantic_vaillant_adapter_info.go", "semantic_vaillant_dhw_bound.go"} {
 		parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.ImportsOnly)

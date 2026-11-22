@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 func TestStartupRadioDeviceInclude_SkipsDisconnectedRegulatorSlots(t *testing.T) {

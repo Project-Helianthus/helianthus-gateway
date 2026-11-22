@@ -20,10 +20,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/b503session"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol/vaillant/b503"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/b503session"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 type b503GraphQLProvider struct {

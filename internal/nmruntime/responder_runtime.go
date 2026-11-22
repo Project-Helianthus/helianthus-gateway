@@ -20,9 +20,9 @@ package nmruntime
 import (
 	"fmt"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/executionpolicy"
 	ebusgoxport "github.com/Project-Helianthus/helianthus-ebusgo/transport"
 	ebusstd "github.com/Project-Helianthus/helianthus-ebusreg/catalog/ebusstandard"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/executionpolicy"
 )
 
 // ResponderRuntime is the gateway-side responder emit runtime for

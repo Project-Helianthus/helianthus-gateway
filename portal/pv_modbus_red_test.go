@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 type portalRawReadProvider struct {

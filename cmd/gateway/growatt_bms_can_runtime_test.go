@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 // All frames below are synthetic structural values only.

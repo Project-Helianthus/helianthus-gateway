@@ -3,7 +3,7 @@ package contributionv1_test
 import (
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 )
 
 func TestStaticIndexExternalBuilderValidatesManifest(t *testing.T) {

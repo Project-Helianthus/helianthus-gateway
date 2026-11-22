@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticoperations"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticoperations/semoptest"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	"github.com/Project-Helianthus/helianthus-ebusreg/router"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations/semoptest"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/operation"
 	graphqlgo "github.com/graphql-go/graphql"

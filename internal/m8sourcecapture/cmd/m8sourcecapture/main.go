@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/m8sourcecapture"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/m8sourcecapture"
 )
 
 func main() {

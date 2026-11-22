@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	"github.com/Project-Helianthus/helianthus-ebusreg/vaillant/productids"
+	"github.com/Project-Helianthus/helianthus-gateway"
 )
 
 // refreshBoilerAddress applies the registry's boiler-class heat source without

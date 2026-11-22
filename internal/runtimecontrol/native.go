@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
 // NativeObservation is one executor-originated lifecycle observation of the

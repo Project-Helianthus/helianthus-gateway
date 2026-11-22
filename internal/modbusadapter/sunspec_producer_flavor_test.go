@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	sunspectest "github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter/testfixture"
+	sunspectest "github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter/testfixture"
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
 	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )

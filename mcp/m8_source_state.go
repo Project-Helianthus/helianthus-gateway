@@ -8,7 +8,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/m8sourcestate"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/m8sourcestate"
 )
 
 const m8SourceStateToolName = "helianthus_v1_source_state_get"

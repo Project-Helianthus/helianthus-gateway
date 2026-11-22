@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
@@ -230,7 +230,7 @@ func TestH08V1CompositionIsGoldenEquivalent(t *testing.T) {
 		"enabled": {enabled, `descriptor modbus.sunspec southbound enabled sources=[modbus.sunspec:<guid>] native=github.com/Project-Helianthus/helianthus-modbus/TCPEndpoint withheld=false constructed=true
   modbus enabled=true endpoint=tcp://192.0.2.40:502 dial=3s paced=false
 descriptor growatt.bms.rs485 southbound disabled sources=[growatt.bms.rs485:<guid>] native=github.com/Project-Helianthus/helianthus-modbus/RTUProductionEndpoint withheld=false constructed=false
-descriptor growatt.bms.can southbound disabled sources=[growatt.bms.can:<guid>] native=github.com/Project-Helianthus/helianthus-ebusgateway/GrowattBMSCANReceiveOnly withheld=false constructed=false
+descriptor growatt.bms.can southbound disabled sources=[growatt.bms.can:<guid>] native=github.com/Project-Helianthus/helianthus-gateway/GrowattBMSCANReceiveOnly withheld=false constructed=false
 descriptor eebus.primary southbound disabled sources=[eebus.primary:<guid>] native=github.com/Project-Helianthus/helianthus-eebusreg/` + managedEEBusContractForGolden(t) + ` withheld=false constructed=false
 registered ebus.primary
 registered eebus.primary
@@ -248,7 +248,7 @@ service eebus.primary retry=3
 `},
 		"disabled": {disabled, `descriptor modbus.sunspec southbound disabled sources=[modbus.sunspec:<guid>] native=github.com/Project-Helianthus/helianthus-modbus/TCPEndpoint withheld=false constructed=false
 descriptor growatt.bms.rs485 southbound disabled sources=[growatt.bms.rs485:<guid>] native=github.com/Project-Helianthus/helianthus-modbus/RTUProductionEndpoint withheld=false constructed=false
-descriptor growatt.bms.can southbound disabled sources=[growatt.bms.can:<guid>] native=github.com/Project-Helianthus/helianthus-ebusgateway/GrowattBMSCANReceiveOnly withheld=false constructed=false
+descriptor growatt.bms.can southbound disabled sources=[growatt.bms.can:<guid>] native=github.com/Project-Helianthus/helianthus-gateway/GrowattBMSCANReceiveOnly withheld=false constructed=false
 descriptor eebus.primary southbound disabled sources=[eebus.primary:<guid>] native=github.com/Project-Helianthus/helianthus-eebusreg/` + managedEEBusContractForGolden(t) + ` withheld=false constructed=false
 registered ebus.primary
 registered eebus.primary

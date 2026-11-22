@@ -1,6 +1,6 @@
 # Transitional hardware acceptance catalog
 
-Refs [gateway #1345](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1345).
+Refs [gateway #1345](https://github.com/Project-Helianthus/helianthus-gateway/issues/1345).
 This publication supplies offline inventory and result validation. It changes no
 active gate and reports no candidate, physical result, release closure or authority
 to access equipment. Nothing is stable before Helianthus 1.0.

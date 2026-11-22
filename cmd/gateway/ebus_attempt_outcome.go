@@ -13,8 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 // What one ebus.primary construction attempt proves about its failure. A

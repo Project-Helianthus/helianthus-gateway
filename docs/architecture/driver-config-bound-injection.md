@@ -1,11 +1,11 @@
 # Driver-owned configuration-bound injection
 
 Status: application contract for issue
-[#1101](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1101),
+[#1101](https://github.com/Project-Helianthus/helianthus-gateway/issues/1101),
 a partial slice of
-merged PR [#1033](https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/1033)
+merged PR [#1033](https://github.com/Project-Helianthus/helianthus-gateway/pull/1033)
 following review of
-merged PR [#1088](https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/1088).
+merged PR [#1088](https://github.com/Project-Helianthus/helianthus-gateway/pull/1088).
 This specifies the seam; it does not claim that every existing mutation path
 implements it or expose a public lifecycle/configuration service.
 
@@ -164,8 +164,8 @@ Empty reason/profile strings project as null in GraphQL and are omitted in MCP.
 The whole bound is likewise null in GraphQL and omitted in MCP when absent,
 including before first resolution. MCP conversion preserves bound values with
 these surface-specific absence rules and existing executable MCP/GraphQL parity,
-as documented in the public [GraphQL contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/graphql.md)
-and [MCP contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/mcp.md).
+as documented in the public [GraphQL contract](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/graphql.md)
+and [MCP contract](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/mcp.md).
 All MCP namespaces remain pre-stable; this document grants no stability promise
 or new namespace.
 

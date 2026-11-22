@@ -2,7 +2,7 @@
 """Offline runtime_control namespace-only reset to desired STOPPED.
 
 This is the explicit repair of the G5 durable control namespace described in
-the docs-ebus runtime driver lifecycle page ("Offline namespace-only reset").
+the helianthus-docs runtime driver lifecycle page ("Offline namespace-only reset").
 It is an offline maintenance action:
 
 * run it only with the gateway process stopped; it takes the exclusive store

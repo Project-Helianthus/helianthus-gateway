@@ -160,7 +160,7 @@ class RenameInventoryTest(unittest.TestCase):
         files = {
             "matrix/M6a-transport-matrix.md":
                 "| CM-01 | `mcp/ebus_standard/golden_test.go` | `internal/nm_runtime/nm_runtime_test.go` |\n"
-                "Goldens in `helianthus-ebusgateway/mcp/ebus_standard/testdata/` and "
+                "Goldens in `helianthus-gateway/mcp/ebus_standard/testdata/` and "
                 "`mcp/ebus_standard_wiring.go` (`ebus_standard` tools).\n",
             "portal/web/src/app.js":
                 "// helianthus-ebusreg/catalog/ebus_standard/identity.go - Direction\n"
@@ -176,7 +176,7 @@ class RenameInventoryTest(unittest.TestCase):
             "scripts/rename_underscore_packages.py": "MOVES = {'internal/rpc_source': 'internal/rpcsource'}\n",
             "tests/test_rename_underscore_packages.py": "PATH = 'mcp/ebus_standard/server.go'\n",
             "author-evidence/run/ci.log":
-                "ok  \tgithub.com/Project-Helianthus/helianthus-ebusgateway/internal/nm_runtime\t0.2s\n"
+                "ok  \tgithub.com/Project-Helianthus/helianthus-gateway/internal/nm_runtime\t0.2s\n"
                 "see internal/nm_runtime for details\n",
             "docs/mcp-tool-inventory.md": "| ebus.v1.ebus_standard.decode | mcp/ebus_standard_wiring.go |\n",
         }
@@ -197,7 +197,7 @@ class RenameInventoryTest(unittest.TestCase):
         self.assertEqual(RENAME.update_text_files(self.root), RENAME.TEXT_FILES)
         self.assertEqual((self.root / "matrix/M6a-transport-matrix.md").read_text(),
                          "| CM-01 | `mcp/ebusstandard/golden_test.go` | `internal/nmruntime/nm_runtime_test.go` |\n"
-                         "Goldens in `helianthus-ebusgateway/mcp/ebusstandard/testdata/` and "
+                         "Goldens in `helianthus-gateway/mcp/ebusstandard/testdata/` and "
                          "`mcp/ebus_standard_wiring.go` (`ebus_standard` tools).\n")
         self.assertEqual((self.root / "portal/web/src/app.js").read_text(),
                          "// helianthus-ebusreg/catalog/ebusstandard/identity.go - Direction\n"

@@ -5,7 +5,7 @@ import (
 	"flag"
 	"sort"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func validateM2MGraphQLConfig(config ebusgateway.M2MGraphQLConfig) error {

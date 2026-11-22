@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semselect"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semselect"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/projection"
 )

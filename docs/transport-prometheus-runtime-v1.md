@@ -1,6 +1,6 @@
 # Gateway transport runtime metrics v1
 
-`helianthus-ebusgateway` appends one bounded runtime lifecycle family to the
+`helianthus-gateway` appends one bounded runtime lifecycle family to the
 existing `/metrics` exposition:
 
 ```text

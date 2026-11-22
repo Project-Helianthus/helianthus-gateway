@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/m8sourcestate"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/m8sourcestate"
 )
 
 type issue788ConfigWriter struct {

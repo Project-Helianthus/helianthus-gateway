@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 func TestK01CircuitZeroAloneLeavesBoilerPumpUnknown(t *testing.T) {

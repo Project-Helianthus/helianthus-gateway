@@ -11,7 +11,7 @@ import (
 
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/v8classifier"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/v8classifier"
 )
 
 // Out-of-step scenarios against the loopback fake adapter. StartDeadline is

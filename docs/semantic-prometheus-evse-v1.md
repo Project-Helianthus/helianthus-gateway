@@ -1,6 +1,6 @@
 # EVSE SemReg metrics v1
 
-`helianthus-ebusgateway` can append a bounded EVSE view to the existing
+`helianthus-gateway` can append a bounded EVSE view to the existing
 `/metrics` output when `--semantic-prometheus-evse-enabled` is set. The option
 enables only consumption of an accepted detached SemReg publication. It does
 not create a Tesla endpoint, native acquisition, MCP or GraphQL request,

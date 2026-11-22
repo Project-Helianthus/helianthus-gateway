@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/rpcsource"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/rpcsource"
 )
 
 var errSourceSelectionNotActive = errors.New("source selection not active")

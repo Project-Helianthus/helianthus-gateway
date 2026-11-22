@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/systemconfig"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/systemconfig"
 	graphqlgo "github.com/graphql-go/graphql"
 )
 
