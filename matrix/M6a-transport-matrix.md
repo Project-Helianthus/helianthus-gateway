@@ -2,7 +2,7 @@
 
 **Milestone:** M6a_transport_matrix_artifact
 **Status:** AUTHORED (matrix + rule-7 golden landed) / WAITING (BENCH-REPLACE)
-**Repo:** helianthus-ebusgateway
+**Repo:** helianthus-gateway
 **Issue:** #513
 **Predecessors (all merged):** M4B semantic lock, M4D responder capability lock, M4c2 gateway responder runtime (`meta.capabilities.responder` @ minor=1), M5_PORTAL consumer UI, M5b HA no-op compat.
 **Plan reference:** [`helianthus-execution-plans/ebus-standard-l7-services-w16-26.maintenance/00-canonical.md`](https://github.com/Project-Helianthus/helianthus-execution-plans/blob/main/ebus-standard-l7-services-w16-26.maintenance/00-canonical.md) — M6a row.
@@ -116,9 +116,9 @@ Each subsection states (a) the concrete signals that would trigger rollback, (b)
 - **Rollback triggers:**
   - Breaking change to an exported type in the registered-catalog surface, detected by `golden_catalog_test.go` in gateway.
   - B524 dual-namespace opcode decoding drift for GG ∈ {0x08, 0x09, 0x0A, 0xEC}.
-- **Mechanism:** revert the merge SHA of the offending ebusreg PR; gateway pin-bump in `go.mod` reverted by a follow-up PR. Goldens in `helianthus-ebusgateway/mcp/ebusstandard/testdata/` remain stable because they are ebusreg-version-independent at v1.1.
+- **Mechanism:** revert the merge SHA of the offending ebusreg PR; gateway pin-bump in `go.mod` reverted by a follow-up PR. Goldens in `helianthus-gateway/mcp/ebusstandard/testdata/` remain stable because they are ebusreg-version-independent at v1.1.
 
-### §6.4 helianthus-ebusgateway
+### §6.4 helianthus-gateway
 
 - **Rollback triggers:**
   - Any FC-1..FC-7 row in §2 going from PASS to FAIL.
@@ -148,7 +148,7 @@ Each subsection states (a) the concrete signals that would trigger rollback, (b)
 **Production sites of the placeholder.**
 
 1. [`helianthus-ebusgo/protocol/responder/timing_harness.go`](https://github.com/Project-Helianthus/helianthus-ebusgo/blob/main/protocol/responder/timing_harness.go) — the canonical site; exported as `responderAckBudget` (or equivalent symbol). This is the authoritative constant.
-2. `helianthus-ebusgateway/cmd/gateway/main.go` / `internal/nmruntime/responder_runtime.go` — any gateway-side reflection of the budget used to decide cadence floor in responder emission. Grep for `15 * time.Millisecond` or direct import of `responderAckBudget` from ebusgo.
+2. `helianthus-gateway/cmd/gateway/main.go` / `internal/nmruntime/responder_runtime.go` — any gateway-side reflection of the budget used to decide cadence floor in responder emission. Grep for `15 * time.Millisecond` or direct import of `responderAckBudget` from ebusgo.
 
 **Operator follow-up obligation (carry-forward).** The operator MUST, in a separate manual PR:
 

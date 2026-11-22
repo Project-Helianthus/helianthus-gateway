@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticview"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 

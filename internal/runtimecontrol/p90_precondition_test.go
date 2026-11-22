@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimestate"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimestate"
 )
 
 func p90AssertRefusals(t *testing.T, svc *Service, id DriverID, code RefusalCode, retryable bool, reason string) {

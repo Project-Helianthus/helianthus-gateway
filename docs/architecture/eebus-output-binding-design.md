@@ -25,10 +25,10 @@ The page has three parts:
 | SHIP/SPINE wire semantics, use-case meaning, native mapping | [Public eeBUS documentation](https://github.com/Project-Helianthus/helianthus-docs-eebus) | Native docs contract, including its output pages. |
 | eeBUS discovery, trust, pairing, sessions, raw topology, native writes and rollback | [eeBUS registry runtime](https://github.com/Project-Helianthus/helianthus-eebusreg) through the gateway's managed driver | [`eebus_runtime_adapter.go`](../../cmd/gateway/eebus_runtime_adapter.go), [managed sidecar composition](managed-sidecar-composition.md) |
 | Raw eeBUS command policy (read delegation, write-authorization validation, mutation-lab gating) | Gateway [`internal/eebuscommand`](../../internal/eebuscommand/router.go) | Owner-only `eebus.v1.features.data.set` / `eebus.v1.mutations.*` stay unavailable without the existing exact write authorization and profile. |
-| Operator pairing and admin HTTP boundary | Gateway [`internal/eebusadmin`](../../internal/eebusadmin/server.go) under the canonical protocol contract | [Shared consumer boundary](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/eebus-operator-admin.md) |
+| Operator pairing and admin HTTP boundary | Gateway [`internal/eebusadmin`](../../internal/eebusadmin/server.go) under the canonical protocol contract | [Shared consumer boundary](https://github.com/Project-Helianthus/helianthus-docs-eebus/blob/main/api/eebus-operator-admin.md) |
 | Promoted protocol-neutral types, evaluation, projection accounting, operation admission | [SemReg](https://github.com/Project-Helianthus/helianthus-semreg) | [Kernel contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/main/api/v1/kernel.md) |
-| Shared detached snapshot read and its disposition vocabulary (M07) | Docs contract, gateway [`internal/semanticview`](../../internal/semanticview/view.go) | [Shared SemReg snapshot read](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/semantic-snapshot-read.md) |
-| Generic semantic operation admission and dispatch to an injected native executor | Gateway [`internal/semanticoperations`](../../internal/semanticoperations/router.go) | [One semantic operation route](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/semantic-operation-route.md) |
+| Shared detached snapshot read and its disposition vocabulary (M07) | Docs contract, gateway [`internal/semanticview`](../../internal/semanticview/view.go) | [Shared SemReg snapshot read](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/semantic-snapshot-read.md) |
+| Generic semantic operation admission and dispatch to an injected native executor | Gateway [`internal/semanticoperations`](../../internal/semanticoperations/router.go) | [One semantic operation route](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/semantic-operation-route.md) |
 
 The binding is a *consumer* of the shared read and a *caller* of the operation
 route. It owns no trust, session, pairing, native write, ACK, readback,
@@ -80,7 +80,7 @@ The gateway neither adds nor refuses a row:
   read service. Each hand-off uses one coherent capture of the current admitted
   source epoch and driver generation of each asset, with the public-exposure
   and lifecycle gates of the
-  [shared SemReg snapshot read](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/semantic-snapshot-read.md)
+  [shared SemReg snapshot read](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/semantic-snapshot-read.md)
   already applied.
 - An asset withheld by the capture
   (`semantic.read.reason.publication_withheld`, `asset_unknown`,

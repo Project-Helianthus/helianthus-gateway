@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
 	eebusruntime "github.com/Project-Helianthus/helianthus-eebusreg"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
 )
 
 func m05Options(t *testing.T, factory eebusRuntimeFactory) eebusManagedDriverOptions {

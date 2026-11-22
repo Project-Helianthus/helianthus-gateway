@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func TestMapModbusRuntimeConfigDisabledIsInert(t *testing.T) {

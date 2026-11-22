@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semgraph"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semgraph"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	"github.com/Project-Helianthus/helianthus-modbusreg/growatt"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	storage "github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/storage"

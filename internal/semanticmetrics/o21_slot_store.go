@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticview"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
 )
 
 const o21MaxBytes = 256 * 1024

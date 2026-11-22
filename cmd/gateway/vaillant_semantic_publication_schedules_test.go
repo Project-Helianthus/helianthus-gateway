@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 func TestVaillantScheduleAcquisitionImportsNoPublicationPackages(t *testing.T) {
@@ -21,8 +21,8 @@ func TestVaillantScheduleAcquisitionImportsNoPublicationPackages(t *testing.T) {
 			t.Fatal(err)
 		}
 		switch path {
-		case "github.com/Project-Helianthus/helianthus-ebusgateway/graphql",
-			"github.com/Project-Helianthus/helianthus-ebusgateway/mcp":
+		case "github.com/Project-Helianthus/helianthus-gateway/graphql",
+			"github.com/Project-Helianthus/helianthus-gateway/mcp":
 			t.Fatalf("semantic_vaillant_schedules.go imports %s; the schedule acquisition must stay native", path)
 		}
 	}

@@ -1,6 +1,6 @@
 # PV and Storage SemReg metrics v1
 
-`helianthus-ebusgateway` owns the current `/metrics` output binding for the
+`helianthus-gateway` owns the current `/metrics` output binding for the
 accepted PV and Storage SemReg projections. It appends this bounded semantic
 view to the existing eBUS exposition; it does not add an endpoint, collector,
 database, or scrape-triggered acquisition.

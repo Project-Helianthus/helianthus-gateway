@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/syncevidence"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/syncevidence"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 const synchronizedEvidenceTestVersion = "1.0.0+git.61bc62fa1d08dcf7b677c3dc08855beb5c68ceb1"

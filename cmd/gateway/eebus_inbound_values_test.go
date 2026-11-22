@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
 	eebusruntime "github.com/Project-Helianthus/helianthus-eebusreg"
 	"github.com/Project-Helianthus/helianthus-eebusreg/eebusraw"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 // The synthetic node: device information at entity 0, the hot-water circuit at

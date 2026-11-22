@@ -18,12 +18,12 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/m2mgraphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/matter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/matter/feedv1"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/catalogv1"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/contributionv1"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/m2mgraphql"
+	"github.com/Project-Helianthus/helianthus-gateway/matter"
+	"github.com/Project-Helianthus/helianthus-gateway/matter/feedv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/evse"
 )

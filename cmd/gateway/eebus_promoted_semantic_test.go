@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture"
 	eebusruntime "github.com/Project-Helianthus/helianthus-eebusreg"
 	"github.com/Project-Helianthus/helianthus-eebusreg/eebusraw"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture"
 )
 
 func TestApplyPromotedValue_MapsEveryPromotedRegistryPath(t *testing.T) {

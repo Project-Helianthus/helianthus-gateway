@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 func TestM02ConstructorCharacterization(t *testing.T) {

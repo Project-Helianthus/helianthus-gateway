@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/rpcsource"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	"github.com/Project-Helianthus/helianthus-ebusreg/router"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/rpcsource"
 )
 
 type Registry interface {
@@ -3636,7 +3636,7 @@ func (s *Server) snapshotAddressSlots() map[byte]addressSlotLabels {
 // lookupDiscoveryLabels projects the registry AddressSlot's enum
 // state for the given address into the JSON-friendly string labels
 // operators see in `ebus_v1_registry_devices_list` and friends.
-// Mirrors the canonical mapping in helianthus-ebusgateway's
+// Mirrors the canonical mapping in helianthus-gateway's
 // address_table.go so MCP and the address-table snapshot agree on
 // label spellings. Returns ("", "") when reg is nil or the slot is
 // missing.

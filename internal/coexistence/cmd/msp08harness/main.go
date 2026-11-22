@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/coexistence"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/coexistence"
 )
 
 const boundedInputBytes = int64(2_097_153)

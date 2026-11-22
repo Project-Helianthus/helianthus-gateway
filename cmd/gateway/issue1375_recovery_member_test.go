@@ -19,13 +19,13 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/portalconfig"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol/contractcheck"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/portalconfig"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol/contractcheck"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 )
 
 // issue1375Pause holds a retry wait so the surfaces can be read at a stable

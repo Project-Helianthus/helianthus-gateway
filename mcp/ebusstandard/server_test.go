@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	mcpstandard "github.com/Project-Helianthus/helianthus-ebusgateway/mcp/ebusstandard"
 	ebusregstandard "github.com/Project-Helianthus/helianthus-ebusreg/catalog/ebusstandard"
+	mcpstandard "github.com/Project-Helianthus/helianthus-gateway/mcp/ebusstandard"
 )
 
 func loadCatalog(t *testing.T) ebusregstandard.Catalog {

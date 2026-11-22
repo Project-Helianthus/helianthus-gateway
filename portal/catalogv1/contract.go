@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 )
 
 const Contract = "helianthus.gateway.portal-catalog/v1"

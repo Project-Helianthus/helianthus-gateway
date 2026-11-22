@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	"github.com/Project-Helianthus/helianthus-ebusreg/router"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 // noopMCPInvoker satisfies mcp.Invoker for tests that exercise the
@@ -34,7 +34,7 @@ func (noopMCPInvoker) Invoke(ctx context.Context, plane router.Plane, methodName
 // appear with the static_seed/candidate labels after applyStaticSeedTable.
 // This locks in the operator-visible discovery_source label going
 // through the address-table snapshot at
-// helianthus-ebusgateway/address_table.go.
+// helianthus-gateway/address_table.go.
 func TestApplyStaticSeedTable_StampsStaticSeedLabel(t *testing.T) {
 	reg := registry.NewDeviceRegistry(nil)
 	applyStaticSeedTable(reg)

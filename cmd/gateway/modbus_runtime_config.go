@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 

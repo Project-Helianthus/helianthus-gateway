@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 // preloadSemanticCache loads the semantic cache into the provider and

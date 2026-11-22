@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway"
+	"github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func (p *vaillantSemanticPoller) markDHWUpdatedNowLocked() {

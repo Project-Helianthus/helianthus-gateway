@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/candidatefacts"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/candidatefacts"
 )
 
 const m7RegistryInputSHA = "e6895b8d7406b58ed97599d8da7e9bd3b252e6e7ca3b0578ec6385bfe6dfe1c0"

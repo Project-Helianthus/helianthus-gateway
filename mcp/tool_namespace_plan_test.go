@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	mcpstandard "github.com/Project-Helianthus/helianthus-ebusgateway/mcp/ebusstandard"
+	mcpstandard "github.com/Project-Helianthus/helianthus-gateway/mcp/ebusstandard"
 )
 
 // toolNamespacePlanPrefixes are the namespaces admitted by

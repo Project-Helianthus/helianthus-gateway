@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func TestIssue817NoEEBusSpecificAdminFlagsAreRegistered(t *testing.T) {

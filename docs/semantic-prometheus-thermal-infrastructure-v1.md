@@ -1,7 +1,7 @@
 # Thermal and Infrastructure semantic metrics on the scrape route
 
 Status: gateway export binding for issue
-[#1339](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1339).
+[#1339](https://github.com/Project-Helianthus/helianthus-gateway/issues/1339).
 Series names, units, label domains and the missing-value rules are owned by the
 [bounded transport and semantic Prometheus coverage contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/deployment/prometheus-semantic-coverage.md);
 this page records only how the gateway serves them. All MCP namespaces remain

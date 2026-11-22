@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/eebusadmin"
 	eebusruntime "github.com/Project-Helianthus/helianthus-eebusreg"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/eebusadmin"
 )
 
 const (

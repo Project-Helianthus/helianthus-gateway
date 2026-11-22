@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/growattcanclassify"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/growattcanclassify"
 )
 
 func run(args []string, input io.Reader, output, errors io.Writer) int {

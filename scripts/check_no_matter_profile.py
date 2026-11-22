@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-MODULE = "github.com/Project-Helianthus/helianthus-ebusgateway"
+MODULE = "github.com/Project-Helianthus/helianthus-gateway"
 
 
 def matter_dependency(path):

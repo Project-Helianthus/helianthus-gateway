@@ -1,0 +1,3 @@
+## Gateway module path is helianthus-gateway
+
+The Go module path of the gateway is now `github.com/Project-Helianthus/helianthus-gateway`, and every import, link, issue reference, clone instruction, script constant and naming index names the repository `helianthus-gateway`. The Matter driver repository is named `helianthus-matterreg` and the documentation pages that leave `helianthus-docs-ebus` are linked at their new homes. The executable `gateway`, the Go package identifiers, every wire name, hash domain and persisted identity are unchanged; the module path inside the strings that carry it is the only output difference (#1740).

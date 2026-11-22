@@ -1,7 +1,7 @@
 # Detached circuit temperature candidates
 
-This partial implementation advances [#1233](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1233)
-and [#952](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/952).
+This partial implementation advances [#1233](https://github.com/Project-Helianthus/helianthus-gateway/issues/1233)
+and [#952](https://github.com/Project-Helianthus/helianthus-gateway/issues/952).
 It implements the native-only seam of the public
 [circuit temperature cutover contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/circuit-temperature-cutover.md).
 The parent remains open. This candidate seam is pre-stable.
@@ -103,7 +103,7 @@ acceptance. Documentation acceptance requires manual source, claim, transition,
 loss, example and link review; no keyword test establishes correctness.
 
 The existing eBUS MCP envelope, namespace and circuit field shape remain in place.
-The [existing circuit reader](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_circuits.go) now follows the native
+The [existing circuit reader](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_circuits.go) now follows the native
 RR0020 correction: ordinary circuit refresh and pseudo-circuit evidence no longer
 acquire RR0020 as a float, including startup pseudo-circuit discovery. Startup
 uses measured RR0008 alone as temperature evidence for that pseudo-circuit;
@@ -121,7 +121,7 @@ independent, including their per-field last-known-good retention.
 synthetic selector neighbors, acquisition, ordinary and pseudo-circuit refresh,
 startup pseudo-circuit absence and measured-flow publication, partial merges and
 cache-source publication. This repair is a partial advance of
-[#1253](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1253),
+[#1253](https://github.com/Project-Helianthus/helianthus-gateway/issues/1253),
 not a complete thermal cutover. **Proven:** the repaired reader withholds the
 contradictory temperature interpretation. **Unknown:** raw status semantics and
 physical acceptance; neither follows from these offline checks.

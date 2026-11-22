@@ -11,9 +11,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticview"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/catalogv1"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 )
 
 func m22Fixture() (contributionv1.Manifest, *contributionv1.StaticIndex) {

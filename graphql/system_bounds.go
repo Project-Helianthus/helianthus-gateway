@@ -1,7 +1,7 @@
 package graphql
 
 import (
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/systemconfig"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/systemconfig"
 )
 
 type ConfigBound = systemconfig.ConfigBound

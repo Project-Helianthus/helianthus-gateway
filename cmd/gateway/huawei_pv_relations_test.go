@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	"github.com/Project-Helianthus/helianthus-modbusreg/huawei"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"

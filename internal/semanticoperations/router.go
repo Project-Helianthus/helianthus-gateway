@@ -2,7 +2,7 @@
 // through SemReg operation admission to the single executor injected by the
 // qualified native owner of the admitted route. It implements the bounded
 // dispatcher of the public semantic operation route contract
-// (helianthus-docs-ebus api/semantic-operation-route.md). It owns no native
+// (helianthus-docs api/semantic-operation-route.md). It owns no native
 // handle, transport, opcode, receipt or authorization tier: admission belongs to
 // the SemReg kernel, intent identity to the runtime intent owner, and native
 // execution, ACK and readback evidence to the injected executor.
@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticview"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/operation"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/evse"

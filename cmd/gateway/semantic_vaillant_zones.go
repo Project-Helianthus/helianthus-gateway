@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway"
+	"github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func (p *vaillantSemanticPoller) refreshZoneDiscovery(ctx context.Context, startup bool) {

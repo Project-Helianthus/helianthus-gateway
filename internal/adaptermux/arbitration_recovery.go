@@ -1,10 +1,10 @@
 package adaptermux
 
 import (
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/v8classifier"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol/telegramfsm"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/v8classifier"
 )
 
 // Arbitration state machine (all mux state is guarded by stateMu):

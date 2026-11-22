@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
 )
 
 // The G5 runtime lifecycle tools (D4). They are host tools on the ordinary

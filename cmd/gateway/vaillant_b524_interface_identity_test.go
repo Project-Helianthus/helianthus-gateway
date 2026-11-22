@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/systemconfig"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/systemconfig"
 )
 
 type b524InterfaceIdentityFake struct {

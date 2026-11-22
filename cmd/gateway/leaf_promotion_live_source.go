@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	eebusruntime "github.com/Project-Helianthus/helianthus-eebusreg"
 	"github.com/Project-Helianthus/helianthus-eebusreg/eebusraw"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 const leafPromotionReadTimeout = 3 * time.Second

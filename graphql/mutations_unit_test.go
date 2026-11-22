@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
 	"github.com/Project-Helianthus/helianthus-ebusgo/types"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	"github.com/Project-Helianthus/helianthus-ebusreg/router"
 	"github.com/Project-Helianthus/helianthus-ebusreg/schema"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	graphqlgo "github.com/graphql-go/graphql"
 )
 

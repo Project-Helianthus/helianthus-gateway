@@ -7,9 +7,9 @@ import (
 	"log"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/releasecheck"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimestate"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/releasecheck"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimestate"
 )
 
 // startGatewayReleaseChecker starts the cache-only release discovery task.

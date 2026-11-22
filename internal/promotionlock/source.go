@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/candidatefacts"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/coexistence"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/candidatefacts"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/coexistence"
 )
 
 const (

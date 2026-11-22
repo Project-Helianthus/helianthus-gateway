@@ -1,8 +1,8 @@
 # Proposed CAN transport metric observation boundary
 
 This is a future host/driver contract, not an implemented API or an exporter.
-It advances part of [gateway issue #1005](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1005)
-through [issue #1161](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1161).
+It advances part of [gateway issue #1005](https://github.com/Project-Helianthus/helianthus-gateway/issues/1005)
+through [issue #1161](https://github.com/Project-Helianthus/helianthus-gateway/issues/1161).
 The parent remains open. Nothing is stable before Helianthus 1.0.
 
 ## Current evidence and scope
@@ -211,6 +211,6 @@ runtime, full-CI, transport, hardware or parent-issue acceptance. Full candidate
 gates, independent review and any separately required physical acceptance remain
 downstream work; this slice does not close the parent.
 
-[runtime-source]: https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/runtime_transport_metrics.go
-[runtime-doc]: https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/transport-prometheus-runtime-v1.md
+[runtime-source]: https://github.com/Project-Helianthus/helianthus-gateway/blob/main/runtime_transport_metrics.go
+[runtime-doc]: https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/transport-prometheus-runtime-v1.md
 [coverage]: https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/deployment/prometheus-semantic-coverage.md

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
 type issue1432CloseError struct{ retry bool }

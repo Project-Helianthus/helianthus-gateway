@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func main() {

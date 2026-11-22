@@ -7,7 +7,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class DispatchDocumentationTest(unittest.TestCase):
     def test_semreg_dependency_owner(self):
         readme = (ROOT / 'README.md').read_text()
-        self.assertIn('https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/go.mod', readme)
+        self.assertIn('https://github.com/Project-Helianthus/helianthus-gateway/blob/main/go.mod', readme)
         self.assertIn('exact SemReg dependency is owned by', readme)
         self.assertNotIn('accepted Gateway baseline pins SemReg at', readme)
 

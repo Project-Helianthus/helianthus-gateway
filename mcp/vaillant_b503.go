@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/b503session"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol/vaillant/b503"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/b503session"
 )
 
 // --- public API contracts -------------------------------------------------

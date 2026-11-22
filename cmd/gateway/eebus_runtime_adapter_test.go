@@ -10,15 +10,15 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mdns"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
 	eebusruntime "github.com/Project-Helianthus/helianthus-eebusreg"
 	"github.com/Project-Helianthus/helianthus-eebusreg/eebusraw"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/mdns"
 )
 
 type issue809AdminStub struct{}

@@ -5,7 +5,7 @@ package main
 import (
 	"errors"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/teslaobserve"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/teslaobserve"
 )
 
 func openTeslaObserveSerial(string) (teslaobserve.ByteSource, error) {

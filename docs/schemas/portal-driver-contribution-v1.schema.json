@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/schemas/portal-driver-contribution-v1.schema.json",
+  "$id": "https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/schemas/portal-driver-contribution-v1.schema.json",
   "title": "Helianthus Portal Driver Contribution v1",
   "type": "object",
   "additionalProperties": false,

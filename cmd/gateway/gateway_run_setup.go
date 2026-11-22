@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimestate"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
 	vaillantproviders "github.com/Project-Helianthus/helianthus-ebusreg/providers/vaillant"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimestate"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 

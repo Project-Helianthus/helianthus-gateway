@@ -21,9 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol/contractcheck"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol/contractcheck"
 )
 
 var rcRecoveryDue = time.Date(2000, time.January, 1, 0, 0, 8, 0, time.UTC)

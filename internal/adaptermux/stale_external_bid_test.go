@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/v8classifier"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/v8classifier"
 )
 
 // A waiting external START bid has no age limit: only its client withdraws it.

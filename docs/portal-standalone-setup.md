@@ -4,7 +4,7 @@ The Portal can show configuration, health and driver status even when managed
 drivers are disabled or fail. It still needs a successfully bootstrapped gateway
 and HTTP listener: a process-level configuration or listener failure can prevent
 it from opening. This guide covers the delivered portion of
-[#1002](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1002);
+[#1002](https://github.com/Project-Helianthus/helianthus-gateway/issues/1002);
 ordinary setup without daemon YAML tuning and full minimal-install acceptance
 remain incomplete. Home Assistant is optional.
 
@@ -29,7 +29,7 @@ stable before Helianthus 1.0.
    the supported host adapter path. This guide adds no transport support.
    HTTP mounting, proxy interface/port/format, TLS/origin/trust configuration,
    native driver settings and existing M2M configuration also remain with the
-   host. See the [gateway configuration reference](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/README.md#gateway-flag-cheat-sheet).
+   host. See the [gateway configuration reference](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/README.md#gateway-flag-cheat-sheet).
 3. After host startup, open the configured Portal mount (normally `/portal/`)
    on the provisioned gateway HTTP service. `-http-addr` must enable that service
    and `-portal-path` must enable Portal. Keep the host's intended access boundary:
@@ -131,8 +131,8 @@ These are open requirements, not delivered setup steps:
 - [ ] Obtain candidate-level independent review, full CI and applicable release
   and physical evidence. This offline guide closes none of those requirements.
 
-The owning [configuration and recovery contract](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/portal-config-sharing.md)
-and [contribution and embedding contract](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/portal-contributions.md)
+The owning [configuration and recovery contract](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/portal-config-sharing.md)
+and [contribution and embedding contract](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/portal-contributions.md)
 define the detailed boundaries and URL construction. Embedding changes paths,
 not native trust or action admission. This guide grants no new authorization,
 namespace, binding or lifecycle API; authentication/authorization framework work

@@ -1,6 +1,6 @@
 # Executor observations: publication correlation
 
-The post-RUNNING executor-observation method requested by [issue #1239](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1239)
+The post-RUNNING executor-observation method requested by [issue #1239](https://github.com/Project-Helianthus/helianthus-gateway/issues/1239)
 is **not implemented**. Its publication seam needs a coordinated service change
 before an internal caller can safely submit observations. No new public API,
 MCP tool, status schema, lifecycle authority or qualification is established.

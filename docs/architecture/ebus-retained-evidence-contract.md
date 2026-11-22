@@ -7,10 +7,10 @@ API or prove runtime behavior. Nothing is stable before Helianthus 1.0.
 
 ## Scope and current evidence
 
-The [ownership inventory](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/ebus-raw-evidence-owner-map.md)
+The [ownership inventory](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/ebus-raw-evidence-owner-map.md)
 remains the current-code inventory. This contract resolves its retained-access
 design questions without editing its editorial residual or the reserved
-[runtime/driver contract](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/runtime-driver-provider-contract-v1.md).
+[runtime/driver contract](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/runtime-driver-provider-contract-v1.md).
 It defines storage lifetime constraints, not protocol decoding or wire facts.
 Public native documentation remains authoritative for protocol interpretation;
 retention supplies no additional protocol meaning.
@@ -19,12 +19,12 @@ Current implementation anchors:
 
 | Source | Observed behavior; limit of the claim |
 | --- | --- |
-| [identification_evidence.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/identification_evidence.go) | `IdentificationEvidenceStore` fixes an observer session on its first event, advances sequence only for accepted exchanges, bounds history to eight exchanges per target, and deep-copies snapshots ordered by address/sequence. Session identifies the store run, not a driver generation. No source epoch/generation is stored on exchanges. |
-| [evidence_buffer.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/evidence_buffer.go) | `EvidenceBuffer` retains address observations/counts with baseline-protected LRU. `Demote` resets promotion/counts but retains the address. Discovery promotion is candidacy, not semantic qualification or a Proven claim. |
-| [bus_observability_store.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/bus_observability_store.go) | Recent messages/specimens are bounded; periodicity has TTL/LRU. `Close` cancels/joins the passive worker without clearing rings or resetting its attachment context. Direct mutation methods have no general closed-store guard. Close alone is not a capture fence or a restart API. |
-| [bus_observability_api.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/bus_observability_api.go) | `Snapshot` calls a startup provider, takes the store lock, reads reconstructor status, refreshes passive state and expires periodicity. Existing read-time aging is distinct from new capture. This is not the proposed detached retained-reader seam. |
-| [gateway_admission.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/gateway_admission.go) and [identification_evidence_wiring.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/identification_evidence_wiring.go) | Process composition constructs observers and publishes the identification store through an atomic pointer; adapters copy its snapshot. Swapping that pointer for a fresh empty store would hide history. |
-| [ebus_driver_runtime.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/ebus_driver_runtime.go), [gateway_run_lifecycle.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/gateway_run_lifecycle.go) and [gateway_process_shell.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/gateway_process_shell.go) | Native Stop/Replace fence withdrawal before retiring transport. Final process cleanup runs the process-shell shutdown sequence last in, first out: it joins the generation tasks, then drains HTTP and closes listener, deduplicator, reconstructor and observability worker, before it releases the runtime control and the eBUS driver. These paths do not implement the proposed retained-writer binding. |
+| [identification_evidence.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/identification_evidence.go) | `IdentificationEvidenceStore` fixes an observer session on its first event, advances sequence only for accepted exchanges, bounds history to eight exchanges per target, and deep-copies snapshots ordered by address/sequence. Session identifies the store run, not a driver generation. No source epoch/generation is stored on exchanges. |
+| [evidence_buffer.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/evidence_buffer.go) | `EvidenceBuffer` retains address observations/counts with baseline-protected LRU. `Demote` resets promotion/counts but retains the address. Discovery promotion is candidacy, not semantic qualification or a Proven claim. |
+| [bus_observability_store.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/bus_observability_store.go) | Recent messages/specimens are bounded; periodicity has TTL/LRU. `Close` cancels/joins the passive worker without clearing rings or resetting its attachment context. Direct mutation methods have no general closed-store guard. Close alone is not a capture fence or a restart API. |
+| [bus_observability_api.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/bus_observability_api.go) | `Snapshot` calls a startup provider, takes the store lock, reads reconstructor status, refreshes passive state and expires periodicity. Existing read-time aging is distinct from new capture. This is not the proposed detached retained-reader seam. |
+| [gateway_admission.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/gateway_admission.go) and [identification_evidence_wiring.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/identification_evidence_wiring.go) | Process composition constructs observers and publishes the identification store through an atomic pointer; adapters copy its snapshot. Swapping that pointer for a fresh empty store would hide history. |
+| [ebus_driver_runtime.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/ebus_driver_runtime.go), [gateway_run_lifecycle.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/gateway_run_lifecycle.go) and [gateway_process_shell.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/gateway_process_shell.go) | Native Stop/Replace fence withdrawal before retiring transport. Final process cleanup runs the process-shell shutdown sequence last in, first out: it joins the generation tasks, then drains HTTP and closes listener, deduplicator, reconstructor and observability worker, before it releases the runtime control and the eBUS driver. These paths do not implement the proposed retained-writer binding. |
 
 ## Responsibilities and lifetimes (proposed, unimplemented)
 
@@ -44,7 +44,7 @@ read handle must not be replaced by a new empty history on each generation.
 | Semantic values, native registry admission and shadow state | Their existing owners | Retained raw evidence does not requalify devices, select a source, restore admission or make stale values current. Preserve partial last-known-good fields under their existing identity/age rules. |
 
 The FileStore boundary follows the inventory and
-[synchronized evidence runtime](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/synchronized_evidence_runtime.go).
+[synchronized evidence runtime](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/synchronized_evidence_runtime.go).
 No new lifecycle manager, descriptor evidence hook, receipt, idempotency ledger,
 principal boundary or recovery subsystem is introduced. G5 D1–D5/O8 and their
 implementation remain J01–J17-owned. There are no new authorization gates before
@@ -73,7 +73,7 @@ For legacy records without an epoch/generation mapping, preserve their existing
 session/sequence/time exactly and expose no invented attribution. Mapping
 representation and public exposure need a separate accepted implementation;
 this contract does not expand MCP or GraphQL schemas.
-The current [manager correlation](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/drivermanager/manager.go)
+The current [manager correlation](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/drivermanager/manager.go)
 contains `Generation` and `Operation`; the proposed source/epoch attachment
 context does not imply those are already fields of that type.
 

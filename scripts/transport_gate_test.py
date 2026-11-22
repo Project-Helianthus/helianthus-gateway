@@ -339,8 +339,8 @@ type Config struct {
         for anchor, addition in (
             ('\t"context"\n', '\t"crypto/rand"\n'),
             ('\t"crypto/x509"\n', '\t"encoding/hex"\n'),
-            ('\t"github.com/Project-Helianthus/helianthus-ebusgateway/m2mgraphql"\n',
-             '\t"github.com/Project-Helianthus/helianthus-ebusgateway/matter/feedv1"\n'),
+            ('\t"github.com/Project-Helianthus/helianthus-gateway/m2mgraphql"\n',
+             '\t"github.com/Project-Helianthus/helianthus-gateway/matter/feedv1"\n'),
         ):
             self.assertIn(addition.strip(), profile)
             runtime = replace_once(runtime, anchor, anchor + addition)

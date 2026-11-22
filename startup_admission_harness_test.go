@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/ebus/evidence/discovery"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/ebus/evidence/discovery"
 )
 
 func synthesizedTransactionEvent(src, dst byte, hasResponse bool) PassiveClassifiedEvent {

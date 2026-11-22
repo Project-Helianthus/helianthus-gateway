@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/portalconfig"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/portalconfig"
 )
 
 func o11Fixture() (portalconfig.Record, portalconfig.ListenerAvailability, []portalconfig.O11ListenerObservation) {

@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway"
-	gql "github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	"github.com/Project-Helianthus/helianthus-ebusreg/router"
+	"github.com/Project-Helianthus/helianthus-gateway"
+	gql "github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 // This #1020 slice maps the existing read schemas in query_root.go,

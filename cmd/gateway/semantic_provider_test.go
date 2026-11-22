@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/m8sourcestate"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/m8sourcestate"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 // GraphQL, MCP and portal agree: no energy plane before the first accepted

@@ -17,8 +17,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/candidatefacts"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/candidatefacts"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture"
 )
 
 const (
@@ -845,9 +845,9 @@ func TestMSP085ProductionPackageHasNoProceduralAuthority(t *testing.T) {
 
 func TestMSP085DependencyClosureRemainsCandidateFactsCoexistenceAndPromotionCapture(t *testing.T) {
 	allowedInternal := map[string]bool{
-		"github.com/Project-Helianthus/helianthus-ebusgateway/internal/candidatefacts":   true,
-		"github.com/Project-Helianthus/helianthus-ebusgateway/internal/coexistence":      true,
-		"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture": true,
+		"github.com/Project-Helianthus/helianthus-gateway/internal/candidatefacts":   true,
+		"github.com/Project-Helianthus/helianthus-gateway/internal/coexistence":      true,
+		"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture": true,
 	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {

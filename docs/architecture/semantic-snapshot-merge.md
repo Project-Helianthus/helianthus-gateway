@@ -2,33 +2,33 @@
 
 The Vaillant-family poller type, its start and scheduling hooks and its expvar
 counters are declared in
-[`semantic_vaillant.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant.go). The poller
+[`semantic_vaillant.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant.go). The poller
 acquires native observations through read, refresh, discovery and write methods
 kept in thematic files of the same package: register constants in
-[`semantic_vaillant_registers.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_registers.go),
+[`semantic_vaillant_registers.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_registers.go),
 discovery, zones, hot water (with cylinders and solar), circuits, boiler, boiler
 configuration, system, radio devices, FM5, energy and schedules in the
 `semantic_vaillant_<theme>.go` files, B524 access in
-[`semantic_vaillant_b524_access.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_b524_access.go),
+[`semantic_vaillant_b524_access.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_b524_access.go),
 B509 and B555 access with the shared read-watch runtime in
-[`semantic_vaillant_b509_access.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_b509_access.go)
+[`semantic_vaillant_b509_access.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_b509_access.go)
 and value decoding in
-[`semantic_vaillant_codec.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_codec.go).
-The committed [`move_go_declarations.py`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/move_go_declarations.py)
+[`semantic_vaillant_codec.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_codec.go).
+The committed [`move_go_declarations.py`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/move_go_declarations.py)
 moved these declarations unchanged as
-[`semantic_vaillant_split.json`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/semantic_vaillant_split.json)
+[`semantic_vaillant_split.json`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/semantic_vaillant_split.json)
 lists them. Snapshot declarations, cache hydration, cloning and freshness
 seeding remain in
-[`semantic_vaillant_snapshots.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_snapshots.go).
+[`semantic_vaillant_snapshots.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_snapshots.go).
 
-[`semantic_snapshot_merge.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_snapshot_merge.go)
+[`semantic_snapshot_merge.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_snapshot_merge.go)
 owns field freshness assignment and zone and domestic-hot-water field merging.
 It receives typed observations, their source and the set of attempted fields.
 It performs no bus access or publication. The poller no longer holds the GraphQL
 provider, the broadcast hub, the semantic cache persister or the boiler
 publication lock as fields: they belong to the `vaillantSemanticPublication`
 owner in
-[`vaillant_semantic_publication.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/vaillant_semantic_publication.go),
+[`vaillant_semantic_publication.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/vaillant_semantic_publication.go),
 which the poller reaches through nil-safe accessors. A poller without that owner,
 such as the registry-only classifier of the startup scan, sees nil collaborators
 and a no-op publish lock. The lock orders GraphQL boiler-status publication
@@ -39,16 +39,16 @@ the snapshot lock: detached copies of the retained snapshots in publication
 order, together with the radio room state, inferred room mapping, hot water
 expiry and circuit managing-device decision that the poller derives. They hand
 these views to owner methods in
-[`vaillant_semantic_publication_views.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/vaillant_semantic_publication_views.go),
+[`vaillant_semantic_publication_views.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/vaillant_semantic_publication_views.go),
 which map them to GraphQL values and push them to the provider and hub without
 reading poller state. Each trigger persists the semantic cache after a
 publication. The triggers live in
-[`semantic_vaillant_publisher.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_publisher.go)
+[`semantic_vaillant_publisher.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_publisher.go)
 and reach the owner only through the native `vaillantSemanticPublisher`
 interface; the committed
-[`relocate_poller_publication_state.py`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/relocate_poller_publication_state.py)
+[`relocate_poller_publication_state.py`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/relocate_poller_publication_state.py)
 rewrote the direct field uses, and its `--check` mode lists any that remain.
-[The acquisition and publication owners](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/vaillant-acquisition-publication.md)
+[The acquisition and publication owners](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/vaillant-acquisition-publication.md)
 page describes both owners, their locks and the test that pins the boundary.
 
 ## Retention and provenance
@@ -75,7 +75,7 @@ GraphQL parity obligations continue to apply.
 
 ## Validation and evidence boundary
 
-[`semantic_snapshot_merge_test.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_snapshot_merge_test.go)
+[`semantic_snapshot_merge_test.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_snapshot_merge_test.go)
 pins every merged field to its freshness key and varies incoming and retained
 sources, attempted status, existing provenance and stale status. Fixtures cover
 missing and present zero values, empty strings and slices, ordered detached

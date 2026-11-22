@@ -12,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/catalogv1"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/contributionv1"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portalgraphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portalgraphql"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs"
 )

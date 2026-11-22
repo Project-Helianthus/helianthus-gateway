@@ -1,6 +1,6 @@
 # eBUS surface STOP cleanup
 
-This note covers edge 1 of [issue #1263](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1263): a process-surface installation already inside a generation commit can outlast STOP's bounded fence wait.
+This note covers edge 1 of [issue #1263](https://github.com/Project-Helianthus/helianthus-gateway/issues/1263): a process-surface installation already inside a generation commit can outlast STOP's bounded fence wait.
 
 The executor registers one cleanup continuation as joined work of the exact predecessor before fencing it. The continuation waits on the runner's existing serialization signal. Once an installation admitted before the fence has returned, it calls the bridge's bounded STOP once. A fence completed within its wait uses the caller context, including an expired deadline; only a fence that outlasted the wait uses an independent bounded cleanup context. No timer loop or independent retry owner is introduced. Concurrent STOP calls join the recorded obligation. Later STOP calls retry missing proof through the bridge and preserve its idempotence rules. Every STOP resynchronizes the runner.
 

@@ -1,14 +1,14 @@
 # Portal configuration persistence and sharing state
 
-Status: application design contract for [#1299](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1299),
-a partial slice of [#1000](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1000),
-[#1001](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1001)
-and [#1002](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1002).
+Status: application design contract for [#1299](https://github.com/Project-Helianthus/helianthus-gateway/issues/1299),
+a partial slice of [#1000](https://github.com/Project-Helianthus/helianthus-gateway/issues/1000),
+[#1001](https://github.com/Project-Helianthus/helianthus-gateway/issues/1001)
+and [#1002](https://github.com/Project-Helianthus/helianthus-gateway/issues/1002).
 This defines the application contract. The bounded desired-record persistence
 and Portal GET/PUT API are implemented. The listener-plan companion for
-[#1307](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1307)
+[#1307](https://github.com/Project-Helianthus/helianthus-gateway/issues/1307)
 adds detached planning and pre-save validation.
-[#1335](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1335)
+[#1335](https://github.com/Project-Helianthus/helianthus-gateway/issues/1335)
 applies accepted driver selections at gateway startup; sharing, proxy and output
 application, authorization changes and plugin loading remain outside these slices.
 
@@ -195,12 +195,12 @@ with every address removed). The Portal shows when the next attempt is due, the
 attempt number and the last failure beside the row's status and reason; it
 parses none of the text. The member changes no status, reason or `effective`
 value. The public contract is the
-[MCP page](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/mcp.md).
+[MCP page](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/mcp.md).
 
 ## Detached listener plan and API validation
 
-**Proven**: the [planner](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/portalconfig/sharing.go)
-and [configuration API](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/portal/config_api.go)
+**Proven**: the [planner](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/portalconfig/sharing.go)
+and [configuration API](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/portal/config_api.go)
 derive a bounded plan from desired selections and a snapshot supplied by the
 host-owned `ConfigCallbacks.Bindings` callback. Browser input cannot provide or
 override bindings. Production composition snapshots host-configured endpoints:

@@ -41,7 +41,7 @@ import (
 	"testing"
 	"time"
 
-	estd "github.com/Project-Helianthus/helianthus-ebusgateway/mcp/ebusstandard"
+	estd "github.com/Project-Helianthus/helianthus-gateway/mcp/ebusstandard"
 )
 
 // knownV11Transports is the v1.1 enum set per M4D ch.13 §5. A consumer at

@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
@@ -25,6 +24,7 @@ import (
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	"github.com/Project-Helianthus/helianthus-ebusreg/router"
 	"github.com/Project-Helianthus/helianthus-ebusreg/schema"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 const defaultSmokeSource = byte(0x10)

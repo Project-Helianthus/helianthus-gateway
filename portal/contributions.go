@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticview"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/catalogv1"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/contributionv1"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portalgraphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portalgraphql"
 )
 
 // ContributionOptions binds the existing admission registry to a host-owned

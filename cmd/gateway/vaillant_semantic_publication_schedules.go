@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 // The publication owner maps the native schedule programs that the poller

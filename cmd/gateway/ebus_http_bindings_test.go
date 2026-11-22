@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	gatewaygraphql "github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	"github.com/Project-Helianthus/helianthus-ebusreg/router"
+	gatewaygraphql "github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	graphqlgo "github.com/graphql-go/graphql"
 )
 

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	estd "github.com/Project-Helianthus/helianthus-ebusgateway/mcp/ebusstandard"
+	estd "github.com/Project-Helianthus/helianthus-gateway/mcp/ebusstandard"
 )
 
 // Envelope-golden fixtures. Re-generate with UPDATE=1 and include rationale

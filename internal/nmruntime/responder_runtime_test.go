@@ -15,10 +15,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/executionpolicy"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/nmruntime"
 	ebusgoxport "github.com/Project-Helianthus/helianthus-ebusgo/transport"
 	ebusstd "github.com/Project-Helianthus/helianthus-ebusreg/catalog/ebusstandard"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/executionpolicy"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/nmruntime"
 )
 
 // fakeResponderTransport implements ebusgoxport.ResponderTransport for

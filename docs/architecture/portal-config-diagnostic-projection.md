@@ -1,8 +1,8 @@
 # Portal configuration diagnostic projection
 
-The accepted [configuration sharing and recovery contract](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/portal-config-sharing.md)
+The accepted [configuration sharing and recovery contract](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/portal-config-sharing.md)
 requires an allowlisted diagnostic export. `O10ProjectDiagnostics` in
-[portalconfig](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/portalconfig/o10_diagnostics.go)
+[portalconfig](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/portalconfig/o10_diagnostics.go)
 implements only the configuration projection for a future export owner. It is
 not an HTTP endpoint or a completed Portal diagnostic export. The helper adds
 no public API schema, namespace or stability promise before Helianthus 1.0.
@@ -53,7 +53,7 @@ owner evidence; configuration selections prove none of them.
 
 Export-handler wiring, ordinary passive/cache flag removal, typed connection
 editing and runtime apply remain subsequent work under
-[issue 1000](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1000).
+[issue 1000](https://github.com/Project-Helianthus/helianthus-gateway/issues/1000).
 This slice changes no protocol meaning, native admission, caches, last-known
 good evidence, eBUS MCP envelopes or GraphQL parity. Full committed-change CI,
 independent review, publication checks and applicable transport/passive gates

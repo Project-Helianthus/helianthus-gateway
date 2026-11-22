@@ -1,8 +1,8 @@
 # Detached zone room-temperature candidate
 
-This partial implementation advances [issue #1231](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1231),
-[follow-up #1246](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1246)
-and [parent #952](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/952).
+This partial implementation advances [issue #1231](https://github.com/Project-Helianthus/helianthus-gateway/issues/1231),
+[follow-up #1246](https://github.com/Project-Helianthus/helianthus-gateway/issues/1246)
+and [parent #952](https://github.com/Project-Helianthus/helianthus-gateway/issues/952).
 Nothing here is stable before Helianthus 1.0. The mapper is a pure function over
 supplied observations and detached previous records; it has no acquisition,
 registration, publication, transport or legacy consumer integration.

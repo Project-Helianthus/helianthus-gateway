@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/ebus/evidence/specimens"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/ebus/evidence/specimens"
 
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 )

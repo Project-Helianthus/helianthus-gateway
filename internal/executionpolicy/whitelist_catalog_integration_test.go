@@ -6,8 +6,8 @@ package executionpolicy_test
 import (
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/executionpolicy"
 	ebusstd "github.com/Project-Helianthus/helianthus-ebusreg/catalog/ebusstandard"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/executionpolicy"
 )
 
 // TestWhitelist_AgainstEmbeddedCatalog is the catalog-grounded regression

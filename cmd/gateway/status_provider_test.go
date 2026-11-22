@@ -15,15 +15,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimestate"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/b503session"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
+	"github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimestate"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/b503session"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 )
 
 type issue851LiveSourceExplorerBus struct {

@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/v8classifier"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/v8classifier"
 )
 
 // TestV8ClassifierMode_EnvParse pins the production wiring contract

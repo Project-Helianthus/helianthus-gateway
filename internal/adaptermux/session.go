@@ -15,7 +15,7 @@ import (
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/v8classifier"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/v8classifier"
 )
 
 // F-10 diagnostic instrumentation (EBUSD-VERIFICATION-2026-05-10.md):

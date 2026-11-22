@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/systemconfig"
 	vaillantsystem "github.com/Project-Helianthus/helianthus-ebusreg/vaillant/system"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/systemconfig"
 )
 
 // controllerB524Identity overlays only complete discovery data from the

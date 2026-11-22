@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
 )
 
 // modbusStartRetryPolicy is the bounded backoff between the re-issued starts

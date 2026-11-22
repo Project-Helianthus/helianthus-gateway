@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux/v8classifier"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/v8classifier"
 )
 
 // v8_admin_events_handler_test.go pins the HTTP contract for the

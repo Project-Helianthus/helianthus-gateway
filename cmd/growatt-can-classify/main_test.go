@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/growattcanclassify"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/growattcanclassify"
 )
 
 func TestCX02CLIStdinAndFile(t *testing.T) {

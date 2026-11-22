@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/matter"
+	"github.com/Project-Helianthus/helianthus-gateway/matter"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 

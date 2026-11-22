@@ -7,14 +7,14 @@ result supplies `CentralHeatingPumpActive` in the incoming boiler snapshot.
 `readB509OnOff` requires both a successful `readB509Value` and successful
 `decodeOnOff`; otherwise it returns nil. This identifies the implemented direct
 boiler on/off source, without establishing a new native wire interpretation.
-See [the boiler refresh](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_boiler.go)
-and [the B509 read helpers](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_b509_access.go).
+See [the boiler refresh](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_boiler.go)
+and [the B509 read helpers](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_b509_access.go).
 
 The fast B524 path uses `mergeBoilerMirrorFieldsFromSnapshots`, which leaves the
 boiler pump field absent rather than deriving it from circuit 0's
 `PumpStatusRaw`. That circuit observation does not establish boiler pump state;
 the native value remains in
-[`vaillantCircuitSnapshot`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_snapshots.go)
+[`vaillantCircuitSnapshot`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_snapshots.go)
 and is published only as the circuit's own pump field
 (`circuits[].state.circuit_pump_unknown_8` in GraphQL, `circuit_pump_unknown_8` in MCP and Portal).
 The boiler status register table no longer defines any circuit-group entry, so
@@ -42,9 +42,9 @@ supported boiler fields. The pump is therefore Unknown (nil) before cache
 preload publishes it and before poller hydration; an old circuit-derived value
 does not remain published awaiting a successful read. `graphQLBoilerToCache`
 also omits the pump field, so pump state is not persisted. Independent evidence
-is required again after a restart. See [both cache conversions](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_cache.go)
+is required again after a restart. See [both cache conversions](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_cache.go)
 and `TestK01CachedBoilerPumpWithoutProvenanceIsDiscarded` in
-[the existing provenance regression](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/boiler_pump_provenance_test.go).
+[the existing provenance regression](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/boiler_pump_provenance_test.go).
 
 **Proven — software recovery path:** the next successful independent boiler
 pump read through `refreshBoilerStatusB509` supplies a new boolean, including
@@ -58,7 +58,7 @@ synthetic boiler evidence; it does not execute a successful B509 wire read.
 pointer is non-nil. Omission or a failed pump read leaves the last-known value
 intact while other successful fields can update. This applies to both true and
 false, independently of circuit pump changes. See the merge implementation in
-[the boiler file of the semantic poller](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/semantic_vaillant_boiler.go)
+[the boiler file of the semantic poller](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/semantic_vaillant_boiler.go)
 and `TestK01PartialUpdatesPreserveIndependentBoilerPump` in the linked regression.
 This live retention is separate from the load-time discard of unproven cache
 state.
@@ -72,6 +72,6 @@ of qualification. This explanation adds no native protocol fact, register
 qualification, device support, or stability promise; native interpretation
 requires the public native documentation contract first.
 
-Tracking: [direct-source and cache wording](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1116).
-Refs: [follow-up scope](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1109),
-[parent scope](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1012).
+Tracking: [direct-source and cache wording](https://github.com/Project-Helianthus/helianthus-gateway/issues/1116).
+Refs: [follow-up scope](https://github.com/Project-Helianthus/helianthus-gateway/issues/1109),
+[parent scope](https://github.com/Project-Helianthus/helianthus-gateway/issues/1012).

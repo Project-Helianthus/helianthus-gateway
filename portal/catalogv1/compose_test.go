@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 	"math/rand"
 	"reflect"
 	"strings"

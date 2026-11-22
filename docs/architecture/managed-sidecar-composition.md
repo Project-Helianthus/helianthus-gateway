@@ -117,17 +117,17 @@ apply to CAN.
 `RUNNING` establishes lifecycle admission only. Public CAN snapshot exposure
 through MCP or GraphQL remains deferred; no observation tool, semantic
 publication or native control operation is added. The `TestCAN03` fixtures in
-[`growatt_bms_can_cli_test.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/growatt_bms_can_cli_test.go)
+[`growatt_bms_can_cli_test.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/growatt_bms_can_cli_test.go)
 cover configuration, retries, receive failures, restart and cleanup. The
 `TestM28` failure-isolation fixtures in
-[`portal_config_runtime_test.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/portal_config_runtime_test.go)
+[`portal_config_runtime_test.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/portal_config_runtime_test.go)
 keep CAN running while preserving Portal rejection and governed-driver
 withholding. These are synthetic software checks. Physical qualification and
 live trials are not established; installation behavior remains Unknown.
 
 ### Modbus TCP driver instances
 
-The [multi-endpoint contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/modbus-multi-endpoint-runtime.md)
+The [multi-endpoint contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/api/modbus-multi-endpoint-runtime.md)
 governs this composition. Configuration v1 (`-modbus-tcp-endpoint` or the
 single-line `-modbus-tcp-endpoint-file`) still composes exactly one
 `modbus.sunspec` descriptor with its source, durable record, transport limits
@@ -216,7 +216,7 @@ refused succession; they qualify no installation.
 
 ## Contract precedence and evidence
 
-The public [runtime driver lifecycle contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)
+The public [runtime driver lifecycle contract](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)
 owns G5 decisions D1, D2, D3 and D5. They are reused unchanged. The local
 [runtime/provider contract](runtime-driver-provider-contract-v1.md) records the
 implemented seams; its S1/D3 amendment supersedes historical receipt and
@@ -330,7 +330,7 @@ composition. Keep the current family-specific decoders and evidence paths.
 | --- | --- | --- |
 | SunSpec TCP | [`startModbusRuntime`](../../cmd/gateway/modbus_runtime_adapter.go) takes context, `ModbusTCPConfig`, hub, `modbusadapter.Dialer`, `modbusadapter.Factory`; returns `*modbusadapter.Adapter` or error. `modbusadapter.Start` opens the native endpoint. `Adapter.Close` closes it and retires its PV publication. | Inject the existing factory and dialer into the wrapper. Move the opening call under managed start. Own the qualify/refresh worker and Portal PV lease per admitted generation; join the worker and revoke the lease before adapter close. Migrate the existing direct/legacy publication ownership to the managed writer and epoch barrier before claiming D5 recovery. |
 | Growatt BMS RS-485 | [`startGrowattBMSRS485Runtime`](../../cmd/gateway/growatt_bms_rs485_runtime.go) takes `GrowattBMSRS485Config`, hub; returns `*growattBMSRS485ProductionProvider`. `openGrowattBMSRTUEndpoint` is the existing injectable open seam. Provider methods include `GrowattBMSRS485V202`, `GrowattStorageSemanticCurrent`, `LastObservationEvidence`, `Close`. | Bind config/source and service correlation before opening. Preserve the existing admission-before-endpoint ordering, native read admission and observation serialization. Add cancellable, bounded join around in-flight reads; `Close()` has no context and cannot alone prove a bounded drain. Keep immutable native observation evidence and retained storage fields. Attach the Storage contribution to the actual admitted generation. |
-| Growatt BMS CAN | [`newGrowattBMSCANManagedFactory`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/growatt_bms_can_runtime.go) takes `GrowattBMSCANConfig` and an injectable receive-only opener; returns an inert lifecycle adapter. | Proven: host-only registration, disabled defaults, managed start/stop/restart, bounded startup retries, correlated receive-failure reporting and cleanup quarantine. Public snapshot bindings remain deferred. |
+| Growatt BMS CAN | [`newGrowattBMSCANManagedFactory`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/growatt_bms_can_runtime.go) takes `GrowattBMSCANConfig` and an injectable receive-only opener; returns an inert lifecycle adapter. | Proven: host-only registration, disabled defaults, managed start/stop/restart, bounded startup retries, correlated receive-failure reporting and cleanup quarantine. Public snapshot bindings remain deferred. |
 | eeBUS | [`startEEBusRuntime`](../../cmd/gateway/eebus_runtime_adapter.go) takes context, `EEBusConfig`, interface resolver and `eebusRuntimeFactory`; returns `*eebusRuntimeAdapter`. The operator variant returns adapter plus `AdminV1`. Native lifecycle is `Start(ctx)` / `Shutdown()`; adapter provides `Snapshot()` and once-only `Shutdown()`. | Construct and start inside managed ownership. Preserve incomplete-pair cleanup in `startEEBusOperatorRuntime`. Use the existing `eebusRuntimeSlot` reader drain/replace shape and command router; fence readers before draining. Its `Shutdown()` has no context, so prove bounded close/join or report unconfirmed close. Do not turn an eeBUS trust or native write decision into a generic lifecycle decision. |
 
 The existing `eebusRuntimeSlot` methods `BeginRetire`, `DrainRetired`,
@@ -510,7 +510,7 @@ closure or release readiness.
 ## Composed northbound acceptance (M57)
 
 Proven by the `TestM57` fixtures in
-[`composition_projection_acceptance_test.go`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/gateway/composition_projection_acceptance_test.go):
+[`composition_projection_acceptance_test.go`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/gateway/composition_projection_acceptance_test.go):
 they run the post-G5 lifecycle entrypoint with the production HTTP control
 plane, runtime control service, managed registry, process hub, shared snapshot
 provider and semantic operation router and kernel. Replaced parts: the eBUS
@@ -571,7 +571,7 @@ readiness remain **Unknown**.
 
 ### Huawei read-only PV composition
 
-Refs [gateway issue 1363](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1363).
+Refs [gateway issue 1363](https://github.com/Project-Helianthus/helianthus-gateway/issues/1363).
 This is the admitted SmartLogger/S-Dongle slice. EMMA acquisition remains blocked
 by [the native prerequisite](https://github.com/Project-Helianthus/helianthus-modbusreg/issues/199).
 It adds no storage, meter, control or all-family readiness claim. Storage and
@@ -588,7 +588,7 @@ Configured pacing may lengthen native pacing. It never shortens the native
 native cycle remains authoritative. Reconnect binds a new session generation
 and forces native re-identification before further PV publication.
 
-Asset keys follow the [finalized multi-endpoint contract](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/modbus-multi-endpoint-runtime.md):
+Asset keys follow the [finalized multi-endpoint contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/api/modbus-multi-endpoint-runtime.md):
 SHA-256 over UTF-8 fields, each followed by NUL: `helianthus.modbus.asset.v1`,
 configured instance label, `pv`, routed unit in decimal. Prefix the first 32
 lowercase hexadecimal characters with `pv-asset-`. The configured managed
@@ -721,7 +721,7 @@ focused gateway, adapter and MCP tests.
 
 ### Huawei storage, meter and Portal contribution
 
-Refs [gateway issue 1364](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1364).
+Refs [gateway issue 1364](https://github.com/Project-Helianthus/helianthus-gateway/issues/1364).
 The [Huawei storage mapping gate](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/main/api/v1/mappings/huawei-luna2000-storage-v1.md)
 and the [gateway-meter mapping gate](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/main/api/v1/mappings/huawei-gateway-meter-infrastructure-v1.md)
 are accepted as withheld-only gates. No battery profile is admitted, no meter is

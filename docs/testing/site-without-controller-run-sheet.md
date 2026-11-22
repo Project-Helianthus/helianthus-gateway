@@ -1,7 +1,7 @@
 # Reduced run sheet: eBUS site without a system controller
 
-Refs [gateway #1469](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1469),
-a sub-issue of [gateway #1449](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1449).
+Refs [gateway #1469](https://github.com/Project-Helianthus/helianthus-gateway/issues/1469),
+a sub-issue of [gateway #1449](https://github.com/Project-Helianthus/helianthus-gateway/issues/1449).
 This is the reduced form of the single operator session in the
 [consolidated candidate handoff](consolidated-candidate-handoff.md) for one site
 profile: the eBUS carries a heat source and the vendor's internet module, and

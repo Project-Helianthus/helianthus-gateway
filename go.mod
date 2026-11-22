@@ -1,4 +1,4 @@
-module github.com/Project-Helianthus/helianthus-ebusgateway
+module github.com/Project-Helianthus/helianthus-gateway
 
 go 1.22.0
 

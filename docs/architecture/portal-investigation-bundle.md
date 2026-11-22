@@ -1,8 +1,8 @@
 # Portal investigation bundle contents and lineage
 
 This is a partial contract slice for
-[issue #1160](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1160),
-advancing [#1002](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1002).
+[issue #1160](https://github.com/Project-Helianthus/helianthus-gateway/issues/1160),
+advancing [#1002](https://github.com/Project-Helianthus/helianthus-gateway/issues/1002).
 It defines proposed public evidence selection and the loss that selection must
 disclose. It does not implement an exporter. Nothing here is stable before
 Helianthus 1.0.
@@ -10,9 +10,9 @@ Helianthus 1.0.
 ## Current source contract
 
 The source anchors are the public
-[Portal handler](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/portal/handler.go),
-[Explorer](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/portal/explorer.go),
-and [handler tests](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/portal/handler_test.go).
+[Portal handler](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/portal/handler.go),
+[Explorer](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/portal/explorer.go),
+and [handler tests](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/portal/handler_test.go).
 The inventory below describes those sources, not a privacy guarantee.
 
 `handleIssueExport` calls `buildIssueDraft`, then emits the following envelope.

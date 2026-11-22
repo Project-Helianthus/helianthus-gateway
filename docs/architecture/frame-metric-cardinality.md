@@ -9,7 +9,7 @@ the existing pre-stable public contract.
 ## Finite-domain upper bound
 
 The storage identity is
-[`frameSeriesKey`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/bus_observability_store.go#L308).
+[`frameSeriesKey`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/bus_observability_store.go#L308).
 Its complete label domains are:
 
 | Label | Domain | Size |
@@ -21,15 +21,15 @@ Its complete label domains are:
 | `dst` (active) | `0x00` through `0xff`, lowercase | 256 |
 | `dst` (passive) | The same byte labels plus `scan` | 257 |
 
-[`classifyFamily`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/bus_observability_store.go#L2375)
+[`classifyFamily`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/bus_observability_store.go#L2375)
 formats all command-byte pairs. The explicit B509, B516, B524 and B555 branches
 return the same spelling as that formatting, so they add no extra families.
-[`classifyActiveFrameType`, `classifyPassiveFrameType` and `classifyFrameType`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/bus_observability_store.go#L2459)
+[`classifyActiveFrameType`, `classifyPassiveFrameType` and `classifyFrameType`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/bus_observability_store.go#L2459)
 close the frame-type vocabulary, including local-participant and abandoned
 classes.
-[`normalizeAddressLocked`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/bus_observability_store.go#L2134)
+[`normalizeAddressLocked`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/bus_observability_store.go#L2134)
 preserves each byte label, including the broadcast byte. Only
-[`recordPassiveAbandonedLocked`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/bus_observability_store.go#L1926)
+[`recordPassiveAbandonedLocked`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/bus_observability_store.go#L1926)
 substitutes the extra destination `scan` for scan-related abandonment.
 
 A conservative scope-aware Cartesian upper bound is therefore:
@@ -51,9 +51,9 @@ number of installed participants is needed for this implementation bound.
 
 ## Diagnostic thresholds and enforced caps
 
-[`Config.ObserveFirstSeriesBudget`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/config.go#L398)
+[`Config.ObserveFirstSeriesBudget`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/config.go#L398)
 has a default of 1,024. In
-[`incrementFrameLocked`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/bus_observability_store.go#L2096),
+[`incrementFrameLocked`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/bus_observability_store.go#L2096),
 a new frame identity checks the pre-insertion sum of `frames`, `errors` and
 `frameBytes` map lengths against that configured budget. It also checks the
 frame-map length against `observeFirstFramesHardCap`, currently 2,048.
@@ -74,7 +74,7 @@ does not close INT-11 or the parent follow-up.
 
 ## Verification scope
 
-[`TestQ04FrameBytePairDomain`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/frame_metric_domain_test.go)
+[`TestQ04FrameBytePairDomain`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/frame_metric_domain_test.go)
 feeds the production `OnBusEvent` entrypoint all 65,536 synthetic byte pairs for
 one active family, then repeats the sweep twice with different request payloads.
 Each rendered pair must retain one identity and advance from one to three.
@@ -89,5 +89,5 @@ no exporter server, socket, capture or device is involved. These are synthetic
 implementation observations, not protocol qualification evidence. They make no
 new protocol claims or changes to native admission, MCP or GraphQL contracts.
 
-Refs: [gateway follow-up #1108](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1108)
-and [this partial slice #1110](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1110).
+Refs: [gateway follow-up #1108](https://github.com/Project-Helianthus/helianthus-gateway/issues/1108)
+and [this partial slice #1110](https://github.com/Project-Helianthus/helianthus-gateway/issues/1110).

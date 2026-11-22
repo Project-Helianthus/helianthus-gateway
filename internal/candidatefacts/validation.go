@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/syncevidence"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/syncevidence"
 )
 
 const (

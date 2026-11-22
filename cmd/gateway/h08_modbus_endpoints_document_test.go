@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimestate"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimestate"
 )
 
 // Synthetic endpoints only: reserved invalid domains and documentation

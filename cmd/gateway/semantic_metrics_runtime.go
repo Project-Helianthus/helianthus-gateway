@@ -10,9 +10,9 @@ import (
 	"sort"
 	"sync"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticmetrics"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticview"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticmetrics"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 

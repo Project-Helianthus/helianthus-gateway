@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/promotioncapture"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/promotioncapture"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 const (

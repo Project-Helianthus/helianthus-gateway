@@ -1,7 +1,7 @@
 # DHW target candidate validation
 
-This read-only mapper hardening addresses [#1210](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1210)
-and advances a bounded part of [#952](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/952).
+This read-only mapper hardening addresses [#1210](https://github.com/Project-Helianthus/helianthus-gateway/issues/1210)
+and advances a bounded part of [#952](https://github.com/Project-Helianthus/helianthus-gateway/issues/952).
 It adds no acquisition, registration, persistence, write operation or consumer
 admission. Nothing here establishes stability before Helianthus 1.0.
 

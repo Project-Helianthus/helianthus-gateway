@@ -1,8 +1,8 @@
 # Circuit candidate validation details
 
 This detached, offline mapper implements a bounded hardening slice of
-[issue #1249](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1249),
-advancing [parent #952](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/952).
+[issue #1249](https://github.com/Project-Helianthus/helianthus-gateway/issues/1249),
+advancing [parent #952](https://github.com/Project-Helianthus/helianthus-gateway/issues/952).
 It acquires no observations and supplies no installation qualification. Nothing
 here is stable before Helianthus 1.0.
 

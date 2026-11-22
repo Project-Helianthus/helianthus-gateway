@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 

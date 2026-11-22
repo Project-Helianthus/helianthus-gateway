@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway"
+	"github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func TestShouldCloseSemanticBarrier(t *testing.T) {

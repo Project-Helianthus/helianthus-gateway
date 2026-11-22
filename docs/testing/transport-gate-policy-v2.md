@@ -1,21 +1,21 @@
 # Transport gate policy v2 (AdapterMux conformance matrix)
 
 Status: applied. This page is deliverable (d) of
-[#1378](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1378).
+[#1378](https://github.com/Project-Helianthus/helianthus-gateway/issues/1378).
 The transport gate checks the AdapterMux conformance matrix
-([M7-adaptermux-conformance-matrix.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/matrix/M7-adaptermux-conformance-matrix.md)):
+([M7-adaptermux-conformance-matrix.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/matrix/M7-adaptermux-conformance-matrix.md)):
 `TRANSPORT_MATRIX_REPORT` points at an `adaptermux-v2` index, checked by the
 rules of §4 in
-[scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/transport_gate.sh).
+[scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/transport_gate.sh).
 The 88-case `full88` form is no longer accepted. The owner override that cites
-[#1099](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1099)
+[#1099](https://github.com/Project-Helianthus/helianthus-gateway/issues/1099)
 keeps its meaning: pull requests merge under it until the consolidated
 session's `adaptermux-v2` report exists.
 
 ## 1. When this policy takes force
 
 The policy is in force.
-[#1544](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1544)
+[#1544](https://github.com/Project-Helianthus/helianthus-gateway/issues/1544)
 states the switch condition in its correction criterion: the switch does
 not wait for a run of the old form, the keepers of T01–T08 are the cells the
 cell map already assigns, and the old form's report check is replaced at the
@@ -25,7 +25,7 @@ switch. The reasons:
    topologies that the steer on #1378 retired; the external proxy is not part
    of the candidate image.
 2. The cases that survive, T01–T08, have keepers in the matrix already: the
-   [cell map](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/matrix/M7-adaptermux-conformance-cell-map.md)
+   [cell map](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/matrix/M7-adaptermux-conformance-cell-map.md)
    assigns `ENS-DS01`, `ENH-DS01`, `UDP-DS01` and `TCP-DS01` to T01–T04 and
    `EBUSD-ES01` to T05–T08. A `full88` report from the switch session would
    only repeat what those cells check.
@@ -44,7 +44,7 @@ hardware waiver is implied either way.
   (including `internal/adaptermux/*`, `internal/matrix/*` and
   `cmd/matrix-runner/*`), `requires_b503_native_transport_gate`, and the
   `go.mod` rule for `helianthus-ebusgo` in
-  [scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/transport_gate.sh).
+  [scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/transport_gate.sh).
 - The override mechanism and its variable names: both
   `TRANSPORT_GATE_OWNER_OVERRIDE=OVERRIDE_TRANSPORT_GATE_BY_OWNER` and a
   non-empty `TRANSPORT_GATE_OWNER_REASON` naming scope and residual risk. An
@@ -54,13 +54,13 @@ hardware waiver is implied either way.
   points at an `adaptermux-v2` index. A `full88` report is rejected by the suite
   check of §4 instead of by a second variable.
 - The passive smoke gate's trigger path list
-  ([scripts/passive_smoke_gate.sh](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/passive_smoke_gate.sh)),
+  ([scripts/passive_smoke_gate.sh](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/passive_smoke_gate.sh)),
   the report variable `PASSIVE_SMOKE_REPORT`, and the override variable names
   `PASSIVE_SMOKE_GATE_OWNER_OVERRIDE` and `PASSIVE_SMOKE_GATE_OWNER_REASON`.
 
 The passive suite those variables gate is `P01`, `P02` and `P06`. `P03`, `P04`
 and `P05` leave that suite. The
-[cell map](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/matrix/M7-adaptermux-conformance-cell-map.md)
+[cell map](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/matrix/M7-adaptermux-conformance-cell-map.md)
 names the `adaptermux-v2` cells that carry part of their assertions, and this
 page adopts that mapping. The cells keep their own checks (the invariant table
 of the runner README); removing the three cases adds no requirement to any
@@ -80,19 +80,19 @@ separate change.
 
 | Location | Before the switch | Applied |
 |---|---|---|
-| [scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/transport_gate.sh), report check (the embedded Python after `if [[ "${requires_ebus_gate}" -eq 1 ]]`) | required `len(cases) == 88`; accepted `blocked-infra` only with `adapter_no_signal`; any `planned` was unexpected | checks the `adaptermux-v2` rules of §4: suite, inventory version, exact case-ID set, per-category acceptance, one hardware setup per transport. The script declares the inventory it checks; a test of `internal/matrix` renders that declaration from the generator and fails on any difference |
+| [scripts/transport_gate.sh](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/transport_gate.sh), report check (the embedded Python after `if [[ "${requires_ebus_gate}" -eq 1 ]]`) | required `len(cases) == 88`; accepted `blocked-infra` only with `adapter_no_signal`; any `planned` was unexpected | checks the `adaptermux-v2` rules of §4: suite, inventory version, exact case-ID set, per-category acceptance, one hardware setup per transport. The script declares the inventory it checks; a test of `internal/matrix` renders that declaration from the generator and fails on any difference |
 | same file, owner-override block | comment: covered "the eBUS TRANSPORT_MATRIX_REPORT (T01..T88) check and the AD01..AD12 block" | covers the `adaptermux-v2` `TRANSPORT_MATRIX_REPORT` check, AD cells included; behavior unchanged |
 | same file, AD block (`adapter_direct_touched`, `HELIANTHUS_AD_GATE_SKIP`) | an `internal/adaptermux/*.go` change failed unless `HELIANTHUS_AD_GATE_SKIP` named a reason, because "a formal matrix report ... is pending implementation" | the AD cells are part of the report; for such a change the gate states that the report's AD cells are present and accepted, and `HELIANTHUS_AD_GATE_SKIP` is removed |
 | same file, messages and comments naming the old matrix | "TRANSPORT_MATRIX_REPORT is required for eBUS transport/protocol changes", "expected 88 cases", "require current M6a T01..T88 evidence" (B503 classifier comment), "Keep the 88-case transport gate" (SemReg comment), "an unrelated 88-case transport report" (main loop comment) | name the `adaptermux-v2` matrix; a `full88` report is rejected with a message that names the new form; no behavior change in the classifiers |
-| [scripts/transport_gate_test.py](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/scripts/transport_gate_test.py) | 88-case report fixtures | `adaptermux-v2` fixtures, with negative cases for: wrong suite, the retired form, wrong inventory version, unknown or missing case, duplicate case, `planned` outside PL-01/PL-02/PL-03/PL-04, a cell in a category the gate does not accept, `uart_direct_hardware_absent` on a non-UART cell, `xfail` outside XF-01, `xpass`, unexpected `fail`, missing setup, two hardware setups within one transport |
-| [AGENTS.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/AGENTS.md), "Gates and validation" | "require the applicable T01..T88 result"; the override "covers only the physical requirements (the eBUS `TRANSPORT_MATRIX_REPORT` T01..T88 check and the AD01..AD12 block)" | "require the applicable AdapterMux conformance matrix (`adaptermux-v2`) result"; the override covers the eBUS `TRANSPORT_MATRIX_REPORT` `adaptermux-v2` check, AD cells included |
-| [cmd/matrix-runner/README.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/matrix-runner/README.md), suite table | `full88` "still the gate's report form"; `adaptermux-v2` "not yet the gate's form" | `adaptermux-v2` is the gate's report form; `full88` is historical |
-| [internal/matrix/topology.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/matrix/topology.go), [internal/matrix/runner.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/internal/matrix/runner.go), [cmd/matrix-runner/main.go](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/cmd/matrix-runner/main.go) | suites `full88` (default) and `passive`; `adaptermux-v2` added by the implementation ticket | unchanged by the switch: `full88` stays the runner's default flag value and stays generable to reproduce historical reports until the proxy repository is archived; the gate accepts only `adaptermux-v2` |
-| [docs/testing/consolidated-candidate-handoff.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/testing/consolidated-candidate-handoff.md) | range rows T01–T04, T05–T08, T09–T24, T25–T88, PX01–PX12; rows AD01–AD12 | to change with the next session's hand-off: one row per axis-1 transport and family (AD, PX, CX), the compatibility block, AD11 marked retired; the session section names one report |
+| [scripts/transport_gate_test.py](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/scripts/transport_gate_test.py) | 88-case report fixtures | `adaptermux-v2` fixtures, with negative cases for: wrong suite, the retired form, wrong inventory version, unknown or missing case, duplicate case, `planned` outside PL-01/PL-02/PL-03/PL-04, a cell in a category the gate does not accept, `uart_direct_hardware_absent` on a non-UART cell, `xfail` outside XF-01, `xpass`, unexpected `fail`, missing setup, two hardware setups within one transport |
+| [AGENTS.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/AGENTS.md), "Gates and validation" | "require the applicable T01..T88 result"; the override "covers only the physical requirements (the eBUS `TRANSPORT_MATRIX_REPORT` T01..T88 check and the AD01..AD12 block)" | "require the applicable AdapterMux conformance matrix (`adaptermux-v2`) result"; the override covers the eBUS `TRANSPORT_MATRIX_REPORT` `adaptermux-v2` check, AD cells included |
+| [cmd/matrix-runner/README.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/matrix-runner/README.md), suite table | `full88` "still the gate's report form"; `adaptermux-v2` "not yet the gate's form" | `adaptermux-v2` is the gate's report form; `full88` is historical |
+| [internal/matrix/topology.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/matrix/topology.go), [internal/matrix/runner.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/internal/matrix/runner.go), [cmd/matrix-runner/main.go](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/cmd/matrix-runner/main.go) | suites `full88` (default) and `passive`; `adaptermux-v2` added by the implementation ticket | unchanged by the switch: `full88` stays the runner's default flag value and stays generable to reproduce historical reports until the proxy repository is archived; the gate accepts only `adaptermux-v2` |
+| [docs/testing/consolidated-candidate-handoff.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/testing/consolidated-candidate-handoff.md) | range rows T01–T04, T05–T08, T09–T24, T25–T88, PX01–PX12; rows AD01–AD12 | to change with the next session's hand-off: one row per axis-1 transport and family (AD, PX, CX), the compatibility block, AD11 marked retired; the session section names one report |
 | operator ship wrappers `ship_ticket.zsh` and `ship_fix.zsh` (outside this repository) | export `TRANSPORT_GATE_OWNER_OVERRIDE=OVERRIDE_TRANSPORT_GATE_BY_OWNER` with `TRANSPORT_GATE_OWNER_REASON="T01..T88/AD01..AD12 deferred to the consolidated 0.7 candidate hardware session (gateway #1099); offline gates and exact-HEAD reviews required; no live writes"`; never set `TRANSPORT_MATRIX_REPORT` | either pass `TRANSPORT_MATRIX_REPORT` with an `adaptermux-v2` report covering the change, or export the same two override variables with a reason that names the `adaptermux-v2` cells in scope (transport × invariant family) and the tracking issue of the consolidated session. A reason that cites #1099 is invalid once #1099 is closed. |
 
 Unchanged by the switch, but read by it:
-[matrix/M6a-transport-matrix.md](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/matrix/M6a-transport-matrix.md) is the L7
+[matrix/M6a-transport-matrix.md](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/matrix/M6a-transport-matrix.md) is the L7
 CM/FC matrix of #513, not the T01–T88 definition, and stays as it is. Outside
 this repository, the 88-topology runbook and the PX adjunct section of
 `development/smoke-matrix.md` and the `T/PX` gate row of

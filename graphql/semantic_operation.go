@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticoperations"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/operation"
 	graphqlgo "github.com/graphql-go/graphql"
@@ -22,7 +22,7 @@ import (
 )
 
 // SemanticOperationRouter is the injected bounded dispatcher of the one
-// generic semantic operation route (helianthus-docs-ebus
+// generic semantic operation route (helianthus-docs
 // api/semantic-operation-route.md). The GraphQL adapter performs no admission,
 // executor selection or native dispatch of its own.
 type SemanticOperationRouter interface {

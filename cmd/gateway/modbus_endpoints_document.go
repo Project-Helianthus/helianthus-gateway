@@ -15,8 +15,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
 )
 
 // Configuration v2 of the Modbus multi-endpoint runtime contract: one closed,

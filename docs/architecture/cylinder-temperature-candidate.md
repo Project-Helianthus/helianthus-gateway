@@ -1,7 +1,7 @@
 # Detached cylinder temperature candidates
 
-This pure adapter slice advances [#1234](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1234)
-and [#952](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/952)
+This pure adapter slice advances [#1234](https://github.com/Project-Helianthus/helianthus-gateway/issues/1234)
+and [#952](https://github.com/Project-Helianthus/helianthus-gateway/issues/952)
 without completing thermal cutover. Nothing here is stable before Helianthus
 1.0. No acquisition, registration, consumer change or publication is enabled.
 
@@ -114,7 +114,7 @@ prior records. Qualification, known-bounds and unit mismatches have redundant
 native guards, so direct helper checks distinguish those equality comparisons.
 Selector identity helper checks do not establish full native-selector guard
 mutation coverage. Ordering-key marshal error handling remains deferred under
-[#1248](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1248).
+[#1248](https://github.com/Project-Helianthus/helianthus-gateway/issues/1248).
 
 Focused `TestI34` vectors cover widths, finite values, qualified bounds,
 independent identity fences, evidence provenance, malformed typed time,

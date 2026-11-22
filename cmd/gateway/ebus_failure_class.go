@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
 // ebusFailureDetail describes one failed ebus.primary attempt for the recovery

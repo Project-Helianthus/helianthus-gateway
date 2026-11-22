@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 )
 
 func o18Poller(payload []byte, requests *int) *vaillantSemanticPoller {

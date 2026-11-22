@@ -1,7 +1,7 @@
 # AdapterMux registered target-address subscribers
 
 Status: design for
-[#991](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/991).
+[#991](https://github.com/Project-Helianthus/helianthus-gateway/issues/991).
 No code implements it yet. Every rule below is a software decision for the
 implementation slices listed at the end; none of it is a protocol fact or a
 hardware qualification. Wire timing of the responder path is **Unknown**.
@@ -346,7 +346,7 @@ each row catches:
 ## 8. Slice plan
 
 The slices follow the transition refactor of
-[#1482](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1482),
+[#1482](https://github.com/Project-Helianthus/helianthus-gateway/issues/1482),
 which moves the mux state, read loop, received-symbol, SYN-boundary and grant
 handlers into `mux_state.go`, `read_loop.go`, `received_symbol.go`,
 `syn_boundary.go` and `grant.go`; they edit those files rather than the

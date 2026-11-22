@@ -1,7 +1,7 @@
 # M5 — Vaillant B503 Transport Matrix Artifact
 
 **Milestone:** `M5_TRANSPORT_MATRIX`
-**Repo:** `helianthus-ebusgateway`
+**Repo:** `helianthus-gateway`
 **Issue:** #517
 **Plan:** `helianthus-execution-plans/vaillant-b503-namespace-w17-26.implementing/`
 **Predecessors (merged):**

@@ -1,6 +1,6 @@
-# helianthus-ebusgateway
+# helianthus-gateway
 
-`helianthus-ebusgateway` is the runtime composition and API edge for Helianthus.
+`helianthus-gateway` is the runtime composition and API edge for Helianthus.
 It hosts enabled protocol-native drivers, composes their promoted semantic state,
 and exposes declared GraphQL, MCP, Portal, Prometheus, subscription, and operator
 surfaces. The repository keeps its historical name while its runtime scope spans
@@ -53,10 +53,10 @@ companions group the existing command declarations by responsibility:
 - `gateway_runtime_state.go` -- runtime-state bootstrap and readiness projection.
 
 Each composition owner's contract and the complete shutdown sequence are stated
-in [`docs/architecture/gateway-composition-owners.md`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/architecture/gateway-composition-owners.md).
+in [`docs/architecture/gateway-composition-owners.md`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/architecture/gateway-composition-owners.md).
 
 The defensive non-send Tesla Gen3 HSC completed-outcome owner is documented in
-[`docs/tesla-gen3-hsc-retained-owner.md`](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/tesla-gen3-hsc-retained-owner.md).
+[`docs/tesla-gen3-hsc-retained-owner.md`](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/tesla-gen3-hsc-retained-owner.md).
 
 ### What does not belong in this repository
 
@@ -74,9 +74,9 @@ The defensive non-send Tesla Gen3 HSC completed-outcome owner is documented in
 ## Status and Maturity
 
 - Active gateway service with repository CI and race-enabled tests.
-- The exact SemReg dependency is owned by [go.mod](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/go.mod).
+- The exact SemReg dependency is owned by [go.mod](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/go.mod).
 - Current accepted SemReg composition covers PV, Storage, and EVSE domain paths;
-  Thermal/HVAC ([issue #952](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/952)),
+  Thermal/HVAC ([issue #952](https://github.com/Project-Helianthus/helianthus-gateway/issues/952)),
   Infrastructure, complete EEBUS output, Matter output, packaging, and physical
   validation remain separate or in-progress 0.7 work.
 - Smoke mode is intentionally opt-in and environment-backed (`EBUS_SMOKE=1` + local config file). Repository and offline tests do not establish physical qualification.
@@ -85,13 +85,13 @@ The defensive non-send Tesla Gen3 HSC completed-outcome owner is documented in
 
 | Surface | Accepted revision and boundary |
 |---|---|
-| SemReg PV composition | [PR #956 / `2ad927b`](https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/956) makes one SemReg PV publication available to MCP, M2M GraphQL, and Portal. |
-| SemReg Storage and EVSE | [PR #959 / `b2651d7`](https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/959) and [PR #962 / `1fbf5e1`](https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/962) add the accepted read-only domain paths. Producer availability and physical qualification remain separate. |
-| Prometheus | [PR #964 / `c139d0e`](https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/964) exports bounded PV and Storage projections, [PR #967 / `2daae4c`](https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/967) adds EVSE, and [PR #978 / `143bf19`](https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/978) adds detached Modbus and EEBUS runtime status. |
-| Generic Portal contributions | [PR #984 / `5eb5346`](https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/984) renders the admitted read-only contribution catalog with explicit absence, provenance, freshness, quality, lifecycle, and projection-loss states. Complete INT-10 remains open. |
+| SemReg PV composition | [PR #956 / `2ad927b`](https://github.com/Project-Helianthus/helianthus-gateway/pull/956) makes one SemReg PV publication available to MCP, M2M GraphQL, and Portal. |
+| SemReg Storage and EVSE | [PR #959 / `b2651d7`](https://github.com/Project-Helianthus/helianthus-gateway/pull/959) and [PR #962 / `1fbf5e1`](https://github.com/Project-Helianthus/helianthus-gateway/pull/962) add the accepted read-only domain paths. Producer availability and physical qualification remain separate. |
+| Prometheus | [PR #964 / `c139d0e`](https://github.com/Project-Helianthus/helianthus-gateway/pull/964) exports bounded PV and Storage projections, [PR #967 / `2daae4c`](https://github.com/Project-Helianthus/helianthus-gateway/pull/967) adds EVSE, and [PR #978 / `143bf19`](https://github.com/Project-Helianthus/helianthus-gateway/pull/978) adds detached Modbus and EEBUS runtime status. |
+| Generic Portal contributions | [PR #984 / `5eb5346`](https://github.com/Project-Helianthus/helianthus-gateway/pull/984) renders the admitted read-only contribution catalog with explicit absence, provenance, freshness, quality, lifecycle, and projection-loss states. Complete INT-10 remains open. |
 | Home Assistant consumers | The separate integration consumes the public PV, Storage, and EVSE SemReg contracts in [PR #257](https://github.com/Project-Helianthus/helianthus-ha-integration/pull/257), [PR #261](https://github.com/Project-Helianthus/helianthus-ha-integration/pull/261), and [PR #263](https://github.com/Project-Helianthus/helianthus-ha-integration/pull/263). Those merges do not prove the packaged add-on contains the same revisions. |
 | EEBUS and Matter | Both are public 0.7 software scope and do not depend on private hardware. EEBUS-native runtime/read surfaces are present, while the protocol-neutral EEBUS output remains in progress. The accepted baseline has [no composed Matter output binding](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/5eb53465e88d254455251203e2dc30f813541bba/docs/architecture/runtime-driver-provider-contract-v1.md#current-operation-inventory-at-the-pinned-baseline); it makes no Matter conformance claim. |
-| SunSpec to SemReg example | The [positive and field-isolated negative example](https://github.com/Project-Helianthus/helianthus-ebusgateway/blob/main/docs/examples/sunspec-semreg-pv.md) traces the existing read-only native observation through SemReg and the current MCP, M2M GraphQL, and Portal consumers. |
+| SunSpec to SemReg example | The [positive and field-isolated negative example](https://github.com/Project-Helianthus/helianthus-gateway/blob/main/docs/examples/sunspec-semreg-pv.md) traces the existing read-only native observation through SemReg and the current MCP, M2M GraphQL, and Portal consumers. |
 
 These links establish merged software and offline validation only. They do not
 establish packaging parity, installation success, certification, device support,
@@ -109,7 +109,7 @@ or physical validation.
 
 ```text
 protocol-native transports and registries ----+
-                                               +-> helianthus-ebusgateway -> consumers
+                                               +-> helianthus-gateway -> consumers
 helianthus-semreg (canonical state) -----------+      (composition/APIs)
 ```
 
@@ -128,8 +128,8 @@ GitHub token, `GOPRIVATE`, a `.netrc` file, or sibling checkouts.
 ### 1) Clone and validate the public source
 
 ```bash
-git clone https://github.com/Project-Helianthus/helianthus-ebusgateway.git
-cd helianthus-ebusgateway
+git clone https://github.com/Project-Helianthus/helianthus-gateway.git
+cd helianthus-gateway
 git rev-parse HEAD
 GOWORK=off go mod download
 ./scripts/ci_local.sh
@@ -170,7 +170,7 @@ curl -fsS http://127.0.0.1:8080/mcp \
 ```
 
 Portal API probes and operational notes live in docs:
-https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/portal.md
+https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/portal.md
 
 ## Local Smoke-Test Configuration Example
 
@@ -308,9 +308,9 @@ tests with `python3 -m unittest discover -s tests -p test_python_lint.py`.
 - `helianthus-ebusgo`: https://github.com/Project-Helianthus/helianthus-ebusgo
 - `helianthus-ebusreg`: https://github.com/Project-Helianthus/helianthus-ebusreg
 - eBUS docs hub: https://github.com/Project-Helianthus/helianthus-docs-ebus
-- Portal API and operations: https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/portal.md
+- Portal API and operations: https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/portal.md
 - Smoke-test documentation: https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/development/smoke-test.md
-- Issue tracker: https://github.com/Project-Helianthus/helianthus-ebusgateway/issues
+- Issue tracker: https://github.com/Project-Helianthus/helianthus-gateway/issues
 
 ### Issue workflow conventions
 

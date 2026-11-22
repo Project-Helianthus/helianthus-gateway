@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 

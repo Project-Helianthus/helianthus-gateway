@@ -14,9 +14,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/eebusoutput"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticoperations"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticoperations/semoptest"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/eebusoutput"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations/semoptest"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/operation"
 )
 

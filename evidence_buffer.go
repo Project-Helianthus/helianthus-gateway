@@ -1,6 +1,6 @@
 package ebusgateway
 
-import "github.com/Project-Helianthus/helianthus-ebusgateway/internal/ebus/evidence/discovery"
+import "github.com/Project-Helianthus/helianthus-gateway/internal/ebus/evidence/discovery"
 
 // EvidenceStrength classifies an observation's contribution to discovery candidacy.
 type EvidenceStrength = discovery.EvidenceStrength

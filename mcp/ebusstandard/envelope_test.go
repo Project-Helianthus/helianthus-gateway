@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	estd "github.com/Project-Helianthus/helianthus-ebusgateway/mcp/ebusstandard"
+	estd "github.com/Project-Helianthus/helianthus-gateway/mcp/ebusstandard"
 )
 
 func TestEnvelope_ShapeMetaDataError(t *testing.T) {

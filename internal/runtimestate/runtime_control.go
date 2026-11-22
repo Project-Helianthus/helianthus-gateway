@@ -1,6 +1,6 @@
 // Package runtimestate — durable runtime_control namespace (G5 storage seam).
 //
-// This file mirrors the D3/D2 durable control contract of the docs-ebus
+// This file mirrors the D3/D2 durable control contract of the helianthus-docs
 // runtime driver lifecycle page (sections "S1/D3: minimal durable control
 // decisions" and "S3/D2: bootstrap, load failures and explicit repair") as a
 // storage-level seam: the independently versioned namespace, its load

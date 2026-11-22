@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
 	eebusruntime "github.com/Project-Helianthus/helianthus-eebusreg"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 const testEEBusStateRoot = "/var/lib/helianthus/eebus"

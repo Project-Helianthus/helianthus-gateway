@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/catalogv1"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 )
 
 func TestPortalCatalogV1IsDedicatedAndBounded(t *testing.T) {

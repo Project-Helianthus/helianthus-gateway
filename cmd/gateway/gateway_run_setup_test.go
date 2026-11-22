@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimestate"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimestate"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 

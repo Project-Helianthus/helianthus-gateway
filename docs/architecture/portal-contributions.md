@@ -1,12 +1,12 @@
 # Read-only Portal contributions and path-prefix embedding
 
-Status: integration contract for issue [#1129](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1129).
-This is a partial slice of [#999](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/999)
+Status: integration contract for issue [#1129](https://github.com/Project-Helianthus/helianthus-gateway/issues/1129).
+This is a partial slice of [#999](https://github.com/Project-Helianthus/helianthus-gateway/issues/999)
 (Project #2 INT-10); it does not close the parent. The descriptor and bootstrap
-transport is implemented by [#1172](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1172).
+transport is implemented by [#1172](https://github.com/Project-Helianthus/helianthus-gateway/issues/1172).
 Handler prefix support and the shared semantic read provider wiring are
 implemented. Home Assistant Ingress URL construction is implemented by
-[#1337](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1337)
+[#1337](https://github.com/Project-Helianthus/helianthus-gateway/issues/1337)
 (see [Exact external URL construction](#exact-external-url-construction)); the
 route allowlist for a read-only embedded bootstrap remains separate work.
 This is not an available universal lifecycle/configuration API or a stability promise.
@@ -53,7 +53,7 @@ The conceptual adapter has just two read operations:
 
 - `describe()` returns the detached accepted registry snapshot and its revision.
 - `read(asset_ids)` returns the shared `assets` view defined by
-  [M07: shared SemReg snapshot read](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/semantic-snapshot-read.md).
+  [M07: shared SemReg snapshot read](https://github.com/Project-Helianthus/helianthus-docs/blob/main/api/semantic-snapshot-read.md).
 
 These are interface responsibilities, not exported Go APIs. Providers perform
 no discovery, acquisition, publication, decoding or operation dispatch. Capture
@@ -460,7 +460,7 @@ them under the prefix. This omission remains separate entry-point work; the
 current handler prefixes configured non-empty endpoints. Home Assistant Ingress
 forwards the whole listener, so its advertised endpoints are reachable.
 This route allowlist requirement adds no authorization gate. It avoids
-accidental administrative-route exposure ([#999](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/999))
+accidental administrative-route exposure ([#999](https://github.com/Project-Helianthus/helianthus-gateway/issues/999))
 and keeps native protocol endpoints off Ingress
 ([ha-addon #239](https://github.com/Project-Helianthus/helianthus-ha-addon/issues/239)).
 

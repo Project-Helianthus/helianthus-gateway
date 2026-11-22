@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"errors"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/systemconfig"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	vaillantsystem "github.com/Project-Helianthus/helianthus-ebusreg/vaillant/system"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/systemconfig"
 )
 
 var (

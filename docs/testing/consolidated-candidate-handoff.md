@@ -1,7 +1,7 @@
 # Consolidated candidate hardware acceptance handoff
 
-Refs [#1118](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1118) /
-[#1099](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1099).
+Refs [#1118](https://github.com/Project-Helianthus/helianthus-gateway/issues/1118) /
+[#1099](https://github.com/Project-Helianthus/helianthus-gateway/issues/1099).
 This is a partial preparation slice for the **0.7 candidate**, not parent closure,
 a hardware verdict, a release decision, or permission to operate equipment.
 One consolidated operator session is planned; preparing this document needed no device.
@@ -306,10 +306,10 @@ offline RTU gate.
 [explorer]: https://github.com/Project-Helianthus/helianthus-vrc-explorer/blob/main/docs/offline-acceptance.md
 [explorer-repo]: https://github.com/Project-Helianthus/helianthus-vrc-explorer
 [eebus-owner]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/137
-[matter-owner]: https://github.com/Project-Helianthus/helianthus-matter-binding/issues/4
+[matter-owner]: https://github.com/Project-Helianthus/helianthus-matterreg/issues/4
 [rtu]: https://github.com/Project-Helianthus/helianthus-modbus/pull/40
-[rtu-pin]: https://github.com/Project-Helianthus/helianthus-ebusgateway/pull/1092
-[modbus-multi]: https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/api/modbus-multi-endpoint-runtime.md
+[rtu-pin]: https://github.com/Project-Helianthus/helianthus-gateway/pull/1092
+[modbus-multi]: https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/api/modbus-multi-endpoint-runtime.md
 [huawei-pv-composition]: ../architecture/managed-sidecar-composition.md#huawei-read-only-pv-composition
 [huawei-h11]: ../architecture/managed-sidecar-composition.md#huawei-storage-meter-and-portal-contribution
 [huawei-pv]: https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/main/api/v1/mappings/huawei-sun2000-pv-v1.md
@@ -320,7 +320,7 @@ offline RTU gate.
 
 ## Huawei managed PV slice
 
-Refs [gateway issue 1363](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1363).
+Refs [gateway issue 1363](https://github.com/Project-Helianthus/helianthus-gateway/issues/1363).
 SmartLogger/S-Dongle composition has synthetic TCP replay coverage under
 `TestH10`, including identity admission, typed PV mapping, shared MCP/GraphQL
 snapshots, child isolation, source withdrawal and successor fencing. These
@@ -335,7 +335,7 @@ Storage, meter, Portal and live-device acceptance remain outside this slice.
 
 ## Huawei storage, meter and Portal slice
 
-Refs [gateway issue 1364](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1364).
+Refs [gateway issue 1364](https://github.com/Project-Helianthus/helianthus-gateway/issues/1364).
 `TestH11` covers one composed offline fixture through the managed setup
 entrypoint and lifecycle. The fixture has synthetic SmartLogger and S-Dongle
 instances, a withheld EMMA instance, two cross-family instances and the existing

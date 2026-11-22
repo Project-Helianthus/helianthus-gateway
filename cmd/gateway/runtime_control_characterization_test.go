@@ -52,16 +52,16 @@ import (
 	"testing"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/graphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/eebusadmin"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/releasecheck"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/b503session"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mdns"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal"
 	"github.com/Project-Helianthus/helianthus-ebusgo/transport"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/eebusadmin"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/releasecheck"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/b503session"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/mdns"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 )
 
 const (

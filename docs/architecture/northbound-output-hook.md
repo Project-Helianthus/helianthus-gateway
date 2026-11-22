@@ -1,15 +1,15 @@
 # Northbound output hook
 
 Status: implemented in the gateway registry for
-[issue #1125](https://github.com/Project-Helianthus/helianthus-ebusgateway/issues/1125).
+[issue #1125](https://github.com/Project-Helianthus/helianthus-gateway/issues/1125).
 This page is a partial slice of that issue. It follows the public
-[northbound output hook](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/northbound-output-hook.md)
+[northbound output hook](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/northbound-output-hook.md)
 contract and restates it for this host.
 
 ## Authority
 
 The public
-[runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/architecture/runtime-driver-lifecycle.md)
+[runtime driver lifecycle](https://github.com/Project-Helianthus/helianthus-docs/blob/main/architecture/runtime-driver-lifecycle.md)
 owns registration, start and stop. Health is the snapshot in the G5 runtime
 lifecycle MCP contract. **Proven** means a fact already stated by those public
 contracts: an empty hook list is a valid registration, the reserved names fail

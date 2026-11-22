@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/teslaobserve"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/teslaobserve"
 )
 
 // teslaObserveCommand selects the NO_SEND Tesla Gen3 HSC activation

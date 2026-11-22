@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/localworkerhost"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/localworkerhost"
 )
 
 const (

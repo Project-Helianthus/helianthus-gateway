@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/adaptermux"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux"
 )
 
 type adapterMuxTiming struct {

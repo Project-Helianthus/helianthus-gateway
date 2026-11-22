@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/m2mgraphql"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/portal"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/m2mgraphql"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 )
 
 func newPortalPVClient(config ebusgateway.PortalPVConfig) (func(context.Context) (portal.ForwardedResponse, error), error) {

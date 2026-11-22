@@ -9,7 +9,7 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticoperations"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations"
 )
 
 // Operations is the semantic operation route, satisfied by

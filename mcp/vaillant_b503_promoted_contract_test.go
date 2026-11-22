@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/vaillant/b503session"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/b503session"
 )
 
 type promotedB503Dispatcher struct {

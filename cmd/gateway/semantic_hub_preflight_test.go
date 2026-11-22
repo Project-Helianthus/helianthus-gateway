@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/releasecheck"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/releasecheck"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 )
 

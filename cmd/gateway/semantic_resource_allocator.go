@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semgraph"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semgraph"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 

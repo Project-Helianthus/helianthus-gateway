@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
 )
 
 var issue1375Due = time.Date(2000, time.January, 1, 0, 0, 8, 0, time.UTC)

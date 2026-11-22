@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway"
 	ebuserrors "github.com/Project-Helianthus/helianthus-ebusgo/errors"
 	"github.com/Project-Helianthus/helianthus-ebusgo/protocol"
+	"github.com/Project-Helianthus/helianthus-gateway"
 )
 
 func semanticReadB524WatchDescriptorPolicy(key ebusgateway.B524WatchKey) (ebusgateway.WatchSemanticClass, ebusgateway.WatchFreshnessProfile, ebusgateway.WatchDirectApplyPolicy) {

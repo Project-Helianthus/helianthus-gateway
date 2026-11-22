@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	sunspectest "github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter/testfixture"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semgraph"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
+	sunspectest "github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter/testfixture"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semgraph"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"

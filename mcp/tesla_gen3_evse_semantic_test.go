@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/m2mgraphql"
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/m2mgraphql"
 	"github.com/Project-Helianthus/helianthus-modbusreg/tesla"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/evse"

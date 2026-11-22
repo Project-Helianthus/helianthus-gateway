@@ -1,6 +1,6 @@
 package main
 
-import ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+import ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 
 func modbusRuntimeTransportStatus(config ebusgateway.ModbusTCPConfig, started bool) ebusgateway.TransportRuntimeStatus {
 	status := ebusgateway.TransportRuntimeStatus{Protocol: ebusgateway.TransportRuntimeProtocolModbusTCP}

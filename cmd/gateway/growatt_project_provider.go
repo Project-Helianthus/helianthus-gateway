@@ -9,7 +9,7 @@ import (
 
 	canbus "github.com/Project-Helianthus/helianthus-canbus"
 	canbusreg "github.com/Project-Helianthus/helianthus-canbusreg"
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 )
 
 // The selected adapters preserve native grades and evidence. They do not infer

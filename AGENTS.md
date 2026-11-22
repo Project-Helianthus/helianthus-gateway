@@ -2,7 +2,7 @@
 
 ## Repository scope
 
-`helianthus-ebusgateway` is the current Helianthus gateway runtime. It owns
+`helianthus-gateway` is the current Helianthus gateway runtime. It owns
 runtime composition, driver lifecycle, protocol-native integration, MCP and
 GraphQL surfaces, Portal behavior, and the HTTP/operator edge.
 

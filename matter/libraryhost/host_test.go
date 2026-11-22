@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/matter"
+	"github.com/Project-Helianthus/helianthus-gateway/matter"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/evse"
 )
@@ -967,8 +967,8 @@ func aa17DisallowedImports(t *testing.T, source any) []string {
 	}
 	allowed := map[string]bool{
 		"context": true, "crypto/rand": true, "encoding/hex": true, "errors": true, "fmt": true, "sync": true, "time": true,
-		"github.com/Project-Helianthus/helianthus-ebusgateway/matter": true,
-		"github.com/Project-Helianthus/helianthus-semreg/semreg/v1":   true,
+		"github.com/Project-Helianthus/helianthus-gateway/matter":   true,
+		"github.com/Project-Helianthus/helianthus-semreg/semreg/v1": true,
 	}
 	var disallowed []string
 	for _, spec := range file.Imports {

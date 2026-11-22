@@ -11,14 +11,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	ebusgateway "github.com/Project-Helianthus/helianthus-ebusgateway"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/drivermanager"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/eebusadmin"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/modbusadapter"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimecontrol"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/runtimestate"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semhub"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/eebusadmin"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimestate"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
 )
@@ -130,7 +130,7 @@ func prepareManagedSidecars(ctx context.Context, cfg ebusgateway.Config, hub *se
 	}
 	descriptors = gatewayManagedSidecarDescriptorsFor(append(descriptors,
 		descriptor(managedGrowattID, cfg.ModbusTCPConfig.GrowattBMSRS485.Enabled, growattSource, sidecarNativeContract("github.com/Project-Helianthus/helianthus-modbus", "RTUProductionEndpoint"), newGrowattManagedDriverFactory(cfg.ModbusTCPConfig.GrowattBMSRS485, modbusProviderGrowattBMS, hub, openGrowattBMSRTUEndpoint)),
-		descriptor(managedGrowattCANID, cfg.GrowattBMSCANConfig.Enabled, source(managedGrowattCANID), sidecarNativeContract("github.com/Project-Helianthus/helianthus-ebusgateway", "GrowattBMSCANReceiveOnly"), newGrowattBMSCANManagedFactory(cfg.GrowattBMSCANConfig, nil)),
+		descriptor(managedGrowattCANID, cfg.GrowattBMSCANConfig.Enabled, source(managedGrowattCANID), sidecarNativeContract("github.com/Project-Helianthus/helianthus-gateway", "GrowattBMSCANReceiveOnly"), newGrowattBMSCANManagedFactory(cfg.GrowattBMSCANConfig, nil)),
 		managedEEBusDescriptor(cfg, source(managedEEBusID)),
 	))
 	// An accepted Portal selection narrows configured eligibility before any

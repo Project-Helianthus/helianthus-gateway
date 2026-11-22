@@ -24,8 +24,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Project-Helianthus/helianthus-ebusgateway/internal/semanticview"
-	"github.com/Project-Helianthus/helianthus-ebusgateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
+	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 )
 
 //go:embed static/*
