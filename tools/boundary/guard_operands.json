@@ -60,6 +60,8 @@
   "(root / product).write_text('package main\\n\\nvar required = \"/matter/feedv1\"\\n', encoding=\"utf-8\")",
   "matter = next(e for e in exceptions[\"entries\"] if e[\"path\"] == \"cmd/gateway/matter_profile_enabled.go\")",
   "question = (\"Pentru implementare, aprobi ca fișierul existent `cmd/gateway/matter_profile_enabled.go` \"",
-  "self.assertIn(f\"«{question}» Answer: «{answer}»\", matter[\"approval\"])"
+  "self.assertIn(f\"«{question}» Answer: «{answer}»\", matter[\"approval\"])",
+  "path = \"cmd/gateway/semantic_vaillant_registers.go\"",
+  "\"cmd/gateway/vaillant_publication_site_test.go\":"
  ]
 }

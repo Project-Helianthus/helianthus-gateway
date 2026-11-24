@@ -94,12 +94,16 @@ GO_REGISTER_ENTRY = re.compile(
     r'' + REG_BODY + r'\b' + REG_FIELD + r'\s*:\s*' + REG_NUMBER +
     r'|(?=' + REG_BODY + r'\bgroup\s*:)' + REG_BODY + r'\b' + ADDR_FIELD + r'\s*:\s*' + REG_NUMBER +
     r')' + REG_BODY + r'\}', re.I)
-# A map keyed by uint16 register identities: each row (identifier or numeric key) is one register row.
+# A map keyed by uint16 register identities: each row (identifier or numeric key, any value expression) is one
+# register row, split at top-level commas of the literal body.
 UINT16_BYTE_TABLE = re.compile(r'map\[uint16\]\[\](?:byte|uint16)\s*\{')
-# Identifier-keyed rows take a brace value; numeric-keyed rows take a brace value or a named value.
-BYTE_TABLE_ROW = re.compile(
-    r'\b[A-Za-z_]\w*\s*:\s*\{[^{}]*\}'
-    r'|(?:0x[0-9a-fA-F]+|\b\d+)\s*:\s*(?:\{[^{}]*\}|[A-Za-z_][\w.]*)')
+GO_TOKEN = re.compile(
+    r'"(?:\\.|[^"\\\n])*"|`[^`]*`|\'(?:\\.|[^\'\\\n])*\'|//[^\n]*|/\*.*?\*/|[{}()\[\],]', re.S)
+# A uint16 constant in a const block: name = uint16(address), or name uint16 = address.
+CONST_BLOCK = re.compile(r'^const\s*\((.*?)^\)', re.M | re.S)
+CONST_UINT16 = re.compile(
+    r'^[ \t]*([A-Za-z_]\w*)(?:[ \t]+uint16)?[ \t]*=[ \t]*uint16\([ \t]*((?:0x[0-9a-fA-F]+|\d+))[ \t]*\)', re.M)
+CONST_UINT16_TYPED = re.compile(r'^[ \t]*([A-Za-z_]\w*)[ \t]+uint16[ \t]*=[ \t]*((?:0x[0-9a-fA-F]+|\d+))\b', re.M)
 CAN_TOKENS = frozenset({"can", "canbus", "socketcan"})
 CAN_CONTEXT = re.compile(r'\s+(bus|frames?|ids?|identifiers?)\b', re.I)
 GROWATT_CAN = re.compile(r'^growattcan')
@@ -345,6 +349,58 @@ def content_owner(text, vocab):
     return vocab[token]["owner"], vocab[token]["protocol"]
 
 
+def go_block_end(text, open_index):
+    """Index of the bracket closing the one at open_index; braces inside literals and comments do not count."""
+    depth = 0
+    for match in GO_TOKEN.finditer(text, open_index):
+        token = match.group()
+        if token in ("{", "(", "["):
+            depth += 1
+        elif token in ("}", ")", "]"):
+            depth -= 1
+            if depth == 0:
+                return match.start()
+    return len(text)
+
+
+def map_entries(text, open_index):
+    """(start, end) spans of the top-level comma-separated entries of the literal opened at open_index."""
+    close = go_block_end(text, open_index)
+    spans, start, depth = [], open_index + 1, 0
+    for match in GO_TOKEN.finditer(text, open_index + 1, close):
+        token = match.group()
+        if token in ("{", "(", "["):
+            depth += 1
+        elif token in ("}", ")", "]"):
+            depth -= 1
+        elif token == "," and depth == 0:
+            spans.append((start, match.start()))
+            start = match.end()
+    spans.append((start, close))
+    return spans
+
+
+def without_comments(segment):
+    kept, last = [], 0
+    for match in GO_TOKEN.finditer(segment):
+        kept.append(segment[last:match.start()])
+        if not match.group().startswith(("//", "/*")):
+            kept.append(match.group())
+        last = match.end()
+    kept.append(segment[last:])
+    return "".join(kept)
+
+
+def register_owner(path, text, vocab):
+    """Owner of a register table: its path's protocol, else the protocol its file names most often."""
+    seed, protocol = path_owner(path, vocab)
+    if seed is None:
+        seed, protocol = gateway_owner(path, vocab)
+    if seed is None:
+        seed, protocol = content_owner(text, vocab)
+    return seed, protocol
+
+
 def go_register_findings(path, text, lines, starts, vocab):
     """Go composite literals that map a protocol address to a meaning (register_table).
 
@@ -352,23 +408,23 @@ def go_register_findings(path, text, lines, starts, vocab):
     the protocol (exact or prefix element), and a path that names none takes the protocol the file
     names most often.
     """
-    path_seed, path_protocol = path_owner(path, vocab)
-    if path_seed is None:
-        path_seed, path_protocol = gateway_owner(path, vocab)
-    if path_seed is None:
-        path_seed, path_protocol = content_owner(text, vocab)
+    path_seed, path_protocol = register_owner(path, text, vocab)
     found = []
-    spans = [(m.start(), m.group(0)) for m in GO_REGISTER_ENTRY.finditer(text)]
+    spans = [(m.start(), re.sub(r"\s+", "", m.group(0))) for m in GO_REGISTER_ENTRY.finditer(text)]
     for head in UINT16_BYTE_TABLE.finditer(text):
-        depth, index = 0, head.end() - 1
-        while index < len(text):
-            depth += {"{": 1, "}": -1}.get(text[index], 0)
-            if depth == 0:
-                break
-            index += 1
-        spans += [(m.start(), m.group(0)) for m in BYTE_TABLE_ROW.finditer(text, head.end(), index)]
-    for position, entry in sorted(spans):
-        item = re.sub(r"\s+", "", entry)
+        # A result type (func f() map[uint16][]byte {) is followed by a function body, not a literal.
+        if text[:head.start()].rstrip(" \t").endswith(")"):
+            continue
+        for start, end in map_entries(text, head.end() - 1):
+            segment = text[start:end]
+            item = re.sub(r"\s+", "", without_comments(segment))
+            if item:
+                spans.append((start + len(segment) - len(segment.lstrip()), item))
+    for block in CONST_BLOCK.finditer(text):
+        for pattern in (CONST_UINT16, CONST_UINT16_TYPED):
+            for match in pattern.finditer(text, block.start(1), block.end(1)):
+                spans.append((match.start(), f"{match.group(1)}=uint16({match.group(2)})"))
+    for position, item in sorted(spans):
         seed, protocol = ("GG08", "eBUS") if EBUS_COMMAND_BYTES.search(item) else (path_seed, path_protocol)
         line = line_at(starts, position)
         found.append(finding(path, line, "register_table", item, seed, protocol, lines[line - 1].strip()))

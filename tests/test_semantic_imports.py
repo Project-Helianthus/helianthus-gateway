@@ -761,6 +761,64 @@ class BoundaryCheckTest(unittest.TestCase):
         self.assertIn(path, result.stderr)
         self.assertIn("0x0F99", result.stderr)
 
+    def test_constant_block_uint16_addresses_are_register_table_findings(self):
+        probe = ("package fixture\n\nconst (\n\tsystem_flow_temperature = uint16(0x004B)\n"
+                 "\tsystem_fixture uint16 = 0x0099\n\tregulatorInstance = byte(0x00)\n)\n")
+        found = [i["item"] for i in self.at("internal/fixture/c.go", probe) if i["kind"] == "register_table"]
+        self.assertEqual(["system_flow_temperature=uint16(0x004B)", "system_fixture=uint16(0x0099)"], found)
+
+    def test_map_rows_with_typed_and_call_values_are_register_table_findings(self):
+        probe = ("package fixture\n\nvar m = map[uint16][]byte{\n\t0x0F99: []byte{0x01},\n"
+                 "\tsystem_new_point: vpF32(1),\n\t// a comment, with a brace }\n\tsystem_old: {0x00},\n}\n"
+                 "var n = map[uint16][]uint16{0x0001: identity, 0x000d: {0, 0}}\n")
+        found = [i["item"] for i in self.at("internal/fixture/r.go", probe) if i["kind"] == "register_table"]
+        self.assertEqual(["0x0F99:[]byte{0x01}", "system_new_point:vpF32(1)", "system_old:{0x00}",
+                          "0x0001:identity", "0x000d:{0,0}"], found)
+
+    def test_result_type_of_a_function_is_not_counted_as_a_register_row(self):
+        probe = ("package fixture\n\nfunc f() map[uint16][]uint16 {\n"
+                 "\treturn map[uint16][]uint16{0x0001: identity}\n}\n")
+        found = [i["item"] for i in self.at("internal/fixture/f.go", probe) if i["kind"] == "register_table"]
+        self.assertEqual(["0x0001:identity"], found)
+
+    def test_added_constant_or_changed_address_in_register_block_fails_the_cli(self):
+        path = "cmd/gateway/semantic_vaillant_registers.go"
+        text = (ROOT / path).read_text(encoding="utf-8")
+        anchor = "= uint16(0x004B)\n"
+        self.assertEqual(1, text.count(anchor))
+        root = self.install(self.tree({path: text}), self.rows_for({path}))
+        self.assertEqual(0, self.cli(root).returncode)
+        (root / path).write_text(text.replace(anchor, anchor + "\tsystem_new_register = uint16(0x0099)\n", 1),
+                                 encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn(path, result.stderr)
+        self.assertIn("system_new_register=uint16(0x0099)", result.stderr)
+        (root / path).write_text(text.replace(anchor, "= uint16(0x004C)\n", 1), encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("system_flow_temperature=uint16(0x004C)", result.stderr)
+
+    def test_added_map_row_with_call_or_typed_value_fails_the_cli(self):
+        cases = {
+            "cmd/gateway/vaillant_publication_site_test.go":
+                ("for addr, value := range map[uint16][]byte{\n",
+                 "\t\tsystem_fixture_point: vpF32(1),\n", "system_fixture_point:vpF32(1)"),
+            "cmd/gateway/controllerless_site_acceptance_test.go":
+                ("var controllerlessHeatSourceRegisters = map[uint16][]byte{\n",
+                 "\t0x0F99: []byte{0x01},\n", "0x0F99:[]byte{0x01}"),
+        }
+        for path, (anchor, row, item) in cases.items():
+            text = (ROOT / path).read_text(encoding="utf-8")
+            self.assertEqual(1, text.count(anchor), path)
+            root = self.install(self.tree({path: text}), self.rows_for({path}))
+            self.assertEqual(0, self.cli(root).returncode, path)
+            (root / path).write_text(text.replace(anchor, anchor + row, 1), encoding="utf-8")
+            result = self.cli(root)
+            self.assertEqual(1, result.returncode, path)
+            self.assertIn(path, result.stderr)
+            self.assertIn(item, result.stderr)
+
     def test_growattcan_package_import_takes_the_gg07_owner(self):
         imported = "github.com/Project-Helianthus/helianthus-gateway/internal/growattcanclassify"
         text = f'package main\n\nimport "{imported}"\n\nvar _ = 1\n'
