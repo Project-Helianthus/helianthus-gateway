@@ -1,0 +1,134 @@
+[
+ {
+  "token": "ebus",
+  "protocol": "eBUS",
+  "owner": "GG08",
+  "place": "inventory protocol columns; gateway file and package names"
+ },
+ {
+  "token": "ebusd",
+  "protocol": "eBUS",
+  "owner": "GG08",
+  "place": "gateway identifiers and file names"
+ },
+ {
+  "token": "vaillant",
+  "protocol": "eBUS (Vaillant)",
+  "owner": "GG08",
+  "place": "gateway package names and file names"
+ },
+ {
+  "token": "eebus",
+  "protocol": "eeBUS",
+  "owner": "GG10",
+  "place": "inventory protocol columns; gateway file and package names"
+ },
+ {
+  "token": "ship",
+  "protocol": "eeBUS (SHIP)",
+  "owner": "GG10",
+  "place": "OPERATOR item 18; pinned gateway source"
+ },
+ {
+  "token": "spine",
+  "protocol": "eeBUS (SPINE)",
+  "owner": "GG10",
+  "place": "OPERATOR item 18; pinned gateway source"
+ },
+ {
+  "token": "can",
+  "protocol": "CAN",
+  "owner": "GG07",
+  "place": "inventory protocol columns; gateway file names"
+ },
+ {
+  "token": "canbus",
+  "protocol": "CAN",
+  "owner": "GG07",
+  "place": "gateway file and package names"
+ },
+ {
+  "token": "socketcan",
+  "protocol": "CAN (SocketCAN)",
+  "owner": "GG07",
+  "place": "gateway file names"
+ },
+ {
+  "token": "gree",
+  "protocol": "CAN (Gree VRF)",
+  "owner": "GG07",
+  "place": "gateway file names"
+ },
+ {
+  "token": "modbus",
+  "protocol": "Modbus",
+  "owner": "GG09",
+  "place": "inventory protocol columns; gateway file and package names"
+ },
+ {
+  "token": "tesla",
+  "protocol": "Modbus (Tesla)",
+  "owner": "GG09",
+  "place": "inventory protocol columns; gateway file names"
+ },
+ {
+  "token": "growatt",
+  "protocol": "Modbus (Growatt RS-485)",
+  "owner": "GG09",
+  "place": "gateway file names; rewrite table families"
+ },
+ {
+  "token": "huawei",
+  "protocol": "Modbus (Huawei)",
+  "owner": "GG09",
+  "place": "gateway file names; rewrite table families"
+ },
+ {
+  "token": "smartlogger",
+  "protocol": "Modbus (Huawei SmartLogger)",
+  "owner": "GG09",
+  "place": "gateway file names"
+ },
+ {
+  "token": "sdongle",
+  "protocol": "Modbus (Huawei SDongle)",
+  "owner": "GG09",
+  "place": "gateway file names"
+ },
+ {
+  "token": "emma",
+  "protocol": "Modbus (Huawei EMMA)",
+  "owner": "GG09",
+  "place": "gateway file names"
+ },
+ {
+  "token": "sunspec",
+  "protocol": "Modbus (SunSpec)",
+  "owner": "GG09",
+  "place": "gateway file names; rewrite table families"
+ },
+ {
+  "token": "fronius",
+  "protocol": "Modbus (Fronius)",
+  "owner": "GG09",
+  "place": "gateway file names; rewrite table families"
+ },
+ {
+  "token": "outback",
+  "protocol": "Modbus (OutBack)",
+  "owner": "GG09",
+  "place": "gateway file names; rewrite table families"
+ },
+ {
+  "token": "sma",
+  "protocol": "Modbus (SMA)",
+  "owner": "GG09",
+  "place": "gateway file names"
+ },
+ {
+  "token": "matter",
+  "protocol": "Matter",
+  "owner": "GG11",
+  "place": "inventory protocol columns; gateway file and package names"
+ }
+]

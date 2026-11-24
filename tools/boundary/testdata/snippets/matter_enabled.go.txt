@@ -1,0 +1,9 @@
+//go:build !nomatter
+
+package main
+
+import (
+	"github.com/Project-Helianthus/helianthus-matterreg/driver"
+)
+
+var _ = driver.NewFactory
