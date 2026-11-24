@@ -6,8 +6,9 @@ names, register tables and vendor identifiers. Every finding must match a
 line of the debt ledger (ledger.tsv) or an entry of exceptions.json. The
 ledger and exceptions are read from this file's own directory. When
 GITHUB_EVENT_PATH names an event payload, the ledger committed at the base
-revision of that event is read with git and no ledger occurrence count may
-rise against it (shrink-only).
+revision of that event is read with git. A ledger tuple may not occur more
+often than it does in that ledger, except where this scanner finds the same
+tuple in that revision's file.
 """
 
 import ast
@@ -17,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -82,17 +84,18 @@ MANUF_LEFT = re.compile(LITERAL + r'\s*(?:===?|!==?)\s*' + MANUF_ACCESS)
 CASE_LITERAL = re.compile(r'\bcase\s+' + LITERAL + r'\s*:')
 # A composite literal (optionally keyed and optionally typed) with a protocol-address field: a register,
 # selector, cluster, attribute or element identifier, or an addr field of a literal that also names a register
-# group. One level of nested braces is allowed inside it.
+# group. The addr value is a numeric literal or an identifier. One level of nested braces is allowed inside it.
 REG_FIELD = r'(?:\w*(?:register|selector|cluster|attribute|elementid)\w*|primary|secondary)'
 ADDR_FIELD = r'\w*addr(?!ess)\w*'
 REG_BODY = r'(?:[^{}]|\{[^{}]*\})*?'
 REG_NUMBER = r'(?:0x[0-9a-fA-F]+|\d+)\b'
+ADDR_VALUE = r'(?:0x[0-9a-fA-F]+|\d+|[A-Za-z_][\w.]*)\b'
 EBUS_COMMAND_BYTES = re.compile(r'\b(?:PB|SB|Primary|Secondary):')
 GO_REGISTER_ENTRY = re.compile(
     r'(?:(?:"(?:\\.|[^"\\\n])*"|0x[0-9a-fA-F]+|\b\d+)\s*:\s*)?(?:[A-Za-z_][\w.]*\s*)?\{'
     r'(?:'
     r'' + REG_BODY + r'\b' + REG_FIELD + r'\s*:\s*' + REG_NUMBER +
-    r'|(?=' + REG_BODY + r'\bgroup\s*:)' + REG_BODY + r'\b' + ADDR_FIELD + r'\s*:\s*' + REG_NUMBER +
+    r'|(?=' + REG_BODY + r'\bgroup\s*:)' + REG_BODY + r'\b' + ADDR_FIELD + r'\s*:\s*' + ADDR_VALUE +
     r')' + REG_BODY + r'\}', re.I)
 # A map keyed by uint16 register identities: each row (identifier or numeric key, any value expression) is one
 # register row, split at top-level commas of the literal body.
@@ -107,6 +110,15 @@ CONST_UINT16 = re.compile(
     r'[ \t]*((?:0x[0-9a-fA-F]+|\d+))[ \t]*\)', re.M)
 CONST_UINT16_TYPED = re.compile(
     r'^[ \t]*([A-Za-z_]\w*)[ \t]+(uint16|byte|uint8)[ \t]*=[ \t]*((?:0x[0-9a-fA-F]+|\d+))\b', re.M)
+# The same two shapes outside a const block: `const name = byte(0x02)` and `const name byte = 0x02`.
+STANDALONE_CONST_UINT16 = re.compile(
+    r'^[ \t]*const[ \t]+([A-Za-z_]\w*)(?:[ \t]+(?:uint16|byte|uint8))?[ \t]*=[ \t]*'
+    r'(uint16|byte|uint8)\([ \t]*((?:0x[0-9a-fA-F]+|\d+))[ \t]*\)', re.M)
+STANDALONE_CONST_UINT16_TYPED = re.compile(
+    r'^[ \t]*const[ \t]+([A-Za-z_]\w*)[ \t]+(uint16|byte|uint8)[ \t]*=[ \t]*'
+    r'((?:0x[0-9a-fA-F]+|\d+))\b', re.M)
+UINT16_SLICE = re.compile(r'\[\]uint16\s*\{')
+IDENT_ELEMENT = re.compile(r'^[A-Za-z_][\w.]*$')
 CAN_TOKENS = frozenset({"can", "canbus", "socketcan"})
 CAN_CONTEXT = re.compile(r'\s+(bus|frames?|ids?|identifiers?)\b', re.I)
 GROWATT_CAN = re.compile(r'^growattcan')
@@ -394,6 +406,57 @@ def without_comments(segment):
     return "".join(kept)
 
 
+def standalone_constant_spans(text, record):
+    """byte, uint8 and uint16 constants declared with their own const keyword.
+
+    A file with no deletion row is left unscanned: recording the constant would
+    not name a queue row.
+    """
+    if not record:
+        return []
+    spans, seen = [], set()
+    for pattern in (STANDALONE_CONST_UINT16, STANDALONE_CONST_UINT16_TYPED):
+        for match in pattern.finditer(text):
+            if match.start() in seen:
+                continue
+            seen.add(match.start())
+            spans.append((match.start(), f"{match.group(1)}={match.group(2)}({match.group(3)})"))
+    return spans
+
+
+def uint16_identifier_slice_spans(text):
+    """Identifier elements of a []uint16 literal. Numeric elements are not rows."""
+    spans = []
+    for head in UINT16_SLICE.finditer(text):
+        # A result type (func f() []uint16 {) is followed by a function body, not a literal.
+        if text[:head.start()].rstrip(" \t").endswith(")"):
+            continue
+        for start, end in map_entries(text, head.end() - 1):
+            segment = text[start:end]
+            item = re.sub(r"\s+", "", without_comments(segment))
+            if IDENT_ELEMENT.fullmatch(item):
+                spans.append((start + len(segment) - len(segment.lstrip()), item))
+    return spans
+
+
+def import_family_owner(text, vocab):
+    """Owner when every classified import in the file belongs to one deletion row."""
+    specs = []
+    for match in IMPORT_BLOCK.finditer(text):
+        for spec in IMPORT_SPEC.finditer(text, match.start(1), match.end(1)):
+            specs.append(import_literal(spec)[2])
+    for match in IMPORT_SINGLE.finditer(text):
+        specs.append(import_literal(match)[2])
+    pairs = set()
+    for imported in specs:
+        owner, protocol = import_owner(imported, vocab)
+        if owner is not None:
+            pairs.add((owner, protocol))
+    if len(pairs) == 1:
+        return pairs.pop()
+    return None, None
+
+
 def register_owner(path, text, vocab):
     """Owner of a register table: its path's protocol, else the protocol its file names most often."""
     seed, protocol = path_owner(path, vocab)
@@ -404,6 +467,8 @@ def register_owner(path, text, vocab):
     if seed is None and path.startswith("graphql/"):
         # The old eBUS-typed GraphQL: owner_of turns the eBUS seed into the GG13 row.
         seed, protocol = "GG08", "eBUS"
+    if seed is None:
+        seed, protocol = import_family_owner(text, vocab)
     return seed, protocol
 
 
@@ -412,7 +477,9 @@ def go_register_findings(path, text, lines, starts, vocab):
 
     Owner: an eBUS command-byte selector (PB and SB fields) names eBUS; otherwise the path names
     the protocol (exact or prefix element), and a path that names none takes the protocol the file
-    names most often.
+    names most often. An addr value may be a numeric literal or an identifier. A standalone
+    byte, uint8 or uint16 constant is recorded the same way as one in a const block, and each
+    identifier element of a []uint16 literal is its own row.
     """
     path_seed, path_protocol = register_owner(path, text, vocab)
     found = []
@@ -430,6 +497,8 @@ def go_register_findings(path, text, lines, starts, vocab):
         for pattern in (CONST_UINT16, CONST_UINT16_TYPED):
             for match in pattern.finditer(text, block.start(1), block.end(1)):
                 spans.append((match.start(), f"{match.group(1)}={match.group(2)}({match.group(3)})"))
+    spans += standalone_constant_spans(text, path_seed is not None)
+    spans += uint16_identifier_slice_spans(text)
     for position, item in sorted(spans):
         seed, protocol = ("GG08", "eBUS") if EBUS_COMMAND_BYTES.search(item) else (path_seed, path_protocol)
         line = line_at(starts, position)
@@ -570,18 +639,73 @@ def ratchet(findings, ledger_rows):
     return errors
 
 
-def base_ratchet(ledger_rows, base_rows):
+def base_ratchet(ledger_rows, base_rows, present=()):
+    """Fail a tuple that occurs more often than the base ledger and the base file scan allow.
+
+    present is what this scanner finds in the base revision. A tuple already there can be
+    recorded; a tuple introduced by the change cannot.
+    """
     base_counts = {}
     for row in base_rows:
         base_counts[row] = base_counts.get(row, 0) + 1
+    scan_counts = {}
+    for item in present:
+        row = (item["path"], item["kind"], item["item"], item["owner"])
+        scan_counts[row] = scan_counts.get(row, 0) + 1
     proposed = {}
     for row in ledger_rows:
         proposed[row] = proposed.get(row, 0) + 1
     errors = []
     for row, count in sorted(proposed.items()):
-        for _ in range(max(count - base_counts.get(row, 0), 0)):
+        allowed = max(base_counts.get(row, 0), scan_counts.get(row, 0))
+        for _ in range(max(count - allowed, 0)):
             errors.append(f"ledger line exceeds the base revision: {row[0]}\t{row[1]}\t{row[2]}\towner {row[3]}")
     return errors
+
+
+def exceeding_paths(ledger_rows, base_rows):
+    base_counts, proposed = {}, {}
+    for row in base_rows:
+        base_counts[row] = base_counts.get(row, 0) + 1
+    for row in ledger_rows:
+        proposed[row] = proposed.get(row, 0) + 1
+    paths = set()
+    for row, count in proposed.items():
+        if count > base_counts.get(row, 0):
+            paths.add(row[0])
+    return paths
+
+
+def safe_repo_path(path):
+    pure = Path(path)
+    return path != "" and not pure.is_absolute() and ".." not in pure.parts and path == pure.as_posix()
+
+
+def materialize_revision_files(root, revision, paths, tree):
+    wrote = False
+    for path in paths:
+        if not safe_repo_path(path):
+            continue
+        shown = subprocess.run(["git", "-C", str(root), "show", f"{revision}:{path}"], capture_output=True)
+        if shown.returncode != 0:
+            continue
+        target = tree / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(shown.stdout)
+        wrote = True
+    return wrote
+
+
+def findings_present_at(root, revision, ledger_rows, base_rows, here=HERE):
+    """Findings of this scanner on base-revision files whose ledger counts rose."""
+    paths = exceeding_paths(ledger_rows, base_rows)
+    if not paths:
+        return []
+    with tempfile.TemporaryDirectory() as scratch:
+        tree = Path(scratch)
+        if not materialize_revision_files(root, revision, paths, tree):
+            return []
+        return scan(tree, here)
 
 
 def ledger_at_base(root, base):
@@ -623,11 +747,13 @@ def main():
         event_path = os.environ.get("GITHUB_EVENT_PATH")
         seeding = False
         if event_path:
-            base_rows = ledger_at_base(root, base_revision(event_path))
+            revision = base_revision(event_path)
+            base_rows = ledger_at_base(root, revision)
             if base_rows is None:
                 seeding = True
             else:
-                errors += base_ratchet(ledger_rows, base_rows)
+                present = findings_present_at(root, revision, ledger_rows, base_rows)
+                errors += base_ratchet(ledger_rows, base_rows, present)
     except (OSError, ValueError, KeyError, subprocess.SubprocessError, SyntaxError) as error:
         print(f"protocol boundary check failed: {error}", file=sys.stderr)
         return 1
