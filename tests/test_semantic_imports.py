@@ -765,7 +765,60 @@ class BoundaryCheckTest(unittest.TestCase):
         probe = ("package fixture\n\nconst (\n\tsystem_flow_temperature = uint16(0x004B)\n"
                  "\tsystem_fixture uint16 = 0x0099\n\tregulatorInstance = byte(0x00)\n)\n")
         found = [i["item"] for i in self.at("internal/fixture/c.go", probe) if i["kind"] == "register_table"]
-        self.assertEqual(["system_flow_temperature=uint16(0x004B)", "system_fixture=uint16(0x0099)"], found)
+        self.assertEqual(["system_flow_temperature=uint16(0x004B)", "system_fixture=uint16(0x0099)",
+                          "regulatorInstance=byte(0x00)"], found)
+
+    def test_byte_constants_byte_keyed_and_string_keyed_address_maps_are_register_table_findings(self):
+        probe = ("package fixture\n\nconst (\n\topcodeRead = byte(0x06)\n\topcodeWrite byte = 0x07\n)\n"
+                 "var names = map[byte]string{\n\t0x05: \"pump\",\n}\n"
+                 "var specs = map[string]uint16{\"flow_temperature\": 0x004B}\n"
+                 "var frame = Frame{Primary: 0xB5, Secondary: 0x24}\n")
+        found = [i["item"] for i in self.at("cmd/gateway/fixture.go", probe) if i["kind"] == "register_table"]
+        self.assertEqual(["opcodeRead=byte(0x06)", "opcodeWrite=byte(0x07)", '0x05:"pump"',
+                          '"flow_temperature":0x004B', "Frame{Primary:0xB5,Secondary:0x24}"], found)
+
+    def test_edited_byte_address_or_added_byte_keyed_row_fails_the_cli(self):
+        path = "cmd/gateway/semantic_vaillant_registers.go"
+        text = (ROOT / path).read_text(encoding="utf-8")
+        opcode = "vail" + "lantB524OpcodeRead"
+        read = f"{opcode}       = byte(0x06)\n"
+        cases = (
+            (read, f"{opcode}       = byte(0x16)\n", f"{opcode}=byte(0x16)"),
+            (read, read + "\tresetOpcode = byte(0x0F)\n", "resetOpcode=byte(0x0F)"),
+            ("var b555HCNames = map[byte]string{\n", "var b555HCNames = map[byte]string{\n\t0x05: \"pump\",\n",
+             '0x05:"pump"'),
+        )
+        root = self.install(self.tree({path: text}), self.rows_for({path}))
+        self.assertEqual(0, self.cli(root).returncode)
+        for old, new, item in cases:
+            with self.subTest(item=item):
+                self.assertEqual(1, text.count(old))
+                (root / path).write_text(text.replace(old, new, 1), encoding="utf-8")
+                result = self.cli(root)
+                self.assertEqual(1, result.returncode, result.stdout)
+                self.assertIn(path, result.stderr)
+                self.assertIn(item, result.stderr)
+                (root / path).write_text(text, encoding="utf-8")
+
+    def test_changed_name_to_address_map_and_new_address_file_fail_the_cli(self):
+        path = "graphql/naming_contract_test.go"
+        text = (ROOT / path).read_text(encoding="utf-8")
+        old = '"circuit_cooling_enabled": 0x0006}'
+        self.assertEqual(1, text.count(old))
+        root = self.install(self.tree({path: text}), self.rows_for({path}))
+        self.assertEqual(0, self.cli(root).returncode)
+        (root / path).write_text(text.replace(old, '"circuit_cooling_enabled": 0x0007}', 1), encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn('"circuit_cooling_enabled":0x0007', result.stderr)
+        (root / path).write_text(text, encoding="utf-8")
+        added = root / "graphql/new_addresses.go"
+        added.write_text('package graphql\n\nvar addrs = map[string]uint16{"flow_temperature": 0x004B}\n',
+                         encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("graphql/new_addresses.go", result.stderr)
+        self.assertIn('"flow_temperature":0x004B', result.stderr)
 
     def test_map_rows_with_typed_and_call_values_are_register_table_findings(self):
         probe = ("package fixture\n\nvar m = map[uint16][]byte{\n\t0x0F99: []byte{0x01},\n"

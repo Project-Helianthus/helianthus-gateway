@@ -83,11 +83,11 @@ CASE_LITERAL = re.compile(r'\bcase\s+' + LITERAL + r'\s*:')
 # A composite literal (optionally keyed and optionally typed) with a protocol-address field: a register,
 # selector, cluster, attribute or element identifier, or an addr field of a literal that also names a register
 # group. One level of nested braces is allowed inside it.
-REG_FIELD = r'\w*(?:register|selector|cluster|attribute|elementid)\w*'
+REG_FIELD = r'(?:\w*(?:register|selector|cluster|attribute|elementid)\w*|primary|secondary)'
 ADDR_FIELD = r'\w*addr(?!ess)\w*'
 REG_BODY = r'(?:[^{}]|\{[^{}]*\})*?'
 REG_NUMBER = r'(?:0x[0-9a-fA-F]+|\d+)\b'
-EBUS_COMMAND_BYTES = re.compile(r'\b(?:PB|SB):')
+EBUS_COMMAND_BYTES = re.compile(r'\b(?:PB|SB|Primary|Secondary):')
 GO_REGISTER_ENTRY = re.compile(
     r'(?:(?:"(?:\\.|[^"\\\n])*"|0x[0-9a-fA-F]+|\b\d+)\s*:\s*)?(?:[A-Za-z_][\w.]*\s*)?\{'
     r'(?:'
@@ -96,14 +96,17 @@ GO_REGISTER_ENTRY = re.compile(
     r')' + REG_BODY + r'\}', re.I)
 # A map keyed by uint16 register identities: each row (identifier or numeric key, any value expression) is one
 # register row, split at top-level commas of the literal body.
-UINT16_BYTE_TABLE = re.compile(r'map\[uint16\]\[\](?:byte|uint16)\s*\{')
+UINT16_BYTE_TABLE = re.compile(
+    r'map\[uint16\]\[\](?:byte|uint16)\s*\{|map\[(?:byte|uint8)\]string\s*\{|map\[string\](?:uint16|byte|uint8)\s*\{')
 GO_TOKEN = re.compile(
     r'"(?:\\.|[^"\\\n])*"|`[^`]*`|\'(?:\\.|[^\'\\\n])*\'|//[^\n]*|/\*.*?\*/|[{}()\[\],]', re.S)
-# A uint16 constant in a const block: name = uint16(address), or name uint16 = address.
+# A uint16 or byte constant in a const block: name = uint16(address), or name uint16 = address.
 CONST_BLOCK = re.compile(r'^const\s*\((.*?)^\)', re.M | re.S)
 CONST_UINT16 = re.compile(
-    r'^[ \t]*([A-Za-z_]\w*)(?:[ \t]+uint16)?[ \t]*=[ \t]*uint16\([ \t]*((?:0x[0-9a-fA-F]+|\d+))[ \t]*\)', re.M)
-CONST_UINT16_TYPED = re.compile(r'^[ \t]*([A-Za-z_]\w*)[ \t]+uint16[ \t]*=[ \t]*((?:0x[0-9a-fA-F]+|\d+))\b', re.M)
+    r'^[ \t]*([A-Za-z_]\w*)(?:[ \t]+(?:uint16|byte|uint8))?[ \t]*=[ \t]*(uint16|byte|uint8)\('
+    r'[ \t]*((?:0x[0-9a-fA-F]+|\d+))[ \t]*\)', re.M)
+CONST_UINT16_TYPED = re.compile(
+    r'^[ \t]*([A-Za-z_]\w*)[ \t]+(uint16|byte|uint8)[ \t]*=[ \t]*((?:0x[0-9a-fA-F]+|\d+))\b', re.M)
 CAN_TOKENS = frozenset({"can", "canbus", "socketcan"})
 CAN_CONTEXT = re.compile(r'\s+(bus|frames?|ids?|identifiers?)\b', re.I)
 GROWATT_CAN = re.compile(r'^growattcan')
@@ -398,6 +401,9 @@ def register_owner(path, text, vocab):
         seed, protocol = gateway_owner(path, vocab)
     if seed is None:
         seed, protocol = content_owner(text, vocab)
+    if seed is None and path.startswith("graphql/"):
+        # The old eBUS-typed GraphQL: owner_of turns the eBUS seed into the GG13 row.
+        seed, protocol = "GG08", "eBUS"
     return seed, protocol
 
 
@@ -423,7 +429,7 @@ def go_register_findings(path, text, lines, starts, vocab):
     for block in CONST_BLOCK.finditer(text):
         for pattern in (CONST_UINT16, CONST_UINT16_TYPED):
             for match in pattern.finditer(text, block.start(1), block.end(1)):
-                spans.append((match.start(), f"{match.group(1)}=uint16({match.group(2)})"))
+                spans.append((match.start(), f"{match.group(1)}={match.group(2)}({match.group(3)})"))
     for position, item in sorted(spans):
         seed, protocol = ("GG08", "eBUS") if EBUS_COMMAND_BYTES.search(item) else (path_seed, path_protocol)
         line = line_at(starts, position)
