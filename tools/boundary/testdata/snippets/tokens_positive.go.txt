@@ -1,0 +1,10 @@
+package fixture
+
+var a = "eBUS"
+var b = "CAN bus"
+var eebusV1Mu = 1
+var CANBus = 2
+var EEBUSDevice = 3
+var SPINERead = 4
+var SHIPSession = 5
+var RegisterEEBusV1Provider = 6

@@ -1,9 +1,11 @@
 """Synthetic import mutations exercise syntax, source placement and graph edges."""
 
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 import unittest
@@ -517,6 +519,322 @@ class SemanticImportsTest(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn(f"{guard.MODULE}/internal/semhub", result.stderr)
         self.assertIn(NATIVE, result.stderr)
+
+
+BOUNDARY = ROOT / "tools/boundary"
+SNIPPETS = BOUNDARY / "testdata/snippets"
+BOUNDARY_FILES = ("check.py", "vocabulary.json", "exceptions.json", "guard_operands.json")
+REGISTRY = "internal/promotioncapture/contracts/leaf-promotion-captured-multi-leaf-registry-v1.json"
+CAPTURE = "scripts/capture_m8_source_window.sh"
+ADOPT = "scripts/adopt_modbusreg_packages.py"
+
+
+def _load_boundary():
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location("boundary_check", BOUNDARY / "check.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+boundary = _load_boundary()
+REAL_LEDGER = boundary.read_ledger_text((BOUNDARY / "ledger.tsv").read_text(encoding="utf-8"))
+
+
+def ledger_text(rows):
+    return "".join("\t".join(row) + "\n" for row in rows)
+
+
+class BoundaryCheckTest(unittest.TestCase):
+    def setUp(self):
+        scratch = ROOT / ".tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        self.temporary = tempfile.TemporaryDirectory(dir=scratch)
+        self.addCleanup(self.temporary.cleanup)
+        self.base = Path(self.temporary.name)
+
+    def tree(self, files):
+        root = Path(tempfile.mkdtemp(dir=self.base))
+        for rel, text in files.items():
+            target = root / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        return root
+
+    def install(self, root, rows):
+        target = root / "tools/boundary"
+        target.mkdir(parents=True, exist_ok=True)
+        for name in BOUNDARY_FILES:
+            shutil.copy(BOUNDARY / name, target / name)
+        (target / "ledger.tsv").write_text(ledger_text(rows), encoding="utf-8")
+        return root
+
+    def rows_for(self, paths):
+        return [row for row in REAL_LEDGER if row[0] in paths]
+
+    def cli(self, root, event=None):
+        env = {key: value for key, value in os.environ.items() if key != "GITHUB_EVENT_PATH"}
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        if event is not None:
+            env["GITHUB_EVENT_PATH"] = str(event)
+        return subprocess.run([sys.executable, str(root / "tools/boundary/check.py")], cwd=root, env=env,
+                              capture_output=True, text=True, timeout=600)
+
+    def at(self, rel, text):
+        return [item for item in boundary.scan(self.tree({rel: text})) if item["path"] == rel]
+
+    def test_base_tree_passes_the_bare_cli(self):
+        env = {key: value for key, value in os.environ.items() if key != "GITHUB_EVENT_PATH"}
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        result = subprocess.run([sys.executable, str(BOUNDARY / "check.py")], cwd=ROOT, env=env,
+                                capture_output=True, text=True, timeout=600)
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_shell_protocol_calls_ratchet_against_the_ledger(self):
+        text = (ROOT / CAPTURE).read_text(encoding="utf-8")
+        owners = {row[3] for row in REAL_LEDGER if row[0] == CAPTURE}
+        self.assertEqual({"GG10"}, owners)
+        root = self.install(self.tree({CAPTURE: text}), self.rows_for({CAPTURE}))
+        self.assertEqual(0, self.cli(root).returncode)
+        target = root / CAPTURE
+        cases = {
+            "new eeBUS call": text + "rpc scoped eebus.v1.services.list '{}' \"${staging}/extra.json\"\n",
+            "duplicate ledgered call": text + "rpc public ebus.v1.registry.devices.list '{}' \"${staging}/ebus-devices.json\"\n",
+            "deleted call, ledger kept": text.replace(
+                "rpc scoped eebus.v1.topology.get '{}' \"${staging}/eebus-topology.json\"\n", "", 1),
+        }
+        for label, mutated in cases.items():
+            with self.subTest(label=label):
+                target.write_text(mutated, encoding="utf-8")
+                result = self.cli(root)
+                self.assertEqual(1, result.returncode)
+                self.assertIn(CAPTURE, result.stderr)
+        target.write_text(cases["deleted call, ledger kept"], encoding="utf-8")
+        self.install(root, boundary.build_ledger(root))
+        self.assertEqual(0, self.cli(root).returncode)
+
+    def test_python_rewrite_tables_fail_on_unledgered_family_keys(self):
+        text = (ROOT / ADOPT).read_text(encoding="utf-8")
+        root = self.install(self.tree({ADOPT: text}), self.rows_for({ADOPT}))
+        self.assertEqual(0, self.cli(root).returncode)
+        for header in ("RENAMED: dict[str, tuple[tuple[str, str], ...]] = {",
+                       "QUALIFIER_ONLY: dict[str, tuple[str, ...]] = {"):
+            with self.subTest(header=header):
+                self.assertIn(header, text)
+                (root / ADOPT).write_text(text.replace(header, header + '\n    "fixturebrand": (),', 1), encoding="utf-8")
+                result = self.cli(root)
+                self.assertEqual(1, result.returncode)
+                self.assertIn(ADOPT, result.stderr)
+                self.assertIn("fixturebrand", result.stderr)
+        renamed = text.replace('"growatt": (', '"growattx": (', 1)
+        (root / ADOPT).write_text(renamed, encoding="utf-8")
+        self.assertEqual(1, self.cli(root).returncode)
+        self.install(root, boundary.build_ledger(root))
+        self.assertEqual(0, self.cli(root).returncode)
+
+    def test_ui_manufacturer_branches_fail_and_projection_passes(self):
+        paths = [rel for rel, _ in boundary.scanned_files(ROOT) if rel.startswith(("ui/static/", "portal/web/src/"))]
+        files = {rel: (ROOT / rel).read_text(encoding="utf-8") for rel in paths}
+        self.assertNotIn("fixturebrand", boundary.load_vocabulary(BOUNDARY))
+        root = self.install(self.tree(files), self.rows_for(set(paths)))
+        self.assertEqual(0, self.cli(root).returncode)
+        anchor = "function normalizeDevices(data) {\n"
+        app = files["ui/static/app.js"]
+        self.assertIn(anchor, app)
+        cases = {
+            "equality": '  const fixture = (device) => device.manufacturer === "Fixturebrand";\n',
+            "reversed equality": '  const fixture = (device) => "Fixturebrand" !== device.manufacturer;\n',
+            "switch case": '  switch (device.manufacturer) {\n    case "Fixturebrand":\n      break;\n  }\n',
+        }
+        for label, inserted in cases.items():
+            with self.subTest(label=label):
+                (root / "ui/static/app.js").write_text(app.replace(anchor, anchor + inserted, 1), encoding="utf-8")
+                result = self.cli(root)
+                self.assertEqual(1, result.returncode)
+                self.assertIn("ui/static/app.js", result.stderr)
+                self.assertIn("Fixturebrand", result.stderr)
+        projection = '  const shown = device.manufacturer ? device.manufacturer : "unknown";\n'
+        (root / "ui/static/app.js").write_text(app.replace(anchor, anchor + projection, 1), encoding="utf-8")
+        self.assertEqual(0, self.cli(root).returncode)
+
+    def test_token_rules_for_identifiers_strings_and_prose(self):
+        positive = (SNIPPETS / "tokens_positive.go.txt").read_text(encoding="utf-8")
+        found = {(item["kind"], item["item"]) for item in self.at("internal/fixture/tokens.go", positive)}
+        for expected in (("name", "ebus"), ("name", "eebus"), ("name", "can"), ("name", "spine"), ("name", "ship")):
+            self.assertIn(expected, found)
+        for line in ('var a = "eBUS"', 'var b = "eeBUS"', "var eebusV1Mu = 1", "var CANBus = 2",
+                     "var EEBUSDevice = 3", "var SPINERead = 4", "var SHIPSession = 5",
+                     "var RegisterEEBusV1Provider = 6", 'var c = "CAN bus"', 'var d = "CAN frame"',
+                     'var e = "CAN identifier"', 'var f = "can"'):
+            with self.subTest(line=line):
+                self.assertTrue(self.at("internal/fixture/one.go", "package fixture\n" + line + "\n"))
+        negative = (SNIPPETS / "tokens_negative.go.txt").read_text(encoding="utf-8")
+        self.assertEqual([], [i for i in self.at("internal/fixture/tokens.go", negative) if i["kind"] == "name"])
+
+    def test_go_import_of_driver_module_fails_and_names_file(self):
+        text = ('package fixture\n\nimport "github.com/Project-Helianthus/helianthus-ebusreg/registry"\n\n'
+                "var _ = registry.X\n")
+        root = self.install(self.tree({"internal/fixture/x.go": text}), [])
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("internal/fixture/x.go", result.stderr)
+        self.assertIn("helianthus-ebusreg/registry", result.stderr)
+
+    def test_drivers_and_matter_exceptions_are_exact(self):
+        drivers = (SNIPPETS / "drivers_ok.go.txt").read_text(encoding="utf-8")
+        matter = (SNIPPETS / "matter_enabled.go.txt").read_text(encoding="utf-8")
+        cases = [
+            ("cmd/gateway/drivers.go", drivers, True),
+            ("cmd/gateway/drivers.go", drivers.replace(
+                "\n)\n", '\n\tmatterdriver "github.com/Project-Helianthus/helianthus-matterreg/driver"\n)\n', 1), False),
+            ("cmd/gateway/drivers.go", drivers.replace("helianthus-ebusreg/driver", "helianthus-ebusreg", 1), False),
+            ("cmd/gateway/drivers.go", drivers.replace("helianthus-ebusreg/driver", "helianthus-ebusreg/registry", 1), False),
+            ("cmd/gateway/extra.go", drivers, False),
+            ("cmd/gateway/matter_profile_enabled.go", matter, True),
+            ("cmd/gateway/matter_profile_enabled.go", matter.replace("!nomatter", "nomatter"), False),
+            ("cmd/gateway/matter_profile_disabled.go", matter, False),
+            ("cmd/gateway/matter_profile_enabled.go", matter.replace(
+                "helianthus-matterreg/driver", "helianthus-matterreg", 1), False),
+            ("cmd/gateway/matter_profile_enabled.go", matter.replace(
+                "helianthus-matterreg/driver", "helianthus-matterreg/other", 1), False),
+            ("cmd/gateway/matter_profile_enabled.go", matter.replace(
+                "\n)\n", '\n\t"github.com/Project-Helianthus/helianthus-ebusgo/protocol"\n)\n', 1), False),
+            ("cmd/gateway/matter_profile_enabled.go", matter + '\nvar flag = "-matter-endpoint-store"\n', False),
+            ("cmd/gateway/matter_extra.go", "package main\n", False),
+            ("cmd/gateway/profile_managed_driver_test.go", "package main\n", True),
+        ]
+        for rel, text, clean in cases:
+            with self.subTest(path=rel, clean=clean):
+                self.assertEqual(clean, self.at(rel, text) == [])
+
+    def test_register_table_items_are_exact_mappings(self):
+        text = (ROOT / REGISTRY).read_text(encoding="utf-8")
+        root = self.install(self.tree({REGISTRY: text}), self.rows_for({REGISTRY}))
+        self.assertEqual(0, self.cli(root).returncode)
+
+        def entry(data, path):
+            return next(item for item in data["candidate_catalog"] if item.get("semantic_path") == path)
+
+        def new_row(data):
+            data["candidate_catalog"].append(dict(entry(data, "/dhw/temperature_c"),
+                                                  candidate_id="m7-fixture-0001", semantic_path="/fixture/row"))
+
+        def brand(data):
+            entry(data, "/system/gateway_brand")["eebus_source"]["field_path"] = "vendorName"
+
+        def mapping(data):
+            entry(data, "/zones/zone_2/operation_mode_changeable")["eebus_source"]["exact_mapping"]["pairs"][0]["normalized"] = True
+
+        for label, mutate in (("new selector row", new_row), ("brandName to vendorName", brand),
+                              ("raw false mapping", mapping)):
+            with self.subTest(label=label):
+                data = json.loads(text)
+                mutate(data)
+                (root / REGISTRY).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+                result = self.cli(root)
+                self.assertEqual(1, result.returncode)
+                self.assertIn(REGISTRY, result.stderr)
+        reordered = json.loads(text, object_pairs_hook=lambda pairs: dict(reversed(pairs)))
+        (root / REGISTRY).write_text(json.dumps(reordered, indent=4, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(0, self.cli(root).returncode)
+
+    def test_bare_command_without_event_scans_the_working_tree(self):
+        clean = self.install(self.tree({"internal/fixture/x.go": "package fixture\n"}), [])
+        self.assertEqual(0, self.cli(clean).returncode)
+        files = {"internal/fixture/x.go": "package fixture\n", "internal/fixture/y.go": 'package fixture\n\nvar a = "eBUS"\n'}
+        root = self.install(self.tree(files), [("internal/fixture/y.go", "name", "ebus", "GG08")])
+        self.assertEqual(0, self.cli(root).returncode)
+        (root / "internal/fixture/y.go").write_text("package fixture\n", encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("ledger line no longer matches", result.stderr)
+        self.install(root, [])
+        self.assertEqual(0, self.cli(root).returncode)
+
+    def repo(self):
+        root = Path(tempfile.mkdtemp(dir=self.base))
+        subprocess.run(["git", "-C", str(root), "init", "-q"], check=True, capture_output=True)
+        return root
+
+    def boundary_files(self):
+        return {f"tools/boundary/{name}": (BOUNDARY / name).read_text(encoding="utf-8") for name in BOUNDARY_FILES}
+
+    def commit(self, root, files, message):
+        for rel, text in files.items():
+            target = root / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        git = ["git", "-C", str(root), "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid",
+               "-c", "commit.gpgsign=false"]
+        subprocess.run([*git, "add", "-A"], check=True, capture_output=True)
+        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", message], check=True, capture_output=True)
+        return subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def event(self, payload):
+        path = Path(tempfile.mkdtemp(dir=self.base)) / "event.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def test_ratchet_rejects_added_debt_on_push_and_stacked_restore(self):
+        plain = "package fixture\n"
+        debt = "package fixture\n\nvar CANBusID = 1\n"
+        rows = [("internal/fixture/x.go", "name", "can", "GG07"), ("internal/fixture/x.go", "name", "canbus", "GG07")]
+        repo = self.repo()
+        base = self.commit(repo, {**self.boundary_files(), "tools/boundary/ledger.tsv": "",
+                                  "internal/fixture/x.go": plain}, "base")
+        self.commit(repo, {"internal/fixture/x.go": debt, "tools/boundary/ledger.tsv": ledger_text(rows)},
+                    "add debt with ledger lines")
+        result = self.cli(repo, self.event({"before": base}))
+        self.assertEqual(1, result.returncode)
+        self.assertIn("internal/fixture/x.go", result.stderr)
+        self.assertIn("exceeds the base revision", result.stderr)
+
+        stack_root = self.repo()
+        origin = self.commit(stack_root, {**self.boundary_files(), "tools/boundary/ledger.tsv": ledger_text(rows),
+                                          "internal/fixture/x.go": debt}, "origin with debt")
+        parent = self.commit(stack_root, {"internal/fixture/x.go": plain, "tools/boundary/ledger.tsv": ""},
+                             "parent removes debt and lines")
+        self.commit(stack_root, {"internal/fixture/x.go": debt, "tools/boundary/ledger.tsv": ledger_text(rows)},
+                    "child restores debt and lines")
+        child = self.cli(stack_root, self.event({"pull_request": {"base": {"sha": parent}}}))
+        self.assertEqual(1, child.returncode)
+        self.assertIn("internal/fixture/x.go", child.stderr)
+        self.assertEqual(0, self.cli(stack_root, self.event({"pull_request": {"base": {"sha": origin}}})).returncode)
+
+    def test_ratchet_shrink_owner_reassignment_and_seeding(self):
+        debt = "package fixture\n\nvar CANBusID = 1\n"
+        rows = [("internal/fixture/x.go", "name", "can", "GG07"), ("internal/fixture/x.go", "name", "canbus", "GG07")]
+        shrink = self.repo()
+        before = self.commit(shrink, {**self.boundary_files(), "tools/boundary/ledger.tsv": ledger_text(rows),
+                                      "internal/fixture/x.go": debt}, "debt with lines")
+        self.commit(shrink, {"internal/fixture/x.go": "package fixture\n", "tools/boundary/ledger.tsv": ""},
+                    "debt and lines removed")
+        self.assertEqual(0, self.cli(shrink, self.event({"before": before})).returncode)
+
+        reown = self.repo()
+        before = self.commit(reown, {**self.boundary_files(), "tools/boundary/ledger.tsv": ledger_text(rows),
+                                     "internal/fixture/x.go": debt}, "debt with lines")
+        self.commit(reown, {"internal/fixture/x.go": debt,
+                            "tools/boundary/ledger.tsv": ledger_text([(r[0], r[1], r[2], "GG09") for r in rows])},
+                    "owner reassigned")
+        reowned = self.cli(reown, self.event({"before": before}))
+        self.assertEqual(1, reowned.returncode)
+        self.assertIn("exceeds the base revision", reowned.stderr)
+
+        seeding = self.repo()
+        seed_base = self.commit(seeding, {**self.boundary_files(), "internal/fixture/x.go": "package fixture\n"},
+                                "no ledger at base")
+        self.commit(seeding, {"internal/fixture/x.go": debt, "tools/boundary/ledger.tsv": ledger_text(rows)},
+                    "seed ledger")
+        seeded = self.cli(seeding, self.event({"before": seed_base}))
+        self.assertEqual(0, seeded.returncode)
+        self.assertIn("initial seeding", seeded.stdout)
+
+    def test_matter_and_sensitive_literals_are_findings_outside_admitted_file(self):
+        text = 'package main\n\nvar flag = "-matter-endpoint-store"\n'
+        self.assertTrue(self.at("cmd/gateway/product_flags.go", text))
+        self.assertEqual([], self.at("cmd/gateway/profile_managed_driver_test.go", "package main\n"))
 
 
 if __name__ == "__main__":

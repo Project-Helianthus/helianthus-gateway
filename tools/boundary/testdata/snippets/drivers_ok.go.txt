@@ -1,0 +1,10 @@
+package main
+
+import (
+	ebusdriver "github.com/Project-Helianthus/helianthus-ebusreg/driver"
+	modbusdriver "github.com/Project-Helianthus/helianthus-modbusreg/driver"
+	canbusdriver "github.com/Project-Helianthus/helianthus-canbusreg/driver"
+	eebusdriver "github.com/Project-Helianthus/helianthus-eebusreg/driver"
+)
+
+var _ = []any{ebusdriver.NewFactory, modbusdriver.NewFactory, canbusdriver.NewFactory, eebusdriver.NewFactory}

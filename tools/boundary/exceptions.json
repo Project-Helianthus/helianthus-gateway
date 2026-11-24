@@ -1,0 +1,28 @@
+{
+ "item_36": "One standing gateway exception is approved: a single host composition file imports each driver's public constructor package (ebusreg, modbusreg, canbusreg, eebusreg, matterreg). All existing protocol code in the gateway is debt with a deletion ticket. Any other exception needs his word.",
+ "entries": [
+  {
+   "path": "cmd/gateway/drivers.go",
+   "build": null,
+   "imports": [
+    "github.com/Project-Helianthus/helianthus-ebusreg/driver",
+    "github.com/Project-Helianthus/helianthus-modbusreg/driver",
+    "github.com/Project-Helianthus/helianthus-canbusreg/driver",
+    "github.com/Project-Helianthus/helianthus-eebusreg/driver"
+   ],
+   "path_tokens": [],
+   "approval": "OPERATOR item 36 (quoted in item_36) and item 56: the first boundary ticket writes the single approved gateway exception, quoting item 36, for one new file that only imports the drivers' constructors. Matter is not admitted here (item 60)."
+  },
+  {
+   "path": "cmd/gateway/matter_profile_enabled.go",
+   "build": "!nomatter",
+   "imports": [
+    "github.com/Project-Helianthus/helianthus-matterreg/driver"
+   ],
+   "path_tokens": [
+    "matter"
+   ],
+   "approval": "OPERATOR item 60 (Board, 2026-11-21): approves importing only the public matterreg constructor (NewFactory) in this existing !nomatter file as an additional exception to drivers.go. The filename-derived matter token is its only admitted name finding."
+  }
+ ]
+}
