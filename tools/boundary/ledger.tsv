@@ -453,6 +453,7 @@ cmd/gateway/boiler_circuit_zero_isolation_test.go	name	vaillant	GG08
 cmd/gateway/boiler_circuit_zero_isolation_test.go	name	vaillant	GG08
 cmd/gateway/boiler_circuit_zero_isolation_test.go	name	vaillant	GG08
 cmd/gateway/boiler_circuit_zero_isolation_test.go	name	vaillant	GG08
+cmd/gateway/boiler_circuit_zero_isolation_test.go	register_table	m62BoilerAddress=byte(0x08)	GG08
 cmd/gateway/boiler_pump_provenance_test.go	name	vaillant	GG08
 cmd/gateway/boiler_pump_provenance_test.go	name	vaillant	GG08
 cmd/gateway/boiler_pump_provenance_test.go	name	vaillant	GG08
@@ -498,6 +499,8 @@ cmd/gateway/circuit_special_function_mode_test.go	name	vaillant	GG08
 cmd/gateway/circuit_special_function_mode_test.go	name	vaillant	GG08
 cmd/gateway/circuit_special_function_mode_test.go	name	vaillant	GG08
 cmd/gateway/circuit_special_function_mode_test.go	name	vaillant	GG08
+cmd/gateway/circuit_special_function_mode_test.go	register_table	sfmSelector{opcode:0x02,group:sfmTestCircuitGroup,instance:sfmTestCircuitInstance,addr:addr}	GG08
+cmd/gateway/circuit_special_function_mode_test.go	register_table	sfmSelector{opcode:frame.Data[0],group:frame.Data[2],instance:frame.Data[3],addr:uint16(frame.Data[4])|uint16(frame.Data[5])<<8,}	GG08
 cmd/gateway/circuit_special_function_mode_test.go	register_table	sfmTestCircuitGroup=byte(0x02)	GG08
 cmd/gateway/circuit_special_function_mode_test.go	register_table	sfmTestCircuitInstance=byte(0x00)	GG08
 cmd/gateway/circuit_special_function_mode_test.go	register_table	sfmTestFloatRegister=uint16(0x0010)	GG08
@@ -713,6 +716,8 @@ cmd/gateway/config_setter_names_test.go	register_table	0x0E04:{0x20,0x03}	GG08
 cmd/gateway/config_setter_names_test.go	register_table	0x0F04:{0x00,0x03}	GG08
 cmd/gateway/config_setter_names_test.go	register_table	0xA500:{0x20,0x03}	GG08
 cmd/gateway/config_setter_names_test.go	register_table	cfgKeysBoilerAddress=byte(0x08)	GG08
+cmd/gateway/config_setter_names_test.go	register_table	cfgKeysWrite{service:"B524",group:0x00,instance:0x00,addr:addr,payload:payload}	GG08
+cmd/gateway/config_setter_names_test.go	register_table	cfgKeysWrite{service:"B524",group:data[2],instance:data[3],addr:addr,payload:payload}	GG08
 cmd/gateway/controllerless_site_acceptance_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG08
 cmd/gateway/controllerless_site_acceptance_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 cmd/gateway/controllerless_site_acceptance_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/transport	GG08
@@ -5669,6 +5674,7 @@ cmd/gateway/gateway_retained_consumers_test.go	name	vaillant	GG08
 cmd/gateway/gateway_retained_consumers_test.go	name	vaillant	GG08
 cmd/gateway/gateway_retained_consumers_test.go	name	vaillant	GG08
 cmd/gateway/gateway_retained_consumers_test.go	register_table	protocol.Frame{Source:source,Target:0x08,Primary:0x07,Secondary:0x04}	GG08
+cmd/gateway/gateway_retained_consumers_test.go	register_table	retainedTestSource=byte(0x31)	GG08
 cmd/gateway/gateway_run_lifecycle.go	name	ebus	GG08
 cmd/gateway/gateway_run_lifecycle.go	name	ebus	GG08
 cmd/gateway/gateway_run_lifecycle.go	name	ebus	GG08
@@ -10747,6 +10753,7 @@ cmd/gateway/huawei_replay_test.go	name	smartlogger	GG09
 cmd/gateway/huawei_replay_test.go	name	smartlogger	GG09
 cmd/gateway/huawei_replay_test.go	name	smartlogger	GG09
 cmd/gateway/huawei_replay_test.go	name	smartlogger	GG09
+cmd/gateway/huawei_replay_test.go	register_table	failed=uint16(32106)	GG09
 cmd/gateway/huawei_transport_metrics.go	import	github.com/Project-Helianthus/helianthus-modbus	GG09
 cmd/gateway/huawei_transport_metrics.go	name	huawei	GG09
 cmd/gateway/huawei_transport_metrics.go	name	huawei	GG09
@@ -15521,6 +15528,7 @@ cmd/gateway/semantic_vaillant_b524_access.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_b524_access.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_b524_access.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_b524_access.go	name	vaillant	GG08
+cmd/gateway/semantic_vaillant_b524_access.go	register_table	b524WidthMismatchSelector{opcode:opcode,group:group,addr:addr}	GG08
 cmd/gateway/semantic_vaillant_boiler.go	import	github.com/Project-Helianthus/helianthus-ebusreg/registry	GG08
 cmd/gateway/semantic_vaillant_boiler.go	import	github.com/Project-Helianthus/helianthus-ebusreg/vaillant/productids	GG08
 cmd/gateway/semantic_vaillant_boiler.go	name	vaillant	GG08
@@ -15555,6 +15563,7 @@ cmd/gateway/semantic_vaillant_boiler.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_boiler.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_boiler.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_boiler.go	name	vaillant	GG08
+cmd/gateway/semantic_vaillant_boiler.go	register_table	{field:boilerStatusFieldFlowTemperature,decoder:boilerStatusRegisterDecoderFloat32,opcode:localRegulator.opcode,group:localRegulator.group,instance:regulatorInstance,addr:system_flow_temperature,}	GG08
 cmd/gateway/semantic_vaillant_boiler_config.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_boiler_config.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_boiler_config.go	name	vaillant	GG08
@@ -15600,6 +15609,11 @@ cmd/gateway/semantic_vaillant_boiler_config.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_boiler_config.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_boiler_config.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_boiler_config.go	name	vaillant	GG08
+cmd/gateway/semantic_vaillant_boiler_config.go	register_table	boiler_b509_flowset_hc_max_c	GG08
+cmd/gateway/semantic_vaillant_boiler_config.go	register_table	boiler_b509_flowset_hc_max_c_fallback	GG08
+cmd/gateway/semantic_vaillant_boiler_config.go	register_table	boiler_b509_flowset_hwc_max_c	GG08
+cmd/gateway/semantic_vaillant_boiler_config.go	register_table	boiler_b509_partload_hc_kw	GG08
+cmd/gateway/semantic_vaillant_boiler_config.go	register_table	boiler_b509_partload_hwc_kw	GG08
 cmd/gateway/semantic_vaillant_circuits.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_circuits.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_circuits.go	name	vaillant	GG08
@@ -15747,6 +15761,7 @@ cmd/gateway/semantic_vaillant_discovery.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_discovery.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_discovery.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_discovery.go	name	vaillant	GG08
+cmd/gateway/semantic_vaillant_discovery.go	register_table	{opcode:localDHW.opcode,group:localDHW.group,instance:dhwInstance,addr:dhw_operation_mode}	GG08
 cmd/gateway/semantic_vaillant_discovery.go	register_table	{opcode:localRegulator.opcode,group:localRegulator.group,instance:regulatorInstance,addr:0x0001}	GG08
 cmd/gateway/semantic_vaillant_ebusd_grab.go	name	ebusd	GG08
 cmd/gateway/semantic_vaillant_ebusd_grab.go	name	ebusd	GG08
@@ -17035,6 +17050,14 @@ cmd/gateway/semantic_vaillant_test.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_test.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_test.go	name	vaillant	GG08
 cmd/gateway/semantic_vaillant_test.go	name	vaillant	GG08
+cmd/gateway/semantic_vaillant_test.go	register_table	boiler_b509_flowset_hc_max_c	GG08
+cmd/gateway/semantic_vaillant_test.go	register_table	boiler_b509_flowset_hc_max_c_fallback	GG08
+cmd/gateway/semantic_vaillant_test.go	register_table	device_slot_paired	GG08
+cmd/gateway/semantic_vaillant_test.go	register_table	device_slot_reception_strength	GG08
+cmd/gateway/semantic_vaillant_test.go	register_table	device_slot_remote_control_address	GG08
+cmd/gateway/semantic_vaillant_test.go	register_table	device_slot_room_humidity	GG08
+cmd/gateway/semantic_vaillant_test.go	register_table	device_slot_room_temperature	GG08
+cmd/gateway/semantic_vaillant_test.go	register_table	device_slot_zone_assignment	GG08
 cmd/gateway/semantic_vaillant_test.go	register_table	{name:"4-byteheadermatchinggroupandaddr",payload:[]byte{0x01,0x03,0x1C,0x00},group:0x03,addr:0x001C,want:true,}	GG08
 cmd/gateway/semantic_vaillant_test.go	register_table	{name:"5-byteheadermatchinggroupandaddr",payload:[]byte{0x01,0x01,0x03,0x1C,0x00},group:0x03,addr:0x001C,want:true,}	GG08
 cmd/gateway/semantic_vaillant_test.go	register_table	{name:"addrmismatchrejected",payload:[]byte{0x01,0x03,0x1D,0x00},group:0x03,addr:0x001C,want:false,}	GG08
@@ -17173,6 +17196,7 @@ cmd/gateway/semreg_foreign_source_test.go	name	huawei	GG09
 cmd/gateway/semreg_foreign_source_test.go	name	huawei	GG09
 cmd/gateway/semreg_foreign_source_test.go	name	huawei	GG09
 cmd/gateway/semreg_foreign_source_test.go	name	huawei	GG09
+cmd/gateway/semreg_foreign_source_test.go	register_table	unit=byte(7)	GG09
 cmd/gateway/startup_order_test.go	name	ebusd	GG08
 cmd/gateway/startup_scan.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG08
 cmd/gateway/startup_scan.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
@@ -17303,6 +17327,7 @@ cmd/gateway/startup_scan.go	name	vaillant	GG08
 cmd/gateway/startup_scan.go	name	vaillant	GG08
 cmd/gateway/startup_scan.go	name	vaillant	GG08
 cmd/gateway/startup_scan.go	name	vaillant	GG08
+cmd/gateway/startup_scan.go	register_table	proxyObserveFirstStartupSource=byte(0xF7)	GG08
 cmd/gateway/startup_scan_diag_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG08
 cmd/gateway/startup_scan_diag_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 cmd/gateway/startup_scan_diag_test.go	import	github.com/Project-Helianthus/helianthus-ebusreg/registry	GG08
@@ -17324,6 +17349,7 @@ cmd/gateway/startup_scan_diag_test.go	register_table	protocol.Frame{Source:0x7F,
 cmd/gateway/startup_scan_diag_test.go	register_table	protocol.Frame{Source:0x7F,Target:0x10,Primary:0x07,Secondary:0x04}	GG08
 cmd/gateway/startup_scan_diag_test.go	register_table	protocol.Frame{Source:0x7F,Target:byte(0x10+i),Primary:0x07,Secondary:0x04}	GG08
 cmd/gateway/startup_scan_diag_test.go	register_table	protocol.Frame{Source:0x7F,Target:tgt,Primary:0x07,Secondary:0x04}	GG08
+cmd/gateway/startup_scan_diag_test.go	register_table	source=byte(0x7F)	GG07
 cmd/gateway/startup_scan_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 cmd/gateway/startup_scan_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/transport	GG08
 cmd/gateway/startup_scan_test.go	import	github.com/Project-Helianthus/helianthus-ebusreg/registry	GG08
@@ -19124,6 +19150,7 @@ cmd/gateway/vaillant_b503_dispatcher_test.go	name	vaillant	GG08
 cmd/gateway/vaillant_b503_dispatcher_test.go	name	vaillant	GG08
 cmd/gateway/vaillant_b503_dispatcher_test.go	name	vaillant	GG08
 cmd/gateway/vaillant_b503_dispatcher_test.go	name	vaillant	GG08
+cmd/gateway/vaillant_b503_dispatcher_test.go	register_table	gatewaySource=byte(0x7F)	GG08
 cmd/gateway/vaillant_b503_dispatcher_truthtable_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG08
 cmd/gateway/vaillant_b503_dispatcher_truthtable_test.go	import	github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/b503session	GG08
 cmd/gateway/vaillant_b503_dispatcher_truthtable_test.go	name	ebus	GG08
@@ -19269,6 +19296,7 @@ cmd/gateway/vaillant_b503_wiring.go	name	vaillant	GG08
 cmd/gateway/vaillant_b503_wiring.go	name	vaillant	GG08
 cmd/gateway/vaillant_b503_wiring.go	name	vaillant	GG08
 cmd/gateway/vaillant_b503_wiring.go	name	vaillant	GG08
+cmd/gateway/vaillant_b503_wiring.go	register_table	defaultVaillantTarget=byte(0x08)	GG08
 cmd/gateway/vaillant_b524_interface_identity.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 cmd/gateway/vaillant_b524_interface_identity.go	import	github.com/Project-Helianthus/helianthus-ebusreg/registry	GG08
 cmd/gateway/vaillant_b524_interface_identity.go	import	github.com/Project-Helianthus/helianthus-ebusreg/vaillant/system	GG08
@@ -19471,6 +19499,17 @@ cmd/gateway/vaillant_publication_golden_test.go	name	vaillant	GG08
 cmd/gateway/vaillant_publication_golden_test.go	name	vaillant	GG08
 cmd/gateway/vaillant_publication_golden_test.go	name	vaillant	GG08
 cmd/gateway/vaillant_publication_golden_test.go	name	vaillant	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	boiler_b509_flow_temperature	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	boiler_b509_water_pressure	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	{opcode:vaillantB524OpcodeLocal,group:localCircuits.group,instance:0x01,addr:circuit_flow_temp}	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	{opcode:vaillantB524OpcodeLocal,group:localCylinders.group,instance:0x01,addr:cylinder_temperature}	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	{opcode:vaillantB524OpcodeLocal,group:localDHW.group,instance:dhwInstance,addr:dhw_current_temp}	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	{opcode:vaillantB524OpcodeLocal,group:localRegulator.group,instance:regulatorInstance,addr:energy_fuel_sum_hc_this_month}	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	{opcode:vaillantB524OpcodeLocal,group:localRegulator.group,instance:regulatorInstance,addr:system_outdoor_temperature}	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	{opcode:vaillantB524OpcodeLocal,group:localSolar.group,instance:solarInstance,addr:solar_collector_temp}	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	{opcode:vaillantB524OpcodeLocal,group:localZones.group,instance:0x01,addr:zone_current_humidity}	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	{opcode:vaillantB524OpcodeLocal,group:localZones.group,instance:0x01,addr:zone_current_temp}	GG08
+cmd/gateway/vaillant_publication_golden_test.go	register_table	{opcode:vaillantB524OpcodeRead,group:remoteThermostats.group,instance:0x01,addr:device_slot_room_temperature}	GG08
 cmd/gateway/vaillant_publication_site_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG08
 cmd/gateway/vaillant_publication_site_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 cmd/gateway/vaillant_publication_site_test.go	name	vaillant	GG08
@@ -19567,6 +19606,18 @@ cmd/gateway/vaillant_publication_site_test.go	name	vaillant	GG08
 cmd/gateway/vaillant_publication_site_test.go	name	vaillant	GG08
 cmd/gateway/vaillant_publication_site_test.go	name	vaillant	GG08
 cmd/gateway/vaillant_publication_site_test.go	name	vaillant	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_electricity_sum_hc	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_electricity_sum_hc_last_month	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_electricity_sum_hc_this_month	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_electricity_sum_hwc	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_electricity_sum_hwc_last_month	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_electricity_sum_hwc_this_month	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_fuel_sum_hc	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_fuel_sum_hc_last_month	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_fuel_sum_hc_this_month	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_fuel_sum_hwc	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_fuel_sum_hwc_last_month	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	energy_fuel_sum_hwc_this_month	GG08
 cmd/gateway/vaillant_publication_site_test.go	register_table	system_adaptive_heating_curve:{0x01}	GG08
 cmd/gateway/vaillant_publication_site_test.go	register_table	system_alternative_point:vpF32(-5)	GG08
 cmd/gateway/vaillant_publication_site_test.go	register_table	system_dhw_bivalence_point:vpF32(-2)	GG08
@@ -19593,6 +19644,9 @@ cmd/gateway/vaillant_publication_site_test.go	register_table	system_water_pressu
 cmd/gateway/vaillant_publication_site_test.go	register_table	vaillantPublicationBoiler=byte(0x08)	GG08
 cmd/gateway/vaillant_publication_site_test.go	register_table	vaillantPublicationController=byte(0x15)	GG08
 cmd/gateway/vaillant_publication_site_test.go	register_table	vaillantPublicationModule=byte(0x26)	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	vaillantPublicationSelector{opcode:data[0],group:data[2],instance:data[3],addr:uint16(data[4])|uint16(data[5])<<8}	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	vaillantPublicationSelector{opcode:vaillantB524OpcodeLocal,group:group,instance:instance,addr:addr}	GG08
+cmd/gateway/vaillant_publication_site_test.go	register_table	vaillantPublicationSelector{opcode:vaillantB524OpcodeRead,group:group,instance:instance,addr:addr}	GG08
 cmd/gateway/vaillant_publication_site_test.go	register_table	vaillantPublicationSource=byte(0xF0)	GG08
 cmd/gateway/vaillant_publication_site_test.go	register_table	vaillantPublicationThermostatClass=byte(0x3A)	GG08
 cmd/gateway/vaillant_semantic_publication.go	name	vaillant	GG08
@@ -20117,6 +20171,7 @@ gateway.go	name	ebusd	GG08
 gateway.go	name	ebusd	GG08
 gateway.go	name	ebusd	GG08
 gateway.go	name	ebusd	GG08
+gateway.go	register_table	defaultInitFeatures=byte(0x01)	GG08
 gateway_serial_chardev_test.go	import	github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/ptytest	GG08
 gateway_serial_endpoint_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG08
 gateway_serial_endpoint_test.go	name	ebus	GG08
@@ -20266,6 +20321,7 @@ graphql/mutations.go	register_table	"thermostat":2	GG13
 graphql/mutations.go	register_table	"zone_quick_veto_time":{group:0x03,addr:0x0026,valueType:configValueFloat32,min:0.5,max:12.0}	GG13
 graphql/mutations.go	register_table	"zone_room_temperature_setpoint_at_holiday":{group:0x03,addr:0x0005,valueType:configValueFloat32,min:5.0,max:30.0}	GG13
 graphql/mutations.go	register_table	"zone_room_temperature_setpoint_at_quick_veto":{group:0x03,addr:0x0008,valueType:configValueFloat32,min:5.0,max:30.0}	GG13
+graphql/mutations.go	register_table	configFieldSpec{group:s.RegisterGroup,addr:s.RegisterAddr,min:s.Min,max:s.Max,maxLen:s.MaxLen,enum:s.Enum}	GG13
 graphql/mutations.go	register_table	mutationControllerFallbackAddr=byte(0x15)	GG13
 graphql/mutations_integration_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG13
 graphql/mutations_integration_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG13
@@ -20844,6 +20900,7 @@ internal/adaptermux/echo_passthrough_test.go	name	ebusd	GG08
 internal/adaptermux/echo_passthrough_test.go	name	ebusd	GG08
 internal/adaptermux/echo_tracker.go	name	ebus	GG08
 internal/adaptermux/echo_tracker.go	name	ebus	GG08
+internal/adaptermux/echo_tracker.go	register_table	symbolSyn=byte(0xAA)	GG08
 internal/adaptermux/echo_tracker_gateway_test.go	name	ebusd	GG08
 internal/adaptermux/echo_tracker_gateway_test.go	name	ebusd	GG08
 internal/adaptermux/f15_am8_deadline_reconnect_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/transport	GG08
@@ -20869,6 +20926,8 @@ internal/adaptermux/issue1068_close_sender_test.go	import	github.com/Project-Hel
 internal/adaptermux/issue1401_release_on_failure_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG08
 internal/adaptermux/issue1401_release_on_failure_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 internal/adaptermux/issue1401_release_on_failure_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/transport	GG08
+internal/adaptermux/issue1401_release_on_failure_test.go	register_table	foreignInitiator=byte(0xF1)	GG08
+internal/adaptermux/issue1401_release_on_failure_test.go	register_table	issue1401Initiator=byte(0x10)	GG08
 internal/adaptermux/issue1402_exit_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 internal/adaptermux/issue1402_exit_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol/telegramfsm	GG08
 internal/adaptermux/issue1402_exit_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/transport	GG08
@@ -20888,6 +20947,7 @@ internal/adaptermux/issue993_bus_integration_test.go	import	github.com/Project-H
 internal/adaptermux/issue993_bus_integration_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 internal/adaptermux/issue993_bus_integration_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/transport	GG08
 internal/adaptermux/issue993_bus_integration_test.go	import	github.com/Project-Helianthus/helianthus-gateway/internal/adaptermux/v8classifier	GG08
+internal/adaptermux/issue993_bus_integration_test.go	register_table	gatewaySource=byte(0x10)	GG08
 internal/adaptermux/issue993_bus_integration_test.go	register_table	protocol.Frame{Source:gatewaySource,Target:protocol.AddressBroadcast,Primary:0xB5,Secondary:0x16,}	GG08
 internal/adaptermux/issue993_bus_integration_test.go	register_table	protocol.Frame{Source:gatewaySource,Target:protocol.AddressBroadcast,Primary:0xB5,Secondary:0x16}	GG08
 internal/adaptermux/issue993_bus_integration_test.go	register_table	protocol.Frame{Source:gatewaySource,Target:protocol.AddressBroadcast,Primary:0xB5,Secondary:0x16}	GG08
@@ -20943,6 +21003,7 @@ internal/adaptermux/mux.go	name	ebusd	GG08
 internal/adaptermux/mux.go	name	ebusd	GG08
 internal/adaptermux/mux.go	name	ebusd	GG08
 internal/adaptermux/mux.go	name	ebusd	GG08
+internal/adaptermux/mux.go	register_table	requestedFeatures=byte(0x01)	GG08
 internal/adaptermux/mux_state.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 internal/adaptermux/mux_state.go	name	ebusd	GG08
 internal/adaptermux/mux_state.go	name	ebusd	GG08
@@ -21813,6 +21874,9 @@ internal/ebusdscan/hex.go	name	vaillant	GG08
 internal/ebusdscan/hex.go	register_table	primaryVaillant=byte(0xB5)	GG08
 internal/ebusdscan/hex.go	register_table	secondaryExtendedRegister=byte(0x24)	GG08
 internal/ebusdscan/hex.go	register_table	secondaryRegister=byte(0x09)	GG08
+internal/ebusdscan/tsp.go	register_table	Entry{Method:method,Opcode:base.Prefix,Group:base.Group,Instance:base.Instance,Addr:addr}	GG08
+internal/ebusdscan/tsp.go	register_table	Entry{Method:method,Opcode:base.Prefix,Group:base.Group,Instance:base.Instance,Addr:addr}	GG08
+internal/ebusdscan/tsp.go	register_table	Entry{Method:method,Opcode:base.Prefix,Group:group,Instance:instance,Addr:addr}	GG08
 internal/eebusadmin/auth_test.go	name	eebus	GG10
 internal/eebusadmin/auth_test.go	name	eebus	GG10
 internal/eebusadmin/server.go	import	github.com/Project-Helianthus/helianthus-eebusreg	GG10
@@ -22940,6 +23004,7 @@ internal/modbusadapter/semreg_pv_graph_test.go	name	sunspec	GG09
 internal/modbusadapter/semreg_pv_graph_test.go	name	sunspec	GG09
 internal/modbusadapter/semreg_pv_graph_test.go	name	sunspec	GG09
 internal/modbusadapter/semreg_pv_graph_test.go	name	sunspec	GG09
+internal/modbusadapter/semreg_pv_graph_test.go	register_table	sunSpecBaseAddress	GG09
 internal/modbusadapter/semreg_pv_publication_core.go	import	github.com/Project-Helianthus/helianthus-modbusreg	GG09
 internal/modbusadapter/semreg_pv_publication_core.go	import	github.com/Project-Helianthus/helianthus-modbusreg/fronius	GG09
 internal/modbusadapter/semreg_pv_publication_core.go	import	github.com/Project-Helianthus/helianthus-modbusreg/sunspec	GG09
@@ -23037,6 +23102,7 @@ internal/modbusadapter/semreg_pv_publication_core_test.go	name	sunspec	GG09
 internal/modbusadapter/semreg_pv_publication_core_test.go	name	sunspec	GG09
 internal/modbusadapter/semreg_pv_publication_core_test.go	name	sunspec	GG09
 internal/modbusadapter/semreg_pv_publication_core_test.go	name	sunspec	GG09
+internal/modbusadapter/semreg_pv_publication_core_test.go	register_table	sunSpecBaseAddress	GG09
 internal/modbusadapter/sunspec_producer.go	import	github.com/Project-Helianthus/helianthus-modbus	GG09
 internal/modbusadapter/sunspec_producer.go	import	github.com/Project-Helianthus/helianthus-modbusreg	GG09
 internal/modbusadapter/sunspec_producer.go	import	github.com/Project-Helianthus/helianthus-modbusreg/fronius	GG09
@@ -23098,6 +23164,7 @@ internal/modbusadapter/sunspec_producer.go	name	sunspec	GG09
 internal/modbusadapter/sunspec_producer.go	name	sunspec	GG09
 internal/modbusadapter/sunspec_producer.go	name	sunspec	GG09
 internal/modbusadapter/sunspec_producer.go	name	sunspec	GG09
+internal/modbusadapter/sunspec_producer.go	register_table	sunSpecBaseAddress	GG09
 internal/modbusadapter/sunspec_producer.go	register_table	sunSpecBaseAddress=uint16(40000)	GG09
 internal/modbusadapter/sunspec_producer_flavor_test.go	import	github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter/testfixture	GG09
 internal/modbusadapter/sunspec_producer_flavor_test.go	import	github.com/Project-Helianthus/helianthus-modbusreg/fronius	GG09
@@ -23288,6 +23355,7 @@ internal/nmruntime/nm_runtime_test.go	name	ebus	GG08
 internal/nmruntime/nm_runtime_test.go	name	ebus	GG08
 internal/nmruntime/nm_runtime_test.go	name	ebus	GG08
 internal/nmruntime/nm_runtime_test.go	name	ebus	GG08
+internal/nmruntime/nm_runtime_test.go	register_table	testRuntimeSource=byte(0x7F)	GG08
 internal/nmruntime/responder_runtime.go	import	github.com/Project-Helianthus/helianthus-ebusgo/transport	GG08
 internal/nmruntime/responder_runtime.go	import	github.com/Project-Helianthus/helianthus-ebusreg/catalog/ebusstandard	GG08
 internal/nmruntime/responder_runtime.go	name	ebusd	GG08
@@ -24642,6 +24710,7 @@ internal/syncevidence/issue764_store_test.go	name	eebus	GG10
 internal/syncevidence/issue764_store_test.go	name	eebus	GG10
 internal/syncevidence/issue764_store_test.go	name	eebus	GG10
 internal/syncevidence/issue764_store_test.go	name	eebus	GG10
+internal/syncevidence/issue764_store_test.go	register_table	entropy=byte(0x61)	GG10
 internal/syncevidence/m625.go	name	eebus	GG10
 internal/syncevidence/m625.go	name	eebus	GG10
 internal/syncevidence/m625.go	name	eebus	GG10
@@ -25145,6 +25214,7 @@ internal/vaillant/b503session/errors.go	name	vaillant	GG08
 internal/vaillant/b503session/export_test.go	name	vaillant	GG08
 internal/vaillant/b503session/operation_test.go	import	github.com/Project-Helianthus/helianthus-gateway/internal/vaillant/b503session	GG08
 internal/vaillant/b503session/operation_test.go	name	vaillant	GG08
+internal/vaillant/b503session/operation_test.go	register_table	operationTarget=byte(0x15)	GG08
 internal/vaillant/b503session/session.go	name	vaillant	GG08
 internal/vaillant/b503session/session.go	name	vaillant	GG08
 internal/vaillant/b503session/session.go	name	vaillant	GG08
@@ -25152,6 +25222,7 @@ internal/vaillant/b503session/session_test.go	import	github.com/Project-Helianth
 internal/vaillant/b503session/session_test.go	name	vaillant	GG08
 internal/vaillant/b503session/session_timer_epoch_test.go	name	vaillant	GG08
 internal/vaillant/b503session/session_timer_test.go	name	vaillant	GG08
+internal/vaillant/b503session/session_timer_test.go	register_table	idleTimerOperationTarget=byte(0x15)	GG08
 internal/vaillant/b503session/state.go	name	ebus	GG08
 internal/vaillant/b503session/state.go	name	ebus	GG08
 internal/vaillant/b503session/state.go	name	vaillant	GG08
@@ -25179,6 +25250,8 @@ internal/vaillant/systemconfig/write_specs.go	register_table	"installer_name":{R
 internal/vaillant/systemconfig/write_specs.go	register_table	"installer_phone_number":{RegisterGroup:0x00,RegisterAddr:0x006F,ValueType:ValueCString,MaxLen:12}	GG08
 internal/vaillant/systemconfig/write_specs.go	register_table	"maintenance_date":{RegisterGroup:0x00,RegisterAddr:0x002C,ValueType:ValueDateHDA3}	GG08
 internal/vaillant/systemconfig/write_specs.go	register_table	"room_humidity_limit_maximum":{RegisterGroup:0x00,RegisterAddr:0x000E,ValueType:ValueUint16,Min:30,Max:80}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	Instance=byte(0x00)	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	OpcodeLocal=byte(0x02)	GG08
 issue1419_echo_mismatch_counting_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 issue1419_echo_mismatch_counting_test.go	name	ebus	GG08
 issue1419_echo_mismatch_counting_test.go	name	ebus	GG08
@@ -30737,6 +30810,7 @@ portal/explorer.go	name	vaillant	GG08
 portal/explorer.go	name	vaillant	GG08
 portal/explorer.go	name	vaillant	GG08
 portal/explorer.go	name	vaillant	GG08
+portal/explorer.go	register_table	ExplorerRegisterResult{Group:group,Instance:instance,Addr:addr,AddrHex:fmt.Sprintf("%04x",addr),}	GG08
 portal/explorer.go	register_table	protocol.Frame{FrameType:protocol.FrameTypeForTarget(target),Source:source,Target:target,Primary:0xB5,Secondary:0x09,Data:[]byte{opcode,byte(addr>>8),byte(addr)},}	GG08
 portal/explorer.go	register_table	protocol.Frame{FrameType:protocol.FrameTypeForTarget(target),Source:source,Target:target,Primary:0xB5,Secondary:0x09,Data:[]byte{qq},}	GG08
 portal/explorer.go	register_table	protocol.Frame{FrameType:protocol.FrameTypeForTarget(target),Source:source,Target:target,Primary:0xB5,Secondary:0x24,Data:[]byte{opcode,0x00,group,0x00,0x00,0x00},}	GG08
@@ -32313,6 +32387,9 @@ portal/web/src/app.js	name	vaillant	GG08
 register_dump.go	import	github.com/Project-Helianthus/helianthus-ebusgo/types	GG08
 register_dump.go	import	github.com/Project-Helianthus/helianthus-ebusreg/registry	GG08
 register_dump.go	import	github.com/Project-Helianthus/helianthus-ebusreg/router	GG08
+register_dump.go	register_table	registerDumpEntry{Method:method,Group:base.Group,Instance:base.Instance,Addr:addr}	GG08
+register_dump.go	register_table	registerDumpEntry{Method:method,Group:base.Group,Instance:base.Instance,Addr:addr}	GG08
+register_dump.go	register_table	registerDumpEntry{Method:method,Group:group,Instance:instance,Addr:addr}	GG08
 register_dump_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/types	GG08
 register_dump_test.go	name	vaillant	GG08
 register_dump_test.go	name	vaillant	GG08
@@ -35826,6 +35903,7 @@ smoke.go	name	ebusd	GG08
 smoke.go	name	ebusd	GG08
 smoke.go	name	ebusd	GG08
 smoke.go	name	vaillant	GG08
+smoke.go	register_table	defaultSmokeSource=byte(0x10)	GG08
 smoke.go	register_table	protocol.Frame{FrameType:protocol.FrameTypeInitiatorTarget,Source:p.source,Target:TargetAddressForRouting(p.entry),Primary:0x07,Secondary:0x04,}	GG08
 smoke_config.go	name	ebusd	GG08
 smoke_config.go	name	ebusd	GG08
@@ -35975,6 +36053,7 @@ timing_reference_artifact_test.go	register_table	protocol.Frame{Source:0x31,Targ
 unknown_device_dump.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG08
 unknown_device_dump.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 unknown_device_dump.go	import	github.com/Project-Helianthus/helianthus-ebusreg/registry	GG08
+unknown_device_dump.go	register_table	ExtRegisterRequest{Opcode:0x02,Group:0x00,Instance:0x00,Addr:addr,}	GG08
 unknown_device_dump.go	register_table	frameSnapshot{Source:target,Target:source,Primary:0x07,Secondary:0x04,Data:""}	GG08
 unknown_device_dump.go	register_table	frameSnapshot{Source:target,Target:source,Primary:0xB5,Secondary:0x09,Data:""}	GG08
 unknown_device_dump.go	register_table	frameSnapshot{Source:target,Target:source,Primary:0xB5,Secondary:0x24,Data:""}	GG08

@@ -852,6 +852,119 @@ class BoundaryCheckTest(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("system_flow_temperature=uint16(0x004C)", result.stderr)
 
+    def register_items(self, rel, text):
+        return [item["item"] for item in self.at(rel, text) if item["kind"] == "register_table"]
+
+    def replace_fails_until_ledger_matches(self, path, text, old, new, item):
+        self.assertEqual(1, text.count(old))
+        mutated = text.replace(old, new, 1)
+        before = self.register_items(path, text)
+        after = self.register_items(path, mutated)
+        self.assertNotEqual(sorted(before), sorted(after))
+        self.assertIn(item, after)
+        self.assertNotIn(item, before)
+        root = self.install(self.tree({path: text}), self.rows_for({path}))
+        self.assertEqual(0, self.cli(root).returncode, path)
+        (root / path).write_text(mutated, encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn(path, result.stderr)
+        self.assertIn(item, result.stderr)
+        self.install(root, boundary.build_ledger(root))
+        self.assertEqual(0, self.cli(root).returncode, result.stderr)
+
+    def test_identifier_address_selectors_change_the_register_multiset(self):
+        discovery = "cmd/gateway/semantic_vaillant_discovery.go"
+        discovered = self.register_items(discovery, (ROOT / discovery).read_text(encoding="utf-8"))
+        numeric = "{opcode:localRegulator.opcode,group:localRegulator.group,instance:regulatorInstance,addr:0x0001}"
+        named = "{opcode:localDHW.opcode,group:localDHW.group,instance:dhwInstance,addr:dhw_operation_mode}"
+        self.assertIn(numeric, discovered)
+        self.assertIn(named, discovered)
+        boiler = "cmd/gateway/semantic_vaillant_boiler.go"
+        boiled = self.register_items(boiler, (ROOT / boiler).read_text(encoding="utf-8"))
+        flow = ("{field:boilerStatusFieldFlowTemperature,decoder:boilerStatusRegisterDecoderFloat32,"
+                "opcode:localRegulator.opcode,group:localRegulator.group,instance:regulatorInstance,"
+                "addr:system_flow_temperature,}")
+        self.assertIn(flow, boiled)
+        golden = "cmd/gateway/vaillant_publication_golden_test.go"
+        text = (ROOT / golden).read_text(encoding="utf-8")
+        selector = ("{opcode: vaillantB524OpcodeLocal, group: localZones.group, instance: 0x01, "
+                    "addr: zone_current_temp}")
+        variants = {
+            "opcode": selector.replace("vaillantB524OpcodeLocal", "vaillantB524OpcodeRead"),
+            "group": selector.replace("localZones.group", "localDHW.group"),
+            "instance": selector.replace("instance: 0x01", "instance: 0x02"),
+            "addr": selector.replace("zone_current_temp", "zone_target_temp"),
+        }
+        for field, variant in variants.items():
+            with self.subTest(field=field):
+                self.replace_fails_until_ledger_matches(
+                    golden, text, selector, variant, "".join(variant.split()))
+        self.replace_fails_until_ledger_matches(
+            golden, text, "boiler_b509_flow_temperature", "boiler_b509_fixture_flow",
+            "boiler_b509_fixture_flow")
+
+    def test_standalone_native_constants_change_the_register_multiset(self):
+        probe = ("package fixture\n\nconst (\n\tsystem_flow_temperature = uint16(0x004B)\n)\n"
+                 "const OpcodeLocal = byte(0x02)\nconst fixtureTyped byte = 0x07\n")
+        found = self.register_items("internal/vaillant/systemconfig/fixture.go", probe)
+        self.assertEqual(["system_flow_temperature=uint16(0x004B)", "OpcodeLocal=byte(0x02)",
+                          "fixtureTyped=byte(0x07)"], found)
+        path = "internal/vaillant/systemconfig/write_specs.go"
+        text = (ROOT / path).read_text(encoding="utf-8")
+        items = self.register_items(path, text)
+        self.assertIn("OpcodeLocal=byte(0x02)", items)
+        self.assertIn("Instance=byte(0x00)", items)
+        grouped = ('"room_humidity_limit_maximum":{RegisterGroup:0x00,RegisterAddr:0x000E,'
+                   "ValueType:ValueUint16,Min:30,Max:80}")
+        self.assertIn(grouped, items)
+        anchor = "const OpcodeLocal = byte(0x02)\n"
+        cases = (
+            ("name", anchor + "const fixtureSelector = byte(0x99)\n", "fixtureSelector=byte(0x99)"),
+            ("value", "const OpcodeLocal = byte(0x03)\n", "OpcodeLocal=byte(0x03)"),
+            ("call type", "const OpcodeLocal = uint16(0x02)\n", "OpcodeLocal=uint16(0x02)"),
+            ("typed name", anchor + "const fixtureTyped byte = 0x99\n", "fixtureTyped=byte(0x99)"),
+            ("typed type", anchor + "const fixtureTyped uint8 = 0x99\n", "fixtureTyped=uint8(0x99)"),
+            ("typed value", anchor + "const fixtureTyped byte = 0x98\n", "fixtureTyped=byte(0x98)"),
+        )
+        for field, replacement, item in cases:
+            with self.subTest(field=field):
+                self.replace_fails_until_ledger_matches(path, text, anchor, replacement, item)
+
+    def test_preexisting_register_row_may_be_recorded_against_the_base(self):
+        path = "cmd/gateway/semantic_vaillant_probe.go"
+        body = ("probeSelector{opcode: opLocal, group: zoneGroup, instance: 0x01, "
+                "addr: zone_current_temp}")
+        source = "package main\n\nvar rows = []probeSelector{" + body + "}\n"
+        item = "".join(body.split())
+        name = (path, "name", "vaillant", "GG08")
+        register = (path, "register_table", item, "GG08")
+        present = [{"path": path, "kind": "register_table", "item": item, "owner": "GG08"}]
+        self.assertEqual([], boundary.base_ratchet([register], [], present))
+        changed = item.replace("zone_current_temp", "zone_target_temp")
+        for mutated in (
+            (path, "register_table", changed, "GG08"),
+            (path, "register_table", item, "GG09"),
+            (path, "name", item, "GG08"),
+            ("cmd/gateway/other_vaillant.go", "register_table", item, "GG08"),
+        ):
+            with self.subTest(mutated=mutated):
+                self.assertNotEqual([], boundary.base_ratchet([mutated], [], present))
+        repo = self.repo()
+        base = self.commit(repo, {**self.boundary_files(), "tools/boundary/ledger.tsv": ledger_text([name]),
+                                  path: source}, "base")
+        self.commit(repo, {"tools/boundary/ledger.tsv": ledger_text([name, register])}, "record the row")
+        allowed = self.cli(repo, self.event({"before": base}))
+        self.assertEqual(0, allowed.returncode, allowed.stderr)
+        edited = source.replace("zone_current_temp", "zone_target_temp")
+        self.commit(repo, {path: edited, "tools/boundary/ledger.tsv": ledger_text(
+            [name, (path, "register_table", changed, "GG08")])}, "change the address")
+        rejected = self.cli(repo, self.event({"before": base}))
+        self.assertEqual(1, rejected.returncode)
+        self.assertIn(path, rejected.stderr)
+        self.assertIn(changed, rejected.stderr)
+        self.assertIn("exceeds the base revision", rejected.stderr)
+
     def test_added_map_row_with_call_or_typed_value_fails_the_cli(self):
         cases = {
             "cmd/gateway/vaillant_publication_site_test.go":
