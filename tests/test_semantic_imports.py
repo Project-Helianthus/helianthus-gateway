@@ -788,6 +788,68 @@ class BoundaryCheckTest(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("internal/fixture/m.go", result.stderr)
 
+    def test_explicitly_typed_register_entries_are_register_table_findings(self):
+        path = "internal/vaillant/systemconfig/write_specs.go"
+        text = (ROOT / path).read_text(encoding="utf-8")
+        anchor = "var systemConfigFieldSpecs = map[string]ConfigFieldSpec{\n"
+        self.assertEqual(1, text.count(anchor))
+        typed = text.replace(anchor, anchor + '\t"fixture_temperature": ConfigFieldSpec{RegisterGroup: 0x00, '
+                             'RegisterAddr: 0x0099, ValueType: ValueFloat32},\n', 1)
+        root = self.install(self.tree({path: text}), self.rows_for({path}))
+        self.assertEqual(0, self.cli(root).returncode)
+        (root / path).write_text(typed, encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn(path, result.stderr)
+        self.assertIn("fixture_temperature", result.stderr)
+
+    def test_protocol_address_mappings_are_register_table_findings(self):
+        cases = {
+            "graphql/mutations.go": [
+                ("addr: 0x000F", "addr: 0x0030", 1),
+                ('var circuitConfigFieldSpecs = map[string]configFieldSpec{\n',
+                 'var circuitConfigFieldSpecs = map[string]configFieldSpec{\n'
+                 '\t"circuit_probe": {group: 0x02, addr: 0x0030, valueType: configValueBoolU8},\n', 1),
+            ],
+            "matter/projection.go": [
+                ("Cluster: 0x0090, Kind: ElementAttribute", "Cluster: 0x0091, Kind: ElementAttribute", 1),
+                ("ElementID: 0x0005}", "ElementID: 0x0006}", 1),
+            ],
+            "cmd/gateway/controllerless_site_acceptance_test.go": [
+                ("var controllerlessHeatSourceRegisters = map[uint16][]byte{\n",
+                 "var controllerlessHeatSourceRegisters = map[uint16][]byte{\n"
+                 "\tboiler_b509_fixture: {0x01},\n", 1),
+                ("boiler_b509_flame_active:       {0xF0},", "boiler_b509_flame_active:       {0xF1},", 1),
+            ],
+        }
+        for path, edits in cases.items():
+            text = (ROOT / path).read_text(encoding="utf-8")
+            root = self.install(self.tree({path: text}), self.rows_for({path}))
+            self.assertEqual(0, self.cli(root).returncode, path)
+            for old, new, count in edits:
+                with self.subTest(path=path, edit=new):
+                    self.assertEqual(1, text.count(old))
+                    (root / path).write_text(text.replace(old, new, count), encoding="utf-8")
+                    result = self.cli(root)
+                    self.assertEqual(1, result.returncode, result.stdout)
+                    self.assertIn(path, result.stderr)
+                    self.assertIn("register_table", result.stderr)
+                    (root / path).write_text(text, encoding="utf-8")
+
+    def test_matter_closure_required_set_is_a_guard_operand_not_debt(self):
+        path = "scripts/check_no_matter_profile.py"
+        real = (ROOT / path).read_text(encoding="utf-8")
+        line = 'required = {MODULE + suffix for suffix in ("/matter", "/matter/feedv1", "/matter/libraryhost")}'
+        self.assertEqual([], [item for item in self.at(path, real) if item["text"] == line])
+        root = self.install(self.tree({path: real}), self.rows_for({path}))
+        self.assertEqual(0, self.cli(root).returncode)
+        product = "cmd/gateway/fixture_closure.go"
+        (root / product).parent.mkdir(parents=True, exist_ok=True)
+        (root / product).write_text('package main\n\nvar required = "/matter/feedv1"\n', encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn(product, result.stderr)
+
     def test_go_fabric_import_in_any_module_is_an_import_finding(self):
         for imported in ("github.com/project-chip/connectedhomeip/src/controller/go-fabric",
                          "example.invalid/go-fabric"):

@@ -80,9 +80,23 @@ LITERAL = r'(["\'])((?:\\.|(?!\1)[^\\\n])*)\1'
 MANUF_RIGHT = re.compile(MANUF_ACCESS + r'\s*(?:===?|!==?)\s*' + LITERAL)
 MANUF_LEFT = re.compile(LITERAL + r'\s*(?:===?|!==?)\s*' + MANUF_ACCESS)
 CASE_LITERAL = re.compile(r'\bcase\s+' + LITERAL + r'\s*:')
+# A composite literal (optionally keyed and optionally typed) with a protocol-address field: a register,
+# selector, cluster, attribute or element identifier, or an addr field of a literal that also names a register
+# group. One level of nested braces is allowed inside it.
+REG_FIELD = r'\w*(?:register|selector|cluster|attribute|elementid)\w*'
+ADDR_FIELD = r'\w*addr(?!ess)\w*'
+REG_BODY = r'(?:[^{}]|\{[^{}]*\})*?'
+REG_NUMBER = r'(?:0x[0-9a-fA-F]+|\d+)\b'
+EBUS_COMMAND_BYTES = re.compile(r'\b(?:PB|SB):')
 GO_REGISTER_ENTRY = re.compile(
-    r'(?:"(?:\\.|[^"\\\n])*"|0x[0-9a-fA-F]+|\b\d+)\s*:\s*\{[^{}]*?'
-    r'\b\w*(?:Register|Addr|Selector|Cluster|Attribute)\w*\s*:\s*(?:0x[0-9a-fA-F]+|\d+)\b[^{}]*\}')
+    r'(?:(?:"(?:\\.|[^"\\\n])*"|0x[0-9a-fA-F]+|\b\d+)\s*:\s*)?(?:[A-Za-z_][\w.]*\s*)?\{'
+    r'(?:'
+    r'' + REG_BODY + r'\b' + REG_FIELD + r'\s*:\s*' + REG_NUMBER +
+    r'|(?=' + REG_BODY + r'\bgroup\s*:)' + REG_BODY + r'\b' + ADDR_FIELD + r'\s*:\s*' + REG_NUMBER +
+    r')' + REG_BODY + r'\}', re.I)
+# A map keyed by uint16 register identities: each identifier-keyed row is one register row.
+UINT16_BYTE_TABLE = re.compile(r'map\[uint16\]\[\]byte\s*\{')
+BYTE_TABLE_ROW = re.compile(r'\b[A-Za-z_]\w*\s*:\s*\{[^{}]*\}')
 CAN_TOKENS = frozenset({"can", "canbus", "socketcan"})
 CAN_CONTEXT = re.compile(r'\s+(bus|frames?|ids?|identifiers?)\b', re.I)
 
@@ -308,13 +322,44 @@ def registry_findings(path, text):
     return found
 
 
+def content_owner(text, vocab):
+    """Owner of the protocol a file names most often (ties by token), for files whose path names none."""
+    counts = {}
+    for match in re.finditer(r"[A-Za-z]+", text):
+        for token in tokens_of(match.group()) & set(vocab):
+            counts[token] = counts.get(token, 0) + 1
+    if not counts:
+        return None, None
+    token = min(counts, key=lambda name: (-counts[name], name))
+    return vocab[token]["owner"], vocab[token]["protocol"]
+
+
 def go_register_findings(path, text, lines, starts, vocab):
-    """Keyed Go composite entries that map a name or number to a protocol address (register_table)."""
-    seed, protocol = path_owner(path, vocab)
+    """Go composite literals that map a protocol address to a meaning (register_table).
+
+    Owner: an eBUS command-byte selector (PB and SB fields) names eBUS; otherwise the path names
+    the protocol (exact or prefix element), and a path that names none takes the protocol the file
+    names most often.
+    """
+    path_seed, path_protocol = path_owner(path, vocab)
+    if path_seed is None:
+        path_seed, path_protocol = gateway_owner(path, vocab)
+    if path_seed is None:
+        path_seed, path_protocol = content_owner(text, vocab)
     found = []
-    for match in GO_REGISTER_ENTRY.finditer(text):
-        item = re.sub(r"\s+", "", match.group(0))
-        line = line_at(starts, match.start())
+    spans = [(m.start(), m.group(0)) for m in GO_REGISTER_ENTRY.finditer(text)]
+    for head in UINT16_BYTE_TABLE.finditer(text):
+        depth, index = 0, head.end() - 1
+        while index < len(text):
+            depth += {"{": 1, "}": -1}.get(text[index], 0)
+            if depth == 0:
+                break
+            index += 1
+        spans += [(m.start(), m.group(0)) for m in BYTE_TABLE_ROW.finditer(text, head.end(), index)]
+    for position, entry in sorted(spans):
+        item = re.sub(r"\s+", "", entry)
+        seed, protocol = ("GG08", "eBUS") if EBUS_COMMAND_BYTES.search(item) else (path_seed, path_protocol)
+        line = line_at(starts, position)
         found.append(finding(path, line, "register_table", item, seed, protocol, lines[line - 1].strip()))
     return found
 

@@ -9,7 +9,8 @@
   "def matter_dependency(path):",
   "or any(part in path for part in (\"go-fabric\", \"matter\", \"connectedhomeip\", \"/project-chip/\"))",
   "or path.startswith(MODULE.lower() + \"/matter/\")",
-  "path == MODULE.lower() + \"/matter\""
+  "path == MODULE.lower() + \"/matter\"",
+  "required = {MODULE + suffix for suffix in (\"/matter\", \"/matter/feedv1\", \"/matter/libraryhost\")}"
  ],
  "cmd/gateway/matter_profile_test.go": [
   "args = append(args, \"-matter-library-enabled\")",
@@ -51,6 +52,11 @@
   "path = \"internal/vaillant/systemconfig/write_specs.go\"",
   "for line in (\"const manufacturerID uint16 = 0x1234\", \"manufacturerID := 0x1234\",",
   "\"const manufacturerID = 0x1234\"):",
-  "self.assertEqual([\"manufacturerid=0x1234\"], found)"
+  "self.assertEqual([\"manufacturerid=0x1234\"], found)",
+  "\"matter/projection.go\": [",
+  "def test_matter_closure_required_set_is_a_guard_operand_not_debt(self):",
+  "path = \"scripts/check_no_matter_profile.py\"",
+  "line = 'required = {MODULE + suffix for suffix in (\"/matter\", \"/matter/feedv1\", \"/matter/libraryhost\")}'",
+  "(root / product).write_text('package main\\n\\nvar required = \"/matter/feedv1\"\\n', encoding=\"utf-8\")"
  ]
 }
