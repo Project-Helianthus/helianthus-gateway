@@ -41,6 +41,10 @@
   "renamed = text.replace('\"growatt\": (', '\"growattx\": (', 1)",
   "root = self.install(self.tree(files), [(\"internal/fixture/y.go\", \"name\", \"ebus\", \"GG08\")])",
   "rows = [(\"internal/fixture/x.go\", \"name\", \"can\", \"GG07\"), (\"internal/fixture/x.go\", \"name\", \"canbus\", \"GG07\")]",
-  "text = 'package main\\n\\nvar flag = \"-matter-endpoint-store\"\\n'"
+  "text = 'package main\\n\\nvar flag = \"-matter-endpoint-store\"\\n'",
+  "'var v = \"vaillant\"\\nvar m = \"modbus\"\\n')",
+  "def test_graphql_ebus_findings_are_owned_by_gg13(self):",
+  "self.assertEqual(\"GG09\", owners[(\"name\", \"modbus\")])",
+  "self.assertEqual(\"GG13\", owners[(\"name\", \"vaillant\")])"
  ]
 }

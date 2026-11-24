@@ -46,7 +46,7 @@ GATEWAY_PROTOCOL_PACKAGES = (
     ("internal/modbusadapter", "GG09"),
     ("internal/canbusadapter", "GG07"),
     ("internal/eebusadapter", "GG10"),
-    ("internal/transport", None),
+    ("internal/transport", "GG08"),
 )
 # Owner rows whose deletion lists take these paths regardless of the protocol.
 PATH_OWNERS = (
@@ -68,8 +68,8 @@ PROSE = {
     "html": re.compile(r'<!--.*?-->', re.S),
 }
 IMPORT_BLOCK = re.compile(r'^import\s*\((.*?)^\)', re.M | re.S)
-IMPORT_SINGLE = re.compile(r'^import\s+(?:[A-Za-z_.][\w.]*\s+)?"([^"\n]+)"', re.M)
-IMPORT_SPEC = re.compile(r'^[ \t]*(?:[A-Za-z_.][\w.]*[ \t]+)?"([^"\n]+)"', re.M)
+IMPORT_SINGLE = re.compile(r'^import\s+(?:[A-Za-z_.][\w.]*\s+)?(?:"([^"\n]+)"|`([^`\n]+)`)', re.M)
+IMPORT_SPEC = re.compile(r'^[ \t]*(?:[A-Za-z_.][\w.]*[ \t]+)?(?:"([^"\n]+)"|`([^`\n]+)`)', re.M)
 BUILD = re.compile(r'^//go:build[ \t]+(.+)$', re.M)
 VENDOR_ID = re.compile(
     r'\b([A-Za-z_]*(?:manufacturer|vendor|device_?type|product_?id|product_?type)[A-Za-z_]*)\b'
@@ -108,7 +108,7 @@ def owner_of(path, seed, protocol):
                 return owner
         elif path == suffix or path.endswith("/" + suffix):
             return owner
-    if path.startswith("graphql/") and protocol == "eBUS":
+    if path.startswith("graphql/") and (seed == "GG08" or (protocol or "").startswith("eBUS")):
         return "GG13"
     return seed
 
@@ -146,9 +146,9 @@ def go_imports(path, text, starts, lines, vocab):
     specs = []
     for match in IMPORT_BLOCK.finditer(text):
         for spec in IMPORT_SPEC.finditer(text, match.start(1), match.end(1)):
-            specs.append((spec.start(1) - 1, spec.end(1) + 1, spec.group(1)))
+            specs.append(import_literal(spec))
     for match in IMPORT_SINGLE.finditer(text):
-        specs.append((match.start(1) - 1, match.end(1) + 1, match.group(1)))
+        specs.append(import_literal(match))
     for literal_start, literal_end, imported in specs:
         skip.append((literal_start, literal_end))
         owner, protocol = import_owner(imported, vocab)
@@ -159,21 +159,34 @@ def go_imports(path, text, starts, lines, vocab):
     return found, skip
 
 
+def import_literal(match):
+    """Span of an import path literal, quotes included, and its value (double or raw-string)."""
+    if match.group(1) is not None:
+        return match.start(1) - 1, match.end(1) + 1, match.group(1)
+    return match.start(2) - 1, match.end(2) + 1, match.group(2)
+
+
 def import_owner(imported, vocab):
     for name, owner in DRIVER_MODULES:
         full = HELIANTHUS + name
         if imported == full or imported.startswith(full + "/"):
             return owner, "driver"
-    if imported.startswith(HELIANTHUS) and "go-fabric" in imported.split("/"):
+    if "go-fabric" in imported.split("/"):
         return "GG11", "Matter"
     if imported.startswith(MODULE + "/"):
         return gateway_owner(imported[len(MODULE) + 1:], vocab)
     return None, None
 
 
+def check_package_owners():
+    for name, owner in GATEWAY_PROTOCOL_PACKAGES:
+        if owner is None:
+            raise ValueError(f"classified gateway package has no deletion owner: {name}")
+
+
 def gateway_owner(rel, vocab):
     for name, owner in GATEWAY_PROTOCOL_PACKAGES:
-        if rel == name:
+        if rel == name or rel.startswith(name + "/"):
             return owner, "gateway"
     for element in rel.split("/"):
         for token, entry in vocab.items():
@@ -353,6 +366,7 @@ def admitted(item, exceptions, build):
 
 
 def scan(root, here=HERE):
+    check_package_owners()
     vocab = load_vocabulary(here)
     guards = load_guard_operands(here)
     exceptions = load_exceptions(here)

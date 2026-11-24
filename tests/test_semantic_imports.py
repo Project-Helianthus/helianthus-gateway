@@ -738,6 +738,50 @@ class BoundaryCheckTest(unittest.TestCase):
         (root / REGISTRY).write_text(json.dumps(reordered, indent=4, ensure_ascii=False), encoding="utf-8")
         self.assertEqual(0, self.cli(root).returncode)
 
+    def test_go_fabric_import_in_any_module_is_an_import_finding(self):
+        for imported in ("github.com/project-chip/connectedhomeip/src/controller/go-fabric",
+                         "example.invalid/go-fabric"):
+            with self.subTest(imported=imported):
+                text = f'package fixture\n\nimport "{imported}"\n\nvar _ = 1\n'
+                found = [i for i in self.at("internal/fixture/fabric.go", text) if i["kind"] == "import"]
+                self.assertEqual([(imported, "GG11")], [(i["item"], i["owner"]) for i in found])
+
+    def test_gateway_protocol_packages_and_subpackages_are_import_findings(self):
+        gateway = "github.com/Project-Helianthus/helianthus-gateway"
+        for imported, owner in (("internal/adaptermux/v8classifier", "GG08"), ("internal/adaptermux", "GG08"),
+                                ("internal/transport", "GG08"), ("internal/transport/sub", "GG08")):
+            with self.subTest(imported=imported):
+                text = f'package fixture\n\nimport "{gateway}/{imported}"\n\nvar _ = 1\n'
+                found = [i for i in self.at("cmd/gateway/fixture.go", text) if i["kind"] == "import"]
+                self.assertEqual([(f"{gateway}/{imported}", owner)], [(i["item"], i["owner"]) for i in found])
+        neutral = f'package fixture\n\nimport "{gateway}/internal/semhub"\n\nvar _ = 1\n'
+        self.assertEqual([], [i for i in self.at("cmd/gateway/fixture.go", neutral) if i["kind"] == "import"])
+
+    def test_classified_gateway_package_without_owner_fails_the_scan(self):
+        unowned = (("internal/transport", None),)
+        with mock.patch.object(boundary, "GATEWAY_PROTOCOL_PACKAGES", unowned):
+            with self.assertRaisesRegex(ValueError, "internal/transport"):
+                boundary.scan(self.tree({"internal/fixture/x.go": "package fixture\n"}))
+
+    def test_raw_string_driver_imports_are_import_findings(self):
+        single = "package fixture\n\nimport `github.com/Project-Helianthus/helianthus-ebusgo/protocol`\n"
+        block = ("package fixture\n\nimport (\n\t`github.com/Project-Helianthus/helianthus-ebusreg/driver`\n"
+                 "\t\"fmt\"\n)\n")
+        for label, text, imported in (("single", single, "github.com/Project-Helianthus/helianthus-ebusgo/protocol"),
+                                      ("block", block, "github.com/Project-Helianthus/helianthus-ebusreg/driver")):
+            with self.subTest(label=label):
+                found = [i for i in self.at("internal/fixture/raw.go", text) if i["kind"] == "import"]
+                self.assertEqual([(imported, "GG08")], [(i["item"], i["owner"]) for i in found])
+
+    def test_graphql_ebus_findings_are_owned_by_gg13(self):
+        text = ('package fixture\n\nimport "github.com/Project-Helianthus/helianthus-ebusgo/types"\n\n'
+                'var v = "vaillant"\nvar m = "modbus"\n')
+        owners = {(i["kind"], i["item"]): i["owner"] for i in self.at("graphql/fixture.go", text)}
+        self.assertEqual("GG13", owners[("import", "github.com/Project-Helianthus/helianthus-ebusgo/types")])
+        self.assertEqual("GG13", owners[("name", "vaillant")])
+        self.assertEqual("GG09", owners[("name", "modbus")])
+        self.assertEqual([], [row for row in REAL_LEDGER if row[0].startswith("graphql/") and row[3] == "GG08"])
+
     def test_bare_command_without_event_scans_the_working_tree(self):
         clean = self.install(self.tree({"internal/fixture/x.go": "package fixture\n"}), [])
         self.assertEqual(0, self.cli(clean).returncode)
