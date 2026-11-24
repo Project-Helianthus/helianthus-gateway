@@ -734,9 +734,51 @@ class BoundaryCheckTest(unittest.TestCase):
                 result = self.cli(root)
                 self.assertEqual(1, result.returncode)
                 self.assertIn(REGISTRY, result.stderr)
+        data = json.loads(text)
+        entry(data, "/system/gateway_brand")["retirement_state"] = "FIXTURE_RETIRED"
+        entry(data, "/system/gateway_brand")["source_status"] = "FIXTURE_STATUS"
+        (root / REGISTRY).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(0, self.cli(root).returncode)
         reordered = json.loads(text, object_pairs_hook=lambda pairs: dict(reversed(pairs)))
         (root / REGISTRY).write_text(json.dumps(reordered, indent=4, ensure_ascii=False), encoding="utf-8")
         self.assertEqual(0, self.cli(root).returncode)
+
+    def test_numeric_keyed_register_rows_are_register_table_findings(self):
+        probe = "package fixture\n\nvar m = map[uint16][]uint16{0x0001: identity, 0x000d: {0, 0}}\n"
+        found = [i["item"] for i in self.at("internal/fixture/n.go", probe) if i["kind"] == "register_table"]
+        self.assertEqual(["0x0001:identity", "0x000d:{0,0}"], found)
+
+    def test_numeric_row_added_to_existing_b509_table_fails_the_cli(self):
+        path = "cmd/gateway/controllerless_site_acceptance_test.go"
+        text = (ROOT / path).read_text(encoding="utf-8")
+        anchor = "var controllerlessHeatSourceRegisters = map[uint16][]byte{\n"
+        self.assertIn(anchor, text)
+        root = self.install(self.tree({path: text}), self.rows_for({path}))
+        self.assertEqual(0, self.cli(root).returncode)
+        (root / path).write_text(text.replace(anchor, anchor + "\t0x0F99: {0x01},\n", 1), encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn(path, result.stderr)
+        self.assertIn("0x0F99", result.stderr)
+
+    def test_growattcan_package_import_takes_the_gg07_owner(self):
+        imported = "github.com/Project-Helianthus/helianthus-gateway/internal/growattcanclassify"
+        text = f'package main\n\nimport "{imported}"\n\nvar _ = 1\n'
+        found = [(i["item"], i["owner"]) for i in self.at("cmd/gateway/fixture.go", text)
+                 if i["kind"] == "import"]
+        self.assertEqual([(imported, "GG07")], found)
+        owners = {row[3] for row in REAL_LEDGER if row[1] == "import" and row[2] == imported}
+        self.assertEqual({"GG07"}, owners)
+
+    def test_item_60_approval_is_quoted_verbatim_beside_its_entry(self):
+        exceptions = json.loads((BOUNDARY / "exceptions.json").read_text(encoding="utf-8"))
+        question = ("Pentru implementare, aprobi ca fișierul existent `cmd/gateway/matter_profile_enabled.go` "
+                    "să importe doar constructorul public `matterreg`, ca excepție suplimentară față de `drivers.go`?")
+        answer = "Da, aprob importul constructorului în acel fișier (recomandat)"
+        self.assertEqual(question, exceptions["item_60_question"])
+        self.assertEqual(answer, exceptions["item_60_answer"])
+        matter = next(e for e in exceptions["entries"] if e["path"] == "cmd/gateway/matter_profile_enabled.go")
+        self.assertIn(f"«{question}» Answer: «{answer}»", matter["approval"])
 
     def test_unclassified_protocol_import_path_is_a_name_finding(self):
         for imported, token in (("github.com/enbility/eebus-go/api", "eebus"),

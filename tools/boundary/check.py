@@ -94,11 +94,19 @@ GO_REGISTER_ENTRY = re.compile(
     r'' + REG_BODY + r'\b' + REG_FIELD + r'\s*:\s*' + REG_NUMBER +
     r'|(?=' + REG_BODY + r'\bgroup\s*:)' + REG_BODY + r'\b' + ADDR_FIELD + r'\s*:\s*' + REG_NUMBER +
     r')' + REG_BODY + r'\}', re.I)
-# A map keyed by uint16 register identities: each identifier-keyed row is one register row.
-UINT16_BYTE_TABLE = re.compile(r'map\[uint16\]\[\]byte\s*\{')
-BYTE_TABLE_ROW = re.compile(r'\b[A-Za-z_]\w*\s*:\s*\{[^{}]*\}')
+# A map keyed by uint16 register identities: each row (identifier or numeric key) is one register row.
+UINT16_BYTE_TABLE = re.compile(r'map\[uint16\]\[\](?:byte|uint16)\s*\{')
+# Identifier-keyed rows take a brace value; numeric-keyed rows take a brace value or a named value.
+BYTE_TABLE_ROW = re.compile(
+    r'\b[A-Za-z_]\w*\s*:\s*\{[^{}]*\}'
+    r'|(?:0x[0-9a-fA-F]+|\b\d+)\s*:\s*(?:\{[^{}]*\}|[A-Za-z_][\w.]*)')
 CAN_TOKENS = frozenset({"can", "canbus", "socketcan"})
 CAN_CONTEXT = re.compile(r'\s+(bus|frames?|ids?|identifiers?)\b', re.I)
+GROWATT_CAN = re.compile(r'^growattcan')
+# Catalog fields that state the protocol-to-semantic mapping; other catalog fields (candidate and retirement
+# state) are not part of a register_table item.
+REGISTRY_MAPPING_FIELDS = ("semantic_path", "ebus_selector", "ebus_fallback", "eebus_source", "conversion",
+                           "mapping_profile")
 
 
 def load_vocabulary(here=HERE):
@@ -208,6 +216,9 @@ def gateway_owner(rel, vocab):
         if rel == name or rel.startswith(name + "/"):
             return owner, "gateway"
     for element in rel.split("/"):
+        # Growatt CAN packages (growattcan...) take the CAN row, as protocol_seed does for file names.
+        if GROWATT_CAN.match(element.lower()):
+            return "GG07", "CAN"
         for token, entry in vocab.items():
             lowered = element.lower()
             if lowered == token or (len(token) >= 4 and lowered.startswith(token)):
@@ -314,7 +325,7 @@ def manufacturer_findings(path, text, lines, starts, vocab):
 def registry_findings(path, text):
     found = []
     for entry in json.loads(text)["candidate_catalog"]:
-        body = {key: value for key, value in entry.items() if key != "fact_hash"}
+        body = {key: entry[key] for key in REGISTRY_MAPPING_FIELDS if key in entry}
         for slot in ("ebus_selector", "ebus_fallback", "eebus_source"):
             if entry.get(slot) is not None:
                 item = f"{slot}={canon(body)}"

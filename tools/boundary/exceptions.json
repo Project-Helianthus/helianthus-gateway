@@ -1,5 +1,7 @@
 {
  "item_36": "One standing gateway exception is approved: a single host composition file imports each driver's public constructor package (ebusreg, modbusreg, canbusreg, eebusreg, matterreg). All existing protocol code in the gateway is debt with a deletion ticket. Any other exception needs his word.",
+ "item_60_question": "Pentru implementare, aprobi ca fișierul existent `cmd/gateway/matter_profile_enabled.go` să importe doar constructorul public `matterreg`, ca excepție suplimentară față de `drivers.go`?",
+ "item_60_answer": "Da, aprob importul constructorului în acel fișier (recomandat)",
  "entries": [
   {
    "path": "cmd/gateway/drivers.go",
@@ -22,7 +24,7 @@
    "path_tokens": [
     "matter"
    ],
-   "approval": "OPERATOR item 60 (Board, 2026-11-21): approves importing only the public matterreg constructor (NewFactory) in this existing !nomatter file as an additional exception to drivers.go. The filename-derived matter token is its only admitted name finding."
+   "approval": "OPERATOR item 60 (Board, 2026-11-21), verbatim question: «Pentru implementare, aprobi ca fișierul existent `cmd/gateway/matter_profile_enabled.go` să importe doar constructorul public `matterreg`, ca excepție suplimentară față de `drivers.go`?» Answer: «Da, aprob importul constructorului în acel fișier (recomandat)». Approves importing only the public matterreg constructor (NewFactory) in this existing !nomatter file as an additional exception to drivers.go. The filename-derived matter token is its only admitted name finding."
   }
  ]
 }
