@@ -24733,6 +24733,16 @@ internal/vaillant/systemconfig/bounds_test.go	import	github.com/Project-Helianth
 internal/vaillant/systemconfig/bounds_test.go	name	vaillant	GG08
 internal/vaillant/systemconfig/write_specs.go	import	github.com/Project-Helianthus/helianthus-ebusgo/errors	GG08
 internal/vaillant/systemconfig/write_specs.go	name	vaillant	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"adaptive_heating_curve_enabled":{RegisterGroup:0x00,RegisterAddr:0x0014,ValueType:ValueBoolU8}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"dhw_flow_temperature_setpoint_maximum":{RegisterGroup:0x00,RegisterAddr:0x0046,ValueType:ValueFloat32,Min:15.0,Max:80.0}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"dhw_outdoor_bivalence_temperature_limit":{RegisterGroup:0x00,RegisterAddr:0x0001,ValueType:ValueFloat32,Min:unmatchedDHWBivalenceMinC,Max:unmatchedDHWBivalenceMaxC}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"heating_flow_temperature_setpoint_maximum_at_heat_pump_fault":{RegisterGroup:0x00,RegisterAddr:0x0026,ValueType:ValueFloat32,Min:20.0,Max:80.0}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"heating_outdoor_bivalence_temperature_limit":{RegisterGroup:0x00,RegisterAddr:0x0023,ValueType:ValueFloat32,Min:-20.0,Max:30.0}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"installer_access_code":{RegisterGroup:0x00,RegisterAddr:0x0076,ValueType:ValueUint16,Min:0,Max:999}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"installer_name":{RegisterGroup:0x00,RegisterAddr:0x006C,ValueType:ValueCString,MaxLen:12}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"installer_phone_number":{RegisterGroup:0x00,RegisterAddr:0x006F,ValueType:ValueCString,MaxLen:12}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"maintenance_date":{RegisterGroup:0x00,RegisterAddr:0x002C,ValueType:ValueDateHDA3}	GG08
+internal/vaillant/systemconfig/write_specs.go	register_table	"room_humidity_limit_maximum":{RegisterGroup:0x00,RegisterAddr:0x000E,ValueType:ValueUint16,Min:30,Max:80}	GG08
 issue1419_echo_mismatch_counting_test.go	import	github.com/Project-Helianthus/helianthus-ebusgo/protocol	GG08
 issue1419_echo_mismatch_counting_test.go	name	ebus	GG08
 issue1419_echo_mismatch_counting_test.go	name	ebus	GG08

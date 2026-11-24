@@ -73,12 +73,16 @@ IMPORT_SPEC = re.compile(r'^[ \t]*(?:[A-Za-z_.][\w.]*[ \t]+)?(?:"([^"\n]+)"|`([^
 BUILD = re.compile(r'^//go:build[ \t]+(.+)$', re.M)
 VENDOR_ID = re.compile(
     r'\b([A-Za-z_]*(?:manufacturer|vendor|device_?type|product_?id|product_?type)[A-Za-z_]*)\b'
-    r'\s*(?:==|!=|=|:|,|\()\s*(0x[0-9a-fA-F]+|\d+)\b', re.I)
-SWITCH_MANUF = re.compile(r'switch\s*\(\s*device\.manufacturer\s*\)\s*\{')
+    r'(?:[ \t]+[\w.\[\]*]+)?\s*(?::=|==|!=|=|:|,|\()\s*(0x[0-9a-fA-F]+|\d+)\b', re.I)
+MANUF_ACCESS = r'[A-Za-z_$][\w$]*\.manufacturer\b'
+SWITCH_MANUF = re.compile(r'switch\s*\(\s*' + MANUF_ACCESS + r'\s*\)\s*\{')
 LITERAL = r'(["\'])((?:\\.|(?!\1)[^\\\n])*)\1'
-MANUF_RIGHT = re.compile(r'device\.manufacturer\s*(?:===?|!==?)\s*' + LITERAL)
-MANUF_LEFT = re.compile(LITERAL + r'\s*(?:===?|!==?)\s*device\.manufacturer\b')
+MANUF_RIGHT = re.compile(MANUF_ACCESS + r'\s*(?:===?|!==?)\s*' + LITERAL)
+MANUF_LEFT = re.compile(LITERAL + r'\s*(?:===?|!==?)\s*' + MANUF_ACCESS)
 CASE_LITERAL = re.compile(r'\bcase\s+' + LITERAL + r'\s*:')
+GO_REGISTER_ENTRY = re.compile(
+    r'(?:"(?:\\.|[^"\\\n])*"|0x[0-9a-fA-F]+|\b\d+)\s*:\s*\{[^{}]*?'
+    r'\b\w*(?:Register|Addr|Selector|Cluster|Attribute)\w*\s*:\s*(?:0x[0-9a-fA-F]+|\d+)\b[^{}]*\}')
 CAN_TOKENS = frozenset({"can", "canbus", "socketcan"})
 CAN_CONTEXT = re.compile(r'\s+(bus|frames?|ids?|identifiers?)\b', re.I)
 
@@ -150,10 +154,11 @@ def go_imports(path, text, starts, lines, vocab):
     for match in IMPORT_SINGLE.finditer(text):
         specs.append(import_literal(match))
     for literal_start, literal_end, imported in specs:
-        skip.append((literal_start, literal_end))
         owner, protocol = import_owner(imported, vocab)
         if owner is None:
+            # An unclassified path stays visible to the name scan.
             continue
+        skip.append((literal_start, literal_end))
         line = line_at(starts, literal_start)
         found.append(finding(path, line, "import", imported, owner, protocol, lines[line - 1].strip()))
     return found, skip
@@ -303,6 +308,17 @@ def registry_findings(path, text):
     return found
 
 
+def go_register_findings(path, text, lines, starts, vocab):
+    """Keyed Go composite entries that map a name or number to a protocol address (register_table)."""
+    seed, protocol = path_owner(path, vocab)
+    found = []
+    for match in GO_REGISTER_ENTRY.finditer(text):
+        item = re.sub(r"\s+", "", match.group(0))
+        line = line_at(starts, match.start())
+        found.append(finding(path, line, "register_table", item, seed, protocol, lines[line - 1].strip()))
+    return found
+
+
 def python_table_findings(path, text):
     found = []
     tree = ast.parse(text)
@@ -383,7 +399,7 @@ def scan(root, here=HERE):
             skip = []
             if lang == "go":
                 imports, skip = go_imports(path, text, starts, lines, vocab)
-                items += imports
+                items += imports + go_register_findings(path, text, lines, starts, vocab)
             items += name_findings(path, text, lang, lines, starts, skip, vocab)
             if lang in ("go", "py", "sh", "js"):
                 items += vendor_findings(path, text, lines, starts, vocab)

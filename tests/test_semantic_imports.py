@@ -738,6 +738,56 @@ class BoundaryCheckTest(unittest.TestCase):
         (root / REGISTRY).write_text(json.dumps(reordered, indent=4, ensure_ascii=False), encoding="utf-8")
         self.assertEqual(0, self.cli(root).returncode)
 
+    def test_unclassified_protocol_import_path_is_a_name_finding(self):
+        for imported, token in (("github.com/enbility/eebus-go/api", "eebus"),
+                                ("github.com/enbility/ship-go/api", "ship")):
+            with self.subTest(imported=imported):
+                text = f'package fixture\n\nimport api "{imported}"\n\nvar _ = api.X\n'
+                root = self.install(self.tree({"internal/fixture/x.go": text}), [])
+                result = self.cli(root)
+                self.assertEqual(1, result.returncode)
+                self.assertIn("internal/fixture/x.go", result.stderr)
+                self.assertIn(f"name {token!r}", result.stderr)
+
+    def test_vendor_identifier_declaration_forms_are_findings(self):
+        for line in ("const manufacturerID uint16 = 0x1234", "manufacturerID := 0x1234",
+                     "const manufacturerID = 0x1234"):
+            with self.subTest(line=line):
+                text = "package fixture\n\nfunc f() {\n\t" + line + "\n}\n"
+                found = [i["item"] for i in self.at("internal/fixture/v.go", text) if i["kind"] == "vendor"]
+                self.assertEqual(["manufacturerid=0x1234"], found)
+
+    def test_manufacturer_branch_on_any_receiver_is_a_name_finding(self):
+        cases = {
+            "equality": 'if (item.manufacturer === "Fixturebrand") { run(); }\n',
+            "switch case": 'switch (item.manufacturer) {\n  case "Fixturebrand":\n    break;\n}\n',
+        }
+        for label, text in cases.items():
+            with self.subTest(label=label):
+                found = [i["item"] for i in self.at("portal/web/src/app.js", text) if i["kind"] == "name"]
+                self.assertIn("Fixturebrand", found)
+        shown = 'const vendor = escapeHtml(item.manufacturer || "unknown");\n'
+        self.assertEqual([], [i for i in self.at("portal/web/src/app.js", shown) if i["kind"] == "name"])
+
+    def test_go_register_map_entries_are_register_table_findings(self):
+        probe = ('package fixture\n\nvar m = map[string]struct{ RegisterAddr uint16 }{"flow_temperature": '
+                 "{RegisterAddr: 0x0099}}\n")
+        found = [i for i in self.at("internal/fixture/m.go", probe) if i["kind"] == "register_table"]
+        self.assertEqual(1, len(found))
+        path = "internal/vaillant/systemconfig/write_specs.go"
+        text = (ROOT / path).read_text(encoding="utf-8")
+        root = self.install(self.tree({path: text}), self.rows_for({path}))
+        self.assertEqual(0, self.cli(root).returncode)
+        (root / path).write_text(text.replace("RegisterAddr: 0x0014", "RegisterAddr: 0x0015", 1), encoding="utf-8")
+        result = self.cli(root)
+        self.assertEqual(1, result.returncode)
+        self.assertIn(path, result.stderr)
+        (root / path).write_text(text, encoding="utf-8")
+        new_file = self.install(self.tree({"internal/fixture/m.go": probe}), [])
+        result = self.cli(new_file)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("internal/fixture/m.go", result.stderr)
+
     def test_go_fabric_import_in_any_module_is_an_import_finding(self):
         for imported in ("github.com/project-chip/connectedhomeip/src/controller/go-fabric",
                          "example.invalid/go-fabric"):
