@@ -18,6 +18,8 @@ type sourceFake struct {
 	calls     atomic.Int32
 	resources []Resource
 	fields    []Field
+	domains   []contributionv1.PackRef
+	members   map[string][]LensMember
 }
 type fencedSourceFake struct {
 	sourceFake
@@ -26,20 +28,31 @@ type fencedSourceFake struct {
 
 type volatileEvaluationSource struct{ captures int }
 
-func (s *volatileEvaluationSource) Capture(time.Time) ([]Resource, []Field, error) {
+func (s *volatileEvaluationSource) Capture(time.Time) (Capture, error) {
 	s.captures++
 	evaluation := json.RawMessage(`{"context":{"evaluated_at":"2026-09-11T00:00:0` + string(rune('0'+s.captures)) + `Z","evaluate_monotonic":{"nanoseconds":"` + string(rune('0'+s.captures)) + `"}},"facts":[{"freshness":"fresh"}],"evaluation_digest":"digest-` + string(rune('0'+s.captures)) + `"}`)
 	resource := actionResource()
 	resource.Source = Source{AssetID: "asset", SnapshotID: "snapshot", Revision: "revision", EvaluationDigest: "digest-" + string(rune('0'+s.captures)), BindingID: "binding", SourceEpoch: "epoch", DriverGeneration: 1, Evaluation: evaluation}
 	resource.State = "CURRENT"
-	return []Resource{resource}, nil, nil
+	return (&sourceFake{resources: []Resource{resource}}).Capture(time.Time{})
 }
 
 func (s *fencedSourceFake) Fence() string { return s.fence }
 
-func (s *sourceFake) Capture(time.Time) ([]Resource, []Field, error) {
+func (s *sourceFake) Capture(time.Time) (Capture, error) {
 	s.calls.Add(1)
-	return s.resources, s.fields, nil
+	domains := s.domains
+	if domains == nil {
+		domains = []contributionv1.PackRef{{ID: "test.pack", Version: "1.0.0"}, {ID: "helianthus.pack.pv", Version: "1.0.0"}}
+	}
+	members := s.members
+	if members == nil {
+		members = map[string][]LensMember{}
+		for _, resource := range s.resources {
+			members["fixture.lens"] = append(members["fixture.lens"], LensMember{ResourceID: resource.ID, AssetID: resource.Source.AssetID})
+		}
+	}
+	return Capture{Domains: domains, LensMembers: members, Resources: s.resources, Fields: s.fields}, nil
 }
 
 type invokeFake struct{ calls atomic.Int32 }
@@ -71,6 +84,7 @@ func actionManifestAndIndexForPack(p contributionv1.PackRef) (contributionv1.Man
 	service, capability, operation, argument, effect := ref("test.service"), ref("test.capability"), ref("test.operation"), ref("test.argument"), ref("test.effect")
 	fieldRef, unit := ref("test.field"), ref("unit.test")
 	idx := contributionv1.NewStaticIndex()
+	idx.AddLens("fixture.lens")
 	idx.AddPack(p)
 	for _, r := range []contributionv1.DefinitionRef{service, capability, operation, argument, effect, fieldRef, unit} {
 		idx.AddDefinition(r)
@@ -79,7 +93,7 @@ func actionManifestAndIndexForPack(p contributionv1.PackRef) (contributionv1.Man
 	idx.AddFieldRelation(fieldRef, service, capability)
 	idx.AddCanonicalUnit(fieldRef, unit)
 	idx.AddOperation(operation, capability, service, argument, effect)
-	m := contributionv1.Manifest{Contract: contributionv1.Contract, ManifestID: "test.manifest", ManifestVersion: "1.0.0", Contributor: contributionv1.Contributor{DriverID: "test.driver", NativeContract: contributionv1.NativeContractRef{Owner: "test", Contract: "test-contract", Version: "1.0.0"}}, Requires: contributionv1.Requirements{SemanticKernel: contributionv1.SemanticKernel, Packs: []contributionv1.PackRef{p}}, Groups: []contributionv1.Group{{ID: "group", Label: contributionv1.Label{Key: "test.group", Default: "Group"}, ResourceContext: "asset", Order: 0}}, Fields: []contributionv1.Field{{ID: "field", Group: "group", Label: contributionv1.Label{Key: "test.field", Default: "Field"}, Ref: fieldRef, ServiceRef: service, CapabilityRef: capability, UnitRef: unit, Order: 0}}, Views: []contributionv1.View{}, Actions: []contributionv1.Action{{ID: "action", Group: "group", Label: contributionv1.Label{Key: "test.action", Default: "Action"}, OperationRef: operation, CapabilityRef: capability, ServiceRef: service, ArgumentRef: argument, EffectRef: effect, Order: 0}}, Diagnostics: []contributionv1.Diagnostic{}}
+	m := contributionv1.Manifest{Contract: contributionv1.Contract, ManifestID: "test.manifest", ManifestVersion: "1.0.0", Contributor: contributionv1.Contributor{DriverID: "test.driver", NativeContract: contributionv1.NativeContractRef{Owner: "test", Contract: "test-contract", Version: "1.0.0"}}, Requires: contributionv1.Requirements{SemanticKernel: contributionv1.SemanticKernel, Packs: []contributionv1.PackRef{p}}, Groups: []contributionv1.Group{{ID: "group", Label: contributionv1.Label{Key: "test.group", Default: "Group"}, ResourceContext: "presentation-only", Order: 0}}, Fields: []contributionv1.Field{{ID: "field", Group: "group", Label: contributionv1.Label{Key: "test.field", Default: "Field"}, Ref: fieldRef, ServiceRef: service, CapabilityRef: capability, UnitRef: unit, Order: 0}}, Views: []contributionv1.View{{ID: "view", Group: "group", Label: contributionv1.Label{Key: "fixture.view", Default: "View"}, Renderer: "summary", Slot: "lens", Lens: "fixture.lens", FieldIDs: []string{"field"}, DiagnosticIDs: []string{}}}, Actions: []contributionv1.Action{{ID: "action", Group: "group", Label: contributionv1.Label{Key: "test.action", Default: "Action"}, OperationRef: &operation, CapabilityRef: capability, ServiceRef: service, ArgumentRef: &argument, EffectRef: &effect, Order: 0}}, Diagnostics: []contributionv1.Diagnostic{}}
 	return m, idx
 }
 
@@ -194,8 +208,8 @@ func TestWithdrawAbsentOrRepeatedIdentityIsRevisionNoop(t *testing.T) {
 		t.Fatal("repeated withdrawal changed catalog revision")
 	}
 }
-func TestCatalogFivePacksAbsentAndDeterministic(t *testing.T) {
-	s := &sourceFake{}
+func TestCatalogDomainsAbsentAndDeterministic(t *testing.T) {
+	s := &sourceFake{domains: FivePacks}
 	c := New(contributionv1.NewStaticIndex(), s, nil)
 	c.now = func() time.Time { return time.Unix(1, 0).UTC() }
 	a, err := c.Catalog()
@@ -410,7 +424,7 @@ func TestCatalogActionRequiresExactContributionAndSemanticContext(t *testing.T) 
 	}
 }
 
-func TestCatalogScopesCollidingResourceIDsByContribution(t *testing.T) {
+func TestCatalogRefusesCollidingResourceIDsAcrossContributions(t *testing.T) {
 	first, idx := actionManifestAndIndex()
 	second := first
 	second.Contributor.DriverID = "other.driver"
@@ -427,15 +441,8 @@ func TestCatalogScopesCollidingResourceIDsByContribution(t *testing.T) {
 	if err := c.Publish(second); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := c.Catalog()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(catalog.Resources) != 2 || len(catalog.Actions) != 2 {
-		t.Fatalf("cross-contribution resource collision hid valid rows: resources=%+v actions=%+v", catalog.Resources, catalog.Actions)
-	}
-	if catalog.Actions[0].ContributionDriverID == catalog.Actions[1].ContributionDriverID {
-		t.Fatalf("actions lost contribution ownership: %+v", catalog.Actions)
+	if _, err := c.Catalog(); err == nil || !strings.Contains(err.Error(), "ambiguous detached resource_id") {
+		t.Fatalf("duplicate ResourceID was not rejected: %v", err)
 	}
 }
 
@@ -446,8 +453,7 @@ func TestCatalogFiltersAcceptedOwnerWithUndeclaredResourceSemantics(t *testing.T
 		name   string
 		mutate func(*Resource)
 	}{
-		{"resource-context", func(r *Resource) { r.ID = "undeclared" }},
-		{"domain", func(r *Resource) { r.Domain = "helianthus.pack.pv" }},
+		{"domain", func(r *Resource) { r.Domain = "fixture.unknown" }},
 		{"service", func(r *Resource) { r.ServiceID = "undeclared.service" }},
 		{"capability", func(r *Resource) { r.CapabilityID = "undeclared.capability" }},
 	}
@@ -461,6 +467,12 @@ func TestCatalogFiltersAcceptedOwnerWithUndeclaredResourceSemantics(t *testing.T
 				t.Fatal(err)
 			}
 			catalog, err := c.Catalog()
+			if tc.name == "domain" {
+				if err == nil || !strings.Contains(err.Error(), "invalid detached resource domain") {
+					t.Fatalf("unknown domain: %v", err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -623,7 +635,7 @@ func TestM22DescriptorDiagnosticsAndLossAreDetached(t *testing.T) {
 	diagnostic := contributionv1.Diagnostic{ID: "diagnostic", Group: "group", Label: contributionv1.Label{Key: "fixture.diagnostic", Default: "Synthetic diagnostic"}, MemberID: "fixture.member", Kind: "field", Order: 7}
 	index.AddNativeMember(m.Contributor.NativeContract, diagnostic.Kind, diagnostic.MemberID)
 	m.Diagnostics = append(m.Diagnostics, diagnostic)
-	m.Views = []contributionv1.View{{ID: "summary", Group: "group", Label: contributionv1.Label{Key: "fixture.summary", Default: "Summary"}, Renderer: "summary", Slot: "lens", FieldIDs: []string{"field"}, DiagnosticIDs: []string{diagnostic.ID}}}
+	m.Views = []contributionv1.View{{ID: "summary", Group: "group", Label: contributionv1.Label{Key: "fixture.summary", Default: "Summary"}, Renderer: "summary", Slot: "lens", Lens: "fixture.lens", FieldIDs: []string{"field"}, DiagnosticIDs: []string{diagnostic.ID}}}
 	resource := actionResource()
 	resource.Source.Projection = json.RawMessage(`{"dispositions":[{"outcome":"withheld","reason":"fixture.unavailable","loss":[{"kind":"omission","description":"Synthetic loss","source_items":["test.field"],"reversible":false}]}]}`)
 	resource.Source.DriverGeneration = 9007199254740993
@@ -736,5 +748,34 @@ func TestCatalogActionBridgeRemainsFailClosedWithoutRevalidation(t *testing.T) {
 				t.Fatal("native owner called without revalidation")
 			}
 		})
+	}
+}
+
+func TestUnnamedLensViewSelectsResourceContext(t *testing.T) {
+	manifest, index := actionManifestAndIndex()
+	manifest.Views[0].Lens = ""
+	manifest.Groups[0].ResourceContext = "asset"
+	source := &sourceFake{domains: []contributionv1.PackRef{{ID: "test.pack", Version: "1.0.0"}}, members: map[string][]LensMember{}, resources: []Resource{actionResource()}}
+	composer := New(index, source, nil)
+	if err := composer.Publish(manifest); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := composer.Catalog()
+	if err != nil || len(catalog.Resources) != 1 || catalog.Resources[0].ID != "asset" {
+		t.Fatalf("resource context: %v %+v", err, catalog.Resources)
+	}
+	source.resources[0].ID = "other"
+	catalog, err = composer.Catalog()
+	if err != nil || len(catalog.Resources) != 0 {
+		t.Fatalf("unmatched resource context: %v %+v", err, catalog.Resources)
+	}
+	source.resources[0].ID = "asset"
+	composer.Withdraw(manifest.Contributor.DriverID, manifest.ManifestID, manifest.ManifestVersion)
+	manifest.Views[0].Lens = "fixture.lens"
+	if err := composer.Publish(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := composer.Catalog(); err == nil || !strings.Contains(err.Error(), "invalid detached resource_id") {
+		t.Fatalf("named lens admitted a non-member: %v", err)
 	}
 }

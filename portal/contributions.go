@@ -11,16 +11,20 @@ import (
 	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portalgraphql"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 )
 
 // ContributionOptions binds the existing admission registry to a host-owned
 // read adapter. Capture consumes only the shared detached semantic view; it
 // must preserve complete source records, unavailable siblings and loss data.
-// It performs no acquisition, decoding or invocation.
+// Capture performs no acquisition, decoding or invocation.
 type ContributionOptions struct {
-	Registry *contributionv1.Registry
-	Index    contributionv1.SemanticIndex
-	Capture  func(semanticview.View) ([]catalogv1.Resource, []catalogv1.Field, error)
+	Registry      *contributionv1.Registry
+	Index         contributionv1.SemanticIndex
+	Capture       func(semanticview.View) (catalogv1.Capture, error)
+	Invoker       catalogv1.Invoker
+	Revalidator   catalogv1.Revalidator
+	TargetCatalog func(context.Context) ([]graph.Element, error)
 }
 
 // RegisterContributions rejects duplicate full identities before the registry's
@@ -51,26 +55,26 @@ func (c contributionCapture) Fence() string {
 	return strconv.FormatUint(c.opts.Contributions.Registry.Snapshot().Revision, 10)
 }
 
-func (c contributionCapture) Capture(time.Time) ([]catalogv1.Resource, []catalogv1.Field, error) {
+func (c contributionCapture) Capture(time.Time) (catalogv1.Capture, error) {
 	registry := c.opts.Contributions.Registry
 	if registry.Snapshot().Revision != c.revision {
-		return nil, nil, catalogv1.ErrCatalogChanged
+		return catalogv1.Capture{}, catalogv1.ErrCatalogChanged
 	}
 	if c.opts.SharedSemanticView == nil || c.opts.Contributions.Capture == nil {
-		return nil, nil, nil
+		return catalogv1.Capture{}, nil
 	}
 	view, err := c.opts.SharedSemanticView(c.ctx)
 	if err != nil {
-		return nil, nil, err
+		return catalogv1.Capture{}, err
 	}
-	resources, fields, err := c.opts.Contributions.Capture(view)
+	captured, err := c.opts.Contributions.Capture(view)
 	if err != nil {
-		return nil, nil, err
+		return catalogv1.Capture{}, err
 	}
 	if registry.Snapshot().Revision != c.revision {
-		return nil, nil, catalogv1.ErrCatalogChanged
+		return catalogv1.Capture{}, catalogv1.ErrCatalogChanged
 	}
-	return resources, fields, nil
+	return captured, nil
 }
 
 func (h *handler) serveContributionCatalog(w http.ResponseWriter, r *http.Request) {
@@ -78,15 +82,14 @@ func (h *handler) serveContributionCatalog(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "portal catalog unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	// This seam is read-only even if the existing catalog transport also supports
-	// action invocation elsewhere. No invoker or revalidator is wired.
 	snapshot := h.opts.Contributions.Registry.Snapshot()
-	composer := catalogv1.New(h.opts.Contributions.Index, contributionCapture{ctx: r.Context(), opts: h.opts, revision: snapshot.Revision}, nil)
+	composer := catalogv1.New(h.opts.Contributions.Index, contributionCapture{ctx: r.Context(), opts: h.opts, revision: snapshot.Revision}, h.opts.Contributions.Invoker)
+	composer.SetRevalidator(h.opts.Contributions.Revalidator)
 	if err := composer.InstallDetachedRegistrySnapshot(snapshot.Accepted, snapshot.Quarantined); err != nil {
 		http.Error(w, "portal catalog unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	portalgraphql.Handler{Catalog: composer}.ServeHTTP(w, r)
+	portalgraphql.Handler{Catalog: composer, TargetCatalog: h.opts.Contributions.TargetCatalog}.ServeHTTP(w, r)
 }
 
 type portalReadBootstrap struct {

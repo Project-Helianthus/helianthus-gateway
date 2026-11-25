@@ -24,21 +24,27 @@ Groups are resource-scoped labels with unique ids/orders. Fields carry exact
 field, service, capability and canonical-unit DefinitionRefs. The SemReg index
 must resolve each reference, confirm the exact field/service/capability
 ownership relationship and confirm the field's exact canonical unit. There is no scale, offset, formula or
-alternate display unit.
+alternate unit in the manifest. Display conversion is consumer-only; the Portal
+keeps the original SI value and unit in the detail.
 
 Views select only `summary`, `field_table`, `relationship_graph`, `state_strip`,
-`timeline`, `evidence_table`, or `session_controls`, and only the host slots
-`lens` and `native_diagnostics`. Actions carry presentation metadata and exact
-operation, capability, service, argument and effect refs. Diagnostics identify a
+`timeline`, `evidence_table`, or `session_controls`, and only the slots
+`lens` and `native_diagnostics`. The `lens` slot requires the ID of an existing
+SemReg catalog lens; `native_diagnostics` cannot name one. Actions carry
+presentation metadata and exact service and capability refs. A semantic action
+names its operation, argument and effect; a native action names an admitted
+native action member instead. The host revalidates either route before calling
+its owner. Diagnostics identify a
 typed native-contract field/action member. They never describe decoding.
 A view may reference only fields and diagnostics owned by its own group; a
 missing reference remains a dangling-reference rejection before group ownership
 is evaluated.
 
-The host owns localization, installation/resource/capability navigation,
-Registry/Plane/Lens/Compare/Provenance/History/Native perspectives, rendering,
-accessibility, current state, navigation cleanup, authorization and executable
-code. A manifest cannot contain JavaScript, HTML, CSS, web components, URLs,
+SemReg catalog planes, lenses and lens results supply the installation,
+resource and capability navigation (PTL-1, PTL-2). Neither the Portal host nor
+a manifest defines a plane, lens or perspective. The host implements localization,
+rendering, accessibility and navigation cleanup. The native registry is outside
+the graph (NTV-1). A manifest cannot contain JavaScript, HTML, CSS, web components, URLs,
 GraphQL/query text, JSONPath, formulas, register offsets, opcodes, decoders,
 routes, retry policy, authority or precondition results. There is no arbitrary
 component escape hatch.
@@ -93,7 +99,7 @@ Canonicalization keeps every schema-required explicit empty collection as a
 non-nil empty slice, so its canonical JSON remains `[]`, never `null`.
 `StaticIndex` keeps those tuple keys private and exposes `NewStaticIndex` plus
 typed add methods for each pack, definition, unit, service-capability, field,
-operation and native-member relation; its zero value initializes safely on the
+operation and native-member relation and catalog lens; its zero value initializes safely on the
 first add.
 
 ## Truth and actions
@@ -122,7 +128,7 @@ in that caller's action surface.
 `portal/contributionv1/testdata/five-domain-catalog.json` pins Thermal/HVAC
 1.0.0, PV 1.0.0, Storage/BMS 1.1.0, EVSE 1.0.0 and Infrastructure 1.0.0. The
 fixture-driven INT-09 static prototype covers installation/resources,
-capabilities, all host perspectives, HVAC/PV-BMS/EVSE, unavailable
+capabilities and prototype views, HVAC/PV-BMS/EVSE, unavailable
 Infrastructure and retained negative states. The fixture carries resource and
 capability state, contribution-state binding, perspective entries and default
 navigation. The prototype reads those records generically, so a changed state or
@@ -140,8 +146,7 @@ cannot alias another resource/capability pair.
 
 The state fixture records the open gateway #552 reconciliation: B503 target
 context is resource-scoped; its five native availability states are retained;
-Plane/Lens, host session strip/nav-away cleanup and typed history are host
-primitives; AD02 remains an install-write omission banner; transport stays
+session strip/nav-away cleanup and typed history are shell responsibilities; AD02 remains an install-write omission banner; transport stays
 GraphQL-only; M8-TGT-01..04 and F1-F8 are INT-10 implementation acceptance.
 This document and fixture do not close #552.
 

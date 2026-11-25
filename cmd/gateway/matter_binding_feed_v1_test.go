@@ -56,23 +56,20 @@ func TestGatewayMatterBindingFeedProviderEmptyCatalogIsExactAndFailClosed(t *tes
 
 type matterFeedCatalogSource struct {
 	contributions *gatewayPortalCatalogContributions
-	resources     []catalogv1.Resource
+	captured      catalogv1.Capture
 }
 
 func (s *matterFeedCatalogSource) PortalCatalogContributions() *gatewayPortalCatalogContributions {
 	return s.contributions
 }
-func (s *matterFeedCatalogSource) Capture(time.Time) ([]catalogv1.Resource, []catalogv1.Field, error) {
-	return append([]catalogv1.Resource(nil), s.resources...), []catalogv1.Field{}, nil
+func (s *matterFeedCatalogSource) Capture(time.Time) (catalogv1.Capture, error) {
+	return s.captured, nil
 }
 
 func TestGatewayMatterBindingFeedProviderAppliesM2MAssetAllowlistBeforeProjection(t *testing.T) {
-	contributions, err := newGatewayPortalCatalogContributions()
-	if err != nil {
-		t.Fatal(err)
-	}
-	allowedDescriptor := gatewayPortalEVSEDescriptor()
-	blockedDescriptor := gatewayPortalEVSEDescriptor()
+	contributions := newPortalFixtureContributions(t)
+	allowedDescriptor := portalFixtureManifest(gatewayPortalEVSEDescriptor())
+	blockedDescriptor := portalFixtureManifest(gatewayPortalEVSEDescriptor())
 	blockedDescriptor.Contributor.DriverID = "evse.blocked"
 	blockedDescriptor.ManifestID = "portal.evse.blocked"
 	blockedDescriptor.Groups[0].ID = "blocked"
@@ -98,8 +95,16 @@ func TestGatewayMatterBindingFeedProviderAppliesM2MAssetAllowlistBeforeProjectio
 	if _, _, err := projectMatterFeedResource(allowed); err != nil {
 		t.Fatalf("direct allowed projection: %v", err)
 	}
-	source := &matterFeedCatalogSource{contributions: contributions, resources: []catalogv1.Resource{blocked, allowed}}
-	provider, err := newGatewayMatterBindingFeedProvider(source, []string{"asset:allowed"})
+	source := &matterFeedCatalogSource{contributions: contributions, captured: catalogv1.Capture{
+		Domains: allowedDescriptor.Requires.Packs,
+		LensMembers: map[string][]catalogv1.LensMember{portalFixtureLensID: {
+			{ResourceID: "resource:blocked", AssetID: "asset:blocked"},
+			{ResourceID: "resource:allowed", AssetID: "asset:allowed"},
+		}},
+		Resources: []catalogv1.Resource{blocked, allowed},
+	}}
+	openProvider := newGatewayMatterBindingFeedProvider
+	provider, err := openProvider(source, []string{"asset:allowed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +131,48 @@ func TestGatewayMatterBindingFeedProviderAppliesM2MAssetAllowlistBeforeProjectio
 	if _, err := provider.Invoke(context.Background(), feedv1.Invocation{Intent: feedv1.Intent{AssetID: "asset:blocked"}}); !errors.Is(err, errMatterBindingOperationUnavailable) {
 		t.Fatalf("disallowed invocation error=%v", err)
 	}
+	t.Run("two assets of one contribution", func(t *testing.T) {
+		second := allowed
+		second.ID, second.Source = blocked.ID, blocked.Source
+		source.captured.Resources = []catalogv1.Resource{second, allowed}
+		provider, err := openProvider(source, []string{"asset:allowed", "asset:blocked"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := provider.Capture(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(out.Resources) != 2 {
+			t.Fatalf("projected %d resources, want 2", len(out.Resources))
+		}
+		for i, want := range []catalogv1.Resource{allowed, second} {
+			got := out.Resources[i]
+			if got.ResourceID != want.ID || got.AssetID != want.Source.AssetID || got.Projected == nil || len(got.Projected.Document.Attributes) == 0 {
+				t.Fatalf("resource %d: got %+v, want the projection of %s on %s", i, got, want.ID, want.Source.AssetID)
+			}
+		}
+
+		for _, tc := range []struct {
+			name  string
+			lens  string
+			first catalogv1.LensMember
+		}{
+			{"wrong lens", "lens.second", catalogv1.LensMember{ResourceID: "resource:allowed", AssetID: "asset:allowed"}},
+			{"wrong resource", portalFixtureLensID, catalogv1.LensMember{ResourceID: "resource:other", AssetID: "asset:allowed"}},
+			{"wrong asset", portalFixtureLensID, catalogv1.LensMember{ResourceID: "resource:allowed", AssetID: "asset:other"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				source.captured.LensMembers = map[string][]catalogv1.LensMember{portalFixtureLensID: {
+					{ResourceID: "resource:blocked", AssetID: "asset:blocked"},
+				}}
+				source.captured.LensMembers[tc.lens] = append(source.captured.LensMembers[tc.lens], tc.first)
+				if _, err := provider.Capture(context.Background()); err == nil || !strings.Contains(err.Error(), "outside the contribution's served lens") {
+					t.Fatalf("capture error = %v, want out-of-lens rejection", err)
+				}
+			})
+		}
+	})
 }
 
 func matterFeedCatalogResource(t *testing.T, asset, tag string, descriptor contributionv1.Manifest) catalogv1.Resource {
@@ -144,7 +191,7 @@ func matterFeedCatalogResource(t *testing.T, asset, tag string, descriptor contr
 		t.Fatal(err)
 	}
 	return catalogv1.Resource{
-		ID: descriptor.Groups[0].ResourceContext, Domain: descriptor.Requires.Packs[0].ID,
+		ID: "resource:" + tag, Domain: descriptor.Requires.Packs[0].ID,
 		ServiceID: descriptor.Fields[0].ServiceRef.ID, CapabilityID: descriptor.Fields[0].CapabilityRef.ID,
 		ContributionDriverID: descriptor.Contributor.DriverID, ContributionManifestID: descriptor.ManifestID,
 		ContributionManifestVersion: descriptor.ManifestVersion, State: feedv1.ResourceCurrent,
@@ -464,7 +511,7 @@ type characterizationFixedSource struct {
 	at     time.Time
 }
 
-func (s characterizationFixedSource) Capture(time.Time) ([]catalogv1.Resource, []catalogv1.Field, error) {
+func (s characterizationFixedSource) Capture(time.Time) (catalogv1.Capture, error) {
 	return s.source.Capture(s.at)
 }
 
@@ -553,9 +600,18 @@ func (s *matterSharedAssetSource) PortalCatalogContributions() *gatewayPortalCat
 	return s.contributions
 }
 
-func (s *matterSharedAssetSource) Capture(time.Time) ([]catalogv1.Resource, []catalogv1.Field, error) {
+func (s *matterSharedAssetSource) Capture(time.Time) (catalogv1.Capture, error) {
 	resources, fields, _ := portalSnapshotCapture(s.attribution, gatewayPortalEVSEDescriptor(), s.snapshot, s.evaluation, []semreg.Selection{}, map[string]any{})
-	return resources, fields, nil
+	if len(resources) == 1 {
+		resources[0].ID = "resource:shared"
+	}
+	return catalogv1.Capture{
+		Domains: gatewayPortalEVSEDescriptor().Requires.Packs,
+		LensMembers: map[string][]catalogv1.LensMember{portalFixtureLensID: {
+			{ResourceID: "resource:shared", AssetID: "asset:shared"},
+		}},
+		Resources: resources, Fields: fields,
+	}, nil
 }
 
 // matterSharedAssetFixture publishes the mapped current, the EVSE service and
@@ -636,11 +692,8 @@ func matterSharedAssetFixture(t *testing.T) (semreg.Snapshot, semreg.EvaluationV
 }
 
 func TestMatterBindingFeedKeepsSharedAssetResource(t *testing.T) {
-	contributions, err := newGatewayPortalCatalogContributions()
-	if err != nil {
-		t.Fatal(err)
-	}
-	lease := startPortalTestLease(t, contributions, gatewayPortalEVSEDescriptor())
+	contributions := newPortalFixtureContributions(t)
+	lease := startPortalTestLease(t, contributions, portalFixtureManifest(gatewayPortalEVSEDescriptor()))
 	defer lease.Stop()
 	snapshot, evaluation := matterSharedAssetFixture(t)
 	stale := 0

@@ -18,6 +18,7 @@ import (
 	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portalgraphql"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs"
 )
 
@@ -49,15 +50,35 @@ func newPortalCatalogV1Handler(source catalogv1.SourceCapture) http.Handler {
 
 // gatewayPortalSemanticIndex is deliberately thin: SemReg owns every semantic
 // relation, while Gateway keeps the native-contract membership boundary.
-type gatewayPortalSemanticIndex struct{ metadata *semreg.PackMetadataRegistry }
+type gatewayPortalSemanticIndex struct {
+	metadata *semreg.PackMetadataRegistry
+	catalog  *graph.Catalog
+}
 
 func newGatewayPortalSemanticIndex() (*gatewayPortalSemanticIndex, error) {
 	r, err := packs.NewMetadataRegistry()
 	if err != nil {
 		return nil, err
 	}
-	return &gatewayPortalSemanticIndex{metadata: r}, nil
+	catalog, err := graph.Embedded()
+	if err != nil {
+		return nil, err
+	}
+	return &gatewayPortalSemanticIndex{metadata: r, catalog: catalog}, nil
 }
+
+func (i *gatewayPortalSemanticIndex) HasLens(id string) bool {
+	if i == nil || i.catalog == nil {
+		return false
+	}
+	for _, lens := range i.catalog.Lenses() {
+		if string(lens.ID) == id {
+			return true
+		}
+	}
+	return false
+}
+
 func semanticPack(p contributionv1.PackRef) semreg.PackRef {
 	return semreg.PackRef{ID: semreg.DefinitionID(p.ID), Version: semreg.SemanticVersion(p.Version)}
 }
@@ -156,10 +177,13 @@ func gatewayPortalStoragePublication(provider *growattBMSRS485ProductionProvider
 	}
 	return provider.storage
 }
-func (s *gatewayPortalCatalogSource) Capture(at time.Time) ([]catalogv1.Resource, []catalogv1.Field, error) {
+func (s *gatewayPortalCatalogSource) Capture(at time.Time) (catalogv1.Capture, error) {
 	resources, fields, diagnostics, err := s.CaptureDiagnostics(at)
 	s.logDropped(diagnostics)
-	return resources, fields, err
+	// These packs are the domains this source serves. The composer does not
+	// invent them, and a capture may add another admitted domain beside them.
+	domains := append([]contributionv1.PackRef(nil), catalogv1.FivePacks...)
+	return catalogv1.Capture{Domains: domains, Resources: resources, Fields: fields}, err
 }
 
 // logDropped reports every dropped resource with its reason whenever the set

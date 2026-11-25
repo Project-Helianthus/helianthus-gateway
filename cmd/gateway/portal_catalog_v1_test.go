@@ -39,10 +39,10 @@ type portalCatalogBarrierSource struct {
 	once          sync.Once
 }
 
-func (s *portalCatalogBarrierSource) Capture(time.Time) ([]catalogv1.Resource, []catalogv1.Field, error) {
+func (s *portalCatalogBarrierSource) Capture(time.Time) (catalogv1.Capture, error) {
 	s.once.Do(func() { close(s.entered) })
 	<-s.release
-	return nil, nil, nil
+	return catalogv1.Capture{}, nil
 }
 func (s *portalCatalogBarrierSource) PortalCatalogContributions() *gatewayPortalCatalogContributions {
 	return s.contributions
@@ -270,11 +270,12 @@ func TestPortalCatalogSourceLifecycleWithdrawsOwnedGenerations(t *testing.T) {
 }
 
 func TestPortalCatalogHandlerAdmitsAndWithdrawsDriverGeneration(t *testing.T) {
-	contributions, err := newGatewayPortalCatalogContributions()
-	if err != nil {
-		t.Fatal(err)
+	contributions := newPortalFixtureContributions(t)
+	leases := []*gatewayPortalContributionLifecycle{
+		startPortalTestLease(t, contributions, portalFixtureManifest(gatewayPortalPVDescriptor())),
+		startPortalTestLease(t, contributions, portalFixtureManifest(gatewayPortalStorageDescriptor())),
+		startPortalTestLease(t, contributions, portalFixtureManifest(gatewayPortalEVSEDescriptor())),
 	}
-	leases := startPortalTestBaseline(t, contributions)
 	defer func() {
 		for _, lease := range leases {
 			lease.Stop()
@@ -293,7 +294,7 @@ func TestPortalCatalogHandlerAdmitsAndWithdrawsDriverGeneration(t *testing.T) {
 		return res.Body.Bytes()
 	}
 
-	extra := gatewayPortalPVDescriptor()
+	extra := portalFixtureManifest(gatewayPortalPVDescriptor())
 	extra.ManifestID = "portal.pv.secondary"
 	extra.Contributor.DriverID = "pv.secondary"
 	extra.Groups[0].Label.Key = "portal.pv.secondary.group"
@@ -315,11 +316,12 @@ func TestPortalCatalogHandlerAdmitsAndWithdrawsDriverGeneration(t *testing.T) {
 }
 
 func TestPortalCatalogHandlerSnapshotsCompleteGenerationDuringReplaceAndWithdraw(t *testing.T) {
-	contributions, err := newGatewayPortalCatalogContributions()
-	if err != nil {
-		t.Fatal(err)
+	contributions := newPortalFixtureContributions(t)
+	leases := []*gatewayPortalContributionLifecycle{
+		startPortalTestLease(t, contributions, portalFixtureManifest(gatewayPortalPVDescriptor())),
+		startPortalTestLease(t, contributions, portalFixtureManifest(gatewayPortalStorageDescriptor())),
+		startPortalTestLease(t, contributions, portalFixtureManifest(gatewayPortalEVSEDescriptor())),
 	}
-	leases := startPortalTestBaseline(t, contributions)
 	defer func() {
 		for _, lease := range leases {
 			lease.Stop()
@@ -327,10 +329,10 @@ func TestPortalCatalogHandlerSnapshotsCompleteGenerationDuringReplaceAndWithdraw
 	}()
 	source := newGatewayPortalCatalogSource(nil, nil, nil, contributions)
 	h := newPortalCatalogV1Handler(source)
-	first := gatewayPortalPVDescriptor()
+	first := portalFixtureManifest(gatewayPortalPVDescriptor())
 	first.Contributor.DriverID, first.ManifestID = "fixture.driver", "portal.fixture.pv"
 	first.Groups[0].Label.Key, first.Views[0].ID, first.Views[0].Label.Key = "portal.fixture.pv.group", "portal.fixture.pv.summary", "portal.fixture.pv.summary"
-	second := gatewayPortalStorageDescriptor()
+	second := portalFixtureManifest(gatewayPortalStorageDescriptor())
 	second.Contributor.DriverID, second.ManifestID = "fixture.driver", "portal.fixture.storage"
 	second.Groups[0].Label.Key, second.Views[0].ID, second.Views[0].Label.Key = "portal.fixture.storage.group", "portal.fixture.storage.summary", "portal.fixture.storage.summary"
 	request := func() []byte {
@@ -393,7 +395,7 @@ func TestPortalCatalogHandlerSnapshotsCompleteGenerationDuringReplaceAndWithdraw
 	}
 	<-done
 	writerMu.Lock()
-	err = writerErr
+	err := writerErr
 	writerMu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -404,11 +406,8 @@ func TestPortalCatalogHandlerSnapshotsCompleteGenerationDuringReplaceAndWithdraw
 }
 
 func TestPortalCatalogHandlerRejectsRegistryChangeDuringCapture(t *testing.T) {
-	contributions, err := newGatewayPortalCatalogContributions()
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest := gatewayPortalPVDescriptor()
+	contributions := newPortalFixtureContributions(t)
+	manifest := portalFixtureManifest(gatewayPortalPVDescriptor())
 	owner := contributionv1.DriverGeneration{DriverID: manifest.Contributor.DriverID, Generation: 1}
 	if err := contributions.PublishGeneration(owner, []contributionv1.Manifest{manifest}); err != nil {
 		t.Fatal(err)
@@ -815,11 +814,11 @@ func TestCharacterizationConsumersOfAllThreeFamilies(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := newGatewayPortalCatalogSource(families.pv, gatewayPortalStoragePublication(families.growatt), families.tesla, contributions)
-	resources, fields, err := source.Capture(at)
+	captured, err := source.Capture(at)
 	if err != nil {
 		t.Fatal(err)
 	}
-	characterizationGolden(t, dir, "portal_source_capture.json", characterizationJSON(t, map[string]any{"resources": resources, "fields": fields}))
+	characterizationGolden(t, dir, "portal_source_capture.json", characterizationJSON(t, map[string]any{"resources": captured.Resources, "fields": captured.Fields}))
 	composer, err := contributions.composer(source)
 	if err != nil {
 		t.Fatal(err)
@@ -878,15 +877,16 @@ func portalAllocationDescriptor(driver, manifest, version string) contributionv1
 	}
 	descriptor := newGatewayPortalDescriptor(driver, manifest, "connector", "evse.limit.allocated_current", "evse.service.connector", "evse.capability.set_allocated_current", "unit.ampere", pack)
 	descriptor.ManifestVersion = version
-	descriptor.Actions = []contributionv1.Action{{ID: "allocate", Group: "connector", Label: contributionv1.Label{Key: manifest + ".allocate", Default: "Allocate"}, OperationRef: ref("evse.operation.set_allocated_current"), CapabilityRef: ref("evse.capability.set_allocated_current"), ServiceRef: ref("evse.service.connector"), ArgumentRef: ref("evse.limit.allocated_current"), EffectRef: ref("evse.effect.set_allocated_current")}}
+	operation, argument, effect := ref("evse.operation.set_allocated_current"), ref("evse.limit.allocated_current"), ref("evse.effect.set_allocated_current")
+	descriptor.Actions = []contributionv1.Action{{ID: "allocate", Group: "connector", Label: contributionv1.Label{Key: manifest + ".allocate", Default: "Allocate"}, OperationRef: &operation, CapabilityRef: ref("evse.capability.set_allocated_current"), ServiceRef: ref("evse.service.connector"), ArgumentRef: &argument, EffectRef: &effect}}
 	return descriptor
 }
 
 // portalStaticCapture replays fixed resources to the catalog composer.
-type portalStaticCapture []catalogv1.Resource
+type portalStaticCapture struct{ captured catalogv1.Capture }
 
-func (s portalStaticCapture) Capture(time.Time) ([]catalogv1.Resource, []catalogv1.Field, error) {
-	return append([]catalogv1.Resource(nil), s...), []catalogv1.Field{}, nil
+func (s portalStaticCapture) Capture(time.Time) (catalogv1.Capture, error) {
+	return s.captured, nil
 }
 
 type portalTestInvoker struct{}
@@ -900,16 +900,13 @@ type portalTestRevalidator struct{}
 func (portalTestRevalidator) Revalidate(catalogv1.Action, catalogv1.Claims) error { return nil }
 
 func TestPortalCatalogKeepsResourceWithSeveralContributors(t *testing.T) {
-	contributions, err := newGatewayPortalCatalogContributions()
-	if err != nil {
-		t.Fatal(err)
-	}
+	contributions := newPortalFixtureContributions(t)
 	// The owner and the contributor publish the same action under different
 	// drivers, manifest identifiers and manifest versions.
 	owner := portalAllocationDescriptor("evse.primary", "portal.evse.allocation", "1.0.0")
 	contributor := portalAllocationDescriptor("evse.contributor", "portal.evse.contributed", "1.1.0")
 	for _, descriptor := range []contributionv1.Manifest{owner, contributor} {
-		lease := startPortalTestLease(t, contributions, descriptor)
+		lease := startPortalTestLease(t, contributions, portalFixtureManifest(descriptor))
 		defer lease.Stop()
 	}
 	// The hub names the owner's source by the runtime driver of the EVSE
@@ -922,7 +919,17 @@ func TestPortalCatalogKeepsResourceWithSeveralContributors(t *testing.T) {
 
 	catalog := func(t *testing.T, resources []catalogv1.Resource) catalogv1.Catalog {
 		t.Helper()
-		composer := catalogv1.New(contributions.index, portalStaticCapture(resources), portalTestInvoker{})
+		// The legacy row is presentation data. The synthetic served cut
+		// names the shared graph resource independently of that row’s group.
+		resources[0].ID = "resource:shared"
+		captured := portalStaticCapture{captured: catalogv1.Capture{
+			Domains: owner.Requires.Packs,
+			LensMembers: map[string][]catalogv1.LensMember{portalFixtureLensID: {
+				{ResourceID: "resource:shared", AssetID: "asset:shared"},
+			}},
+			Resources: resources,
+		}}
+		composer := catalogv1.New(contributions.index, captured, portalTestInvoker{})
 		registry := contributions.snapshot()
 		if err := composer.InstallDetachedRegistrySnapshot(registry.Accepted, registry.Quarantined); err != nil {
 			t.Fatal(err)
@@ -953,7 +960,7 @@ func TestPortalCatalogKeepsResourceWithSeveralContributors(t *testing.T) {
 			t.Fatalf("catalog resources=%+v actions=%+v", out.Resources, out.Actions)
 		}
 		action := out.Actions[0]
-		if action.ContributionDriverID != driver || action.ContributionManifestID != manifest.ManifestID || action.ContributionManifestVersion != manifest.ManifestVersion || action.Source.BindingID != "binding:"+tag || action.Source.SourceEpoch != "epoch:"+tag || action.Source.DriverGeneration != generation || !action.Enabled {
+		if action.ResourceID != "resource:shared" || action.ContributionDriverID != driver || action.ContributionManifestID != manifest.ManifestID || action.ContributionManifestVersion != manifest.ManifestVersion || action.Source.BindingID != "binding:"+tag || action.Source.SourceEpoch != "epoch:"+tag || action.Source.DriverGeneration != generation || !action.Enabled {
 			t.Fatalf("action=%+v; want it attributed to %s on the %s binding", action, driver, tag)
 		}
 	}

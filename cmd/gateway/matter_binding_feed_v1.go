@@ -26,13 +26,10 @@ type gatewayMatterBindingFeedProvider struct {
 	allowedAssets map[string]struct{}
 }
 
-type matterBindingStaticCapture struct {
-	resources []catalogv1.Resource
-	fields    []catalogv1.Field
-}
+type matterBindingStaticCapture struct{ captured catalogv1.Capture }
 
-func (s matterBindingStaticCapture) Capture(time.Time) ([]catalogv1.Resource, []catalogv1.Field, error) {
-	return append([]catalogv1.Resource(nil), s.resources...), append([]catalogv1.Field(nil), s.fields...), nil
+func (s matterBindingStaticCapture) Capture(time.Time) (catalogv1.Capture, error) {
+	return s.captured, nil
 }
 
 func newGatewayMatterBindingFeedProvider(source catalogv1.SourceCapture, allowedAssets []string) (*gatewayMatterBindingFeedProvider, error) {
@@ -59,11 +56,11 @@ func (p *gatewayMatterBindingFeedProvider) Capture(ctx context.Context) (feedv1.
 	}
 	registry := p.contributions.snapshot()
 	bound := &gatewayPortalCatalogBoundCapture{source: p.source, contributions: p.contributions, revision: registry.Revision}
-	rawResources, rawFields, err := bound.Capture(time.Now().UTC())
+	captured, err := bound.Capture(time.Now().UTC())
 	if err != nil {
 		return feedv1.Snapshot{}, fmt.Errorf("matter binding feed source capture: %w", err)
 	}
-	composer := catalogv1.New(p.contributions.index, matterBindingStaticCapture{resources: rawResources, fields: rawFields}, nil)
+	composer := catalogv1.New(p.contributions.index, matterBindingStaticCapture{captured: captured}, nil)
 	if err := composer.InstallDetachedRegistrySnapshot(registry.Accepted, registry.Quarantined); err != nil {
 		return feedv1.Snapshot{}, fmt.Errorf("matter binding feed catalog composition: %w", err)
 	}
@@ -74,8 +71,8 @@ func (p *gatewayMatterBindingFeedProvider) Capture(ctx context.Context) (feedv1.
 	if p.contributions.revision() != registry.Revision {
 		return feedv1.Snapshot{}, catalogv1.ErrCatalogChanged
 	}
-	rawByIdentity := make(map[string]catalogv1.Resource, len(rawResources))
-	for _, resource := range rawResources {
+	rawByIdentity := make(map[string]catalogv1.Resource, len(captured.Resources))
+	for _, resource := range captured.Resources {
 		key := matterBindingResourceKey(resource)
 		if _, duplicate := rawByIdentity[key]; duplicate {
 			return feedv1.Snapshot{}, errors.New("matter binding feed raw resource identity is ambiguous")

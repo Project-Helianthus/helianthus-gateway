@@ -348,7 +348,7 @@ function createSemanticContributionFixture(resources) {
     const tuple = { snapshot_id: snapshot.snapshot_id, revisions };
     const asset = { asset_id: binding.asset_id, snapshot, evaluation: { ...tuple, evaluation_digest: "synthetic-evaluation", facts: [] }, projection: { ...tuple, dispositions: [] }, selections: [] };
     descriptor.groups.push({ id, order: descriptor.groups.length, resource_context: id, label: { default: id } });
-    descriptor.views.push({ id, group: id, label: { default: id }, renderer: "summary", slot: "lens", field_ids: [], diagnostic_ids: [], order: 0 });
+    descriptor.views.push({ id, group: id, label: { default: id }, renderer: "summary", slot: "lens", lens: "fixture.lens", field_ids: [], diagnostic_ids: [], order: 0 });
     for (const [label, value, unavailable = false] of fields) {
       const fieldId = `${id}.${label}`;
       const key = { pack_id: pack.id, pack_version: pack.version, fact_id: fieldId, dimensions: [] };
@@ -359,7 +359,7 @@ function createSemanticContributionFixture(resources) {
       descriptor.fields.push({ id: fieldId, group: id, label: { default: label }, ref: { pack, id: fieldId, version: "1.0.0" }, service_ref: { pack, id: "fixture.service", version: "1.0.0" }, capability_ref: { pack, id: "fixture.read", version: "1.0.0" }, order: descriptor.fields.length });
       descriptor.views.at(-1).field_ids.push(fieldId);
     }
-    catalog.resources.push({ id, domain: pack.id, service_id: "fixture.service", capability_id: "fixture.read", contribution_driver_id: identity.driver_id, contribution_manifest_id: identity.manifest_id, contribution_manifest_version: identity.manifest_version, state: "CURRENT", source: { asset_id: snapshot.asset_id, snapshot_id: snapshot.snapshot_id, revision: JSON.stringify(revisions), evaluation_digest: asset.evaluation.evaluation_digest, binding_id: binding.binding_id, source_epoch: binding.source_epoch_id, driver_generation: binding.driver_generation, snapshot: structuredClone(snapshot), evaluation: {}, projection: {}, selections: [] } });
+    catalog.resources.push({ resource_id: id, domain: pack.id, service_id: "fixture.service", capability_id: "fixture.read", contribution_driver_id: identity.driver_id, contribution_manifest_id: identity.manifest_id, contribution_manifest_version: identity.manifest_version, state: "CURRENT", source: { asset_id: snapshot.asset_id, snapshot_id: snapshot.snapshot_id, revision: JSON.stringify(revisions), evaluation_digest: asset.evaluation.evaluation_digest, binding_id: binding.binding_id, source_epoch: binding.source_epoch_id, driver_generation: binding.driver_generation, snapshot: structuredClone(snapshot), evaluation: {}, projection: {}, selections: [] } });
     return asset;
   });
   return { catalog, assets };

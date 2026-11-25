@@ -16,6 +16,7 @@ func TestStaticIndexExternalBuilderValidatesManifest(t *testing.T) {
 	contract := contributionv1.NativeContractRef{Owner: "helianthus", Contract: "test-native", Version: "1.0.0"}
 
 	index := contributionv1.NewStaticIndex()
+	index.AddLens("fixture.lens")
 	index.AddPack(pack)
 	for _, definition := range []contributionv1.DefinitionRef{field, service, capability, unit, operation, argument, effect} {
 		index.AddDefinition(definition)
@@ -32,8 +33,8 @@ func TestStaticIndexExternalBuilderValidatesManifest(t *testing.T) {
 		Requires:    contributionv1.Requirements{SemanticKernel: "helianthus.semantic.kernel/v1", Packs: []contributionv1.PackRef{pack}},
 		Groups:      []contributionv1.Group{{ID: "group", Label: contributionv1.Label{Key: "group", Default: "Group"}, ResourceContext: "resource", Order: 1}},
 		Fields:      []contributionv1.Field{{ID: "field", Group: "group", Label: contributionv1.Label{Key: "field", Default: "Field"}, Ref: field, ServiceRef: service, CapabilityRef: capability, UnitRef: unit, Order: 1}},
-		Views:       []contributionv1.View{{ID: "view", Group: "group", Label: contributionv1.Label{Key: "view", Default: "View"}, Renderer: "summary", Slot: "lens", FieldIDs: []string{"field"}, DiagnosticIDs: []string{"diagnostic"}, Order: 1}},
-		Actions:     []contributionv1.Action{{ID: "action", Group: "group", Label: contributionv1.Label{Key: "action", Default: "Action"}, OperationRef: operation, CapabilityRef: capability, ServiceRef: service, ArgumentRef: argument, EffectRef: effect, Order: 1}},
+		Views:       []contributionv1.View{{ID: "view", Group: "group", Label: contributionv1.Label{Key: "view", Default: "View"}, Renderer: "summary", Slot: "lens", Lens: "fixture.lens", FieldIDs: []string{"field"}, DiagnosticIDs: []string{"diagnostic"}, Order: 1}},
+		Actions:     []contributionv1.Action{{ID: "action", Group: "group", Label: contributionv1.Label{Key: "action", Default: "Action"}, OperationRef: &operation, CapabilityRef: capability, ServiceRef: service, ArgumentRef: &argument, EffectRef: &effect, Order: 1}},
 		Diagnostics: []contributionv1.Diagnostic{{ID: "diagnostic", Group: "group", Label: contributionv1.Label{Key: "diagnostic", Default: "Diagnostic"}, MemberID: "native-field", Kind: "field", Order: 1}},
 	}
 	if err := contributionv1.Validate(manifest, index); err != nil {
