@@ -23,6 +23,7 @@ func m22Fixture() (contributionv1.Manifest, *contributionv1.StaticIndex) {
 	}
 	field, unit, service, capability := ref("fixture.field"), ref("fixture.unit"), ref("fixture.service"), ref("fixture.capability")
 	index := contributionv1.NewStaticIndex()
+	index.AddLens("fixture.lens")
 	index.AddPack(p)
 	for _, r := range []contributionv1.DefinitionRef{field, unit, service, capability} {
 		index.AddDefinition(r)
@@ -31,7 +32,7 @@ func m22Fixture() (contributionv1.Manifest, *contributionv1.StaticIndex) {
 	index.AddServiceCapability(service, capability)
 	index.AddCanonicalUnit(field, unit)
 	label := contributionv1.Label{Key: "fixture.label", Default: "Synthetic contribution"}
-	m := contributionv1.Manifest{Contract: contributionv1.Contract, ManifestID: "portal.fixture", ManifestVersion: "1.0.0", Contributor: contributionv1.Contributor{DriverID: "fixture", NativeContract: contributionv1.NativeContractRef{Owner: "fixture", Contract: "fixture-native", Version: "1.0.0"}}, Requires: contributionv1.Requirements{SemanticKernel: contributionv1.SemanticKernel, Packs: []contributionv1.PackRef{p}}, Groups: []contributionv1.Group{{ID: "summary", Label: label, ResourceContext: "fixture.resource"}}, Fields: []contributionv1.Field{{ID: "field", Group: "summary", Label: label, Ref: field, UnitRef: unit, ServiceRef: service, CapabilityRef: capability}}, Views: []contributionv1.View{{ID: "summary", Group: "summary", Label: label, Renderer: "summary", Slot: "lens", FieldIDs: []string{"field"}, DiagnosticIDs: []string{}}}, Diagnostics: []contributionv1.Diagnostic{}, Actions: []contributionv1.Action{}}
+	m := contributionv1.Manifest{Contract: contributionv1.Contract, ManifestID: "portal.fixture", ManifestVersion: "1.0.0", Contributor: contributionv1.Contributor{DriverID: "fixture", NativeContract: contributionv1.NativeContractRef{Owner: "fixture", Contract: "fixture-native", Version: "1.0.0"}}, Requires: contributionv1.Requirements{SemanticKernel: contributionv1.SemanticKernel, Packs: []contributionv1.PackRef{p}}, Groups: []contributionv1.Group{{ID: "summary", Label: label, ResourceContext: "fixture.resource"}}, Fields: []contributionv1.Field{{ID: "field", Group: "summary", Label: label, Ref: field, UnitRef: unit, ServiceRef: service, CapabilityRef: capability}}, Views: []contributionv1.View{{ID: "summary", Group: "summary", Label: label, Renderer: "summary", Slot: "lens", Lens: "fixture.lens", FieldIDs: []string{"field"}, DiagnosticIDs: []string{}}}, Diagnostics: []contributionv1.Diagnostic{}, Actions: []contributionv1.Action{}}
 	return m, index
 }
 
@@ -185,9 +186,9 @@ func TestM22BootstrapNilProvidersAndSharedReadFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	called := false
-	h := NewHandler(Options{Contributions: &ContributionOptions{Registry: registry, Index: index, Capture: func(semanticview.View) ([]catalogv1.Resource, []catalogv1.Field, error) {
+	h := NewHandler(Options{Contributions: &ContributionOptions{Registry: registry, Index: index, Capture: func(semanticview.View) (catalogv1.Capture, error) {
 		called = true
-		return nil, nil, nil
+		return catalogv1.Capture{}, nil
 	}}, SharedSemanticView: func(context.Context) (semanticview.View, error) {
 		return semanticview.View{}, errors.New("synthetic read unavailable")
 	}})
@@ -210,20 +211,20 @@ func TestM22SharedViewUnavailableSiblingAndRegistryFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	captured := false
-	opts := Options{Contributions: &ContributionOptions{Registry: registry, Index: index, Capture: func(got semanticview.View) ([]catalogv1.Resource, []catalogv1.Field, error) {
+	opts := Options{Contributions: &ContributionOptions{Registry: registry, Index: index, Capture: func(got semanticview.View) (catalogv1.Capture, error) {
 		captured = true
 		if !reflect.DeepEqual(got, view) {
 			t.Fatal("shared unavailable entry changed")
 		}
-		return nil, nil, nil
+		return catalogv1.Capture{}, nil
 	}}, SharedSemanticView: func(context.Context) (semanticview.View, error) { return view, nil }}
 	result := m22Catalog(t, NewHandler(opts))
 	if !captured || len(result.Descriptors) != 1 || len(result.Resources) != 0 {
 		t.Fatal("unavailable asset invented data or removed descriptor")
 	}
-	opts.Contributions.Capture = func(semanticview.View) ([]catalogv1.Resource, []catalogv1.Field, error) {
+	opts.Contributions.Capture = func(semanticview.View) (catalogv1.Capture, error) {
 		registry.WithdrawGeneration(owner)
-		return nil, nil, nil
+		return catalogv1.Capture{}, nil
 	}
 	out := m22Request(t, NewHandler(opts), "/graphql/portal/v1", `{"operationName":"PortalCatalogV1"}`)
 	if out["errors"] == nil {
@@ -275,9 +276,9 @@ func TestM22RealHandlerPreservesProjectionLoss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := NewHandler(Options{SharedSemanticView: func(context.Context) (semanticview.View, error) { return view, nil }, Contributions: &ContributionOptions{Registry: registry, Index: index, Capture: func(got semanticview.View) ([]catalogv1.Resource, []catalogv1.Field, error) {
+	h := NewHandler(Options{SharedSemanticView: func(context.Context) (semanticview.View, error) { return view, nil }, Contributions: &ContributionOptions{Registry: registry, Index: index, Capture: func(got semanticview.View) (catalogv1.Capture, error) {
 		raw, err := json.Marshal(got.Assets[0].Projection)
-		return []catalogv1.Resource{{ID: m.Groups[0].ResourceContext, Domain: m.Requires.Packs[0].ID, ServiceID: m.Fields[0].ServiceRef.ID, CapabilityID: m.Fields[0].CapabilityRef.ID, ContributionDriverID: m.Contributor.DriverID, ContributionManifestID: m.ManifestID, ContributionManifestVersion: m.ManifestVersion, State: "WITHHELD", Source: catalogv1.Source{Projection: raw}}}, nil, err
+		return catalogv1.Capture{Domains: m.Requires.Packs, LensMembers: map[string][]catalogv1.LensMember{"fixture.lens": {{ResourceID: "resource:fixture:loss", AssetID: "asset:fixture:loss"}}}, Resources: []catalogv1.Resource{{ID: "resource:fixture:loss", Domain: m.Requires.Packs[0].ID, ServiceID: m.Fields[0].ServiceRef.ID, CapabilityID: m.Fields[0].CapabilityRef.ID, ContributionDriverID: m.Contributor.DriverID, ContributionManifestID: m.ManifestID, ContributionManifestVersion: m.ManifestVersion, State: "WITHHELD", Source: catalogv1.Source{AssetID: "asset:fixture:loss", Projection: raw}}}}, err
 	}}})
 	result := m22Catalog(t, h)
 	if len(result.Resources) != 1 || result.Resources[0].State != "WITHHELD" || !bytes.Equal(result.Resources[0].Source.Projection, expected) {

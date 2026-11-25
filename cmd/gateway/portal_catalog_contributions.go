@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
@@ -81,18 +83,18 @@ type gatewayPortalCatalogBoundCapture struct {
 	revision      uint64
 }
 
-func (c *gatewayPortalCatalogBoundCapture) Capture(at time.Time) ([]catalogv1.Resource, []catalogv1.Field, error) {
+func (c *gatewayPortalCatalogBoundCapture) Capture(at time.Time) (catalogv1.Capture, error) {
 	if c == nil || c.source == nil || c.contributions == nil || c.contributions.revision() != c.revision {
-		return nil, nil, catalogv1.ErrCatalogChanged
+		return catalogv1.Capture{}, catalogv1.ErrCatalogChanged
 	}
-	resources, fields, err := c.source.Capture(at)
+	captured, err := c.source.Capture(at)
 	if err != nil {
-		return nil, nil, err
+		return catalogv1.Capture{}, err
 	}
 	if c.contributions.revision() != c.revision {
-		return nil, nil, catalogv1.ErrCatalogChanged
+		return catalogv1.Capture{}, catalogv1.ErrCatalogChanged
 	}
-	return resources, fields, nil
+	return captured, nil
 }
 
 func (c *gatewayPortalCatalogBoundCapture) Fence() string {
@@ -109,7 +111,15 @@ type gatewayPortalContributionLifecycle struct {
 
 func startGatewayPortalContributionLifecycle(registry *gatewayPortalCatalogContributions, owner contributionv1.DriverGeneration, manifests []contributionv1.Manifest) (*gatewayPortalContributionLifecycle, error) {
 	if err := registry.PublishGeneration(owner, manifests); err != nil {
-		return nil, err
+		if !errors.Is(err, contributionv1.ErrLensReference) {
+			return nil, err
+		}
+		// Missing catalog presentation must not stop the driver. Publish an
+		// empty set so the generation still fences out any predecessor's views.
+		if err := registry.PublishGeneration(owner, nil); err != nil {
+			return nil, err
+		}
+		log.Printf("portal contribution generation withheld: %v", err)
 	}
 	return &gatewayPortalContributionLifecycle{registry: registry, owner: owner}, nil
 }

@@ -31,12 +31,6 @@ func TestCatalogSchemaClosesEveryPopulatedWireItem(t *testing.T) {
 	properties := schema["properties"].(map[string]any)
 	for _, name := range []string{"domains", "contributions", "descriptors", "resources", "fields", "actions", "quarantines"} {
 		collection := properties[name].(map[string]any)
-		if name == "domains" {
-			if prefix, ok := collection["prefixItems"].([]any); !ok || len(prefix) != len(FivePacks) {
-				t.Fatalf("domains has no fixed item schemas")
-			}
-			continue
-		}
 		item, ok := collection["items"].(map[string]any)
 		if !ok || item["$ref"] == nil {
 			t.Fatalf("%s has no item schema", name)
@@ -59,35 +53,12 @@ func TestCatalogSchemaClosesEveryPopulatedWireItem(t *testing.T) {
 	if err := validateCatalogSchema(schema, fixture); err != nil {
 		t.Fatalf("fixture rejected: %v", err)
 	}
-	for _, tc := range []struct {
-		name   string
-		mutate func(map[string]any)
-	}{
-		{"sixth", func(v map[string]any) { v["domains"] = append(v["domains"].([]any), v["domains"].([]any)[0]) }},
-		{"duplicate", func(v map[string]any) { v["domains"].([]any)[1] = v["domains"].([]any)[0] }},
-		{"arbitrary-id", func(v map[string]any) {
-			v["domains"].([]any)[2].(map[string]any)["pack"].(map[string]any)["id"] = "helianthus.pack.arbitrary"
-		}},
-		{"wrong-version", func(v map[string]any) {
-			v["domains"].([]any)[3].(map[string]any)["pack"].(map[string]any)["version"] = "9.9.9"
-		}},
-	} {
-		t.Run("fixed-domains-"+tc.name, func(t *testing.T) {
-			var candidate map[string]any
-			encoded, _ := json.Marshal(fixture)
-			_ = json.Unmarshal(encoded, &candidate)
-			tc.mutate(candidate)
-			if err := validateCatalogSchema(schema, candidate); err == nil {
-				t.Fatalf("invalid fixed domain catalog accepted")
-			}
-		})
-	}
 	var populated map[string]any
 	encoded, _ := json.Marshal(fixture)
 	_ = json.Unmarshal(encoded, &populated)
 	source := map[string]any{"asset_id": "asset", "snapshot_id": "snapshot", "revision": "revision", "evaluation_digest": "digest", "binding_id": "binding", "source_epoch": "epoch", "driver_generation": "1", "snapshot": map[string]any{}, "evaluation": map[string]any{}, "selections": []any{}, "projection": map[string]any{}}
 	populated["contributions"] = []any{map[string]any{"driver_id": "driver", "manifest_id": "manifest", "manifest_version": "1", "digest": "sha256:" + strings.Repeat("a", 64)}}
-	populated["resources"] = []any{map[string]any{"id": "asset", "domain": "helianthus.pack.pv", "service_id": "service", "capability_id": "capability", "contribution_driver_id": "driver", "contribution_manifest_id": "manifest", "contribution_manifest_version": "1", "source": source, "state": "CURRENT"}}
+	populated["resources"] = []any{map[string]any{"resource_id": "asset", "domain": "helianthus.pack.pv", "service_id": "service", "capability_id": "capability", "contribution_driver_id": "driver", "contribution_manifest_id": "manifest", "contribution_manifest_version": "1", "source": source, "state": "CURRENT"}}
 	populated["fields"] = []any{map[string]any{"id": "field", "resource_id": "asset", "definition_id": "definition", "unit_id": "unit", "contribution_driver_id": "driver", "contribution_manifest_id": "manifest", "contribution_manifest_version": "1", "value": float64(1), "quality": "PRESENT", "projection": "projection"}}
 	populated["actions"] = []any{map[string]any{"id": "action", "resource_id": "asset", "service_id": "service", "capability_id": "capability", "operation_id": "operation", "contribution_driver_id": "driver", "contribution_manifest_id": "manifest", "contribution_manifest_version": "1", "source": source, "discoverable": true, "enabled": false}}
 	populated["quarantines"] = []any{map[string]any{"driver_id": "driver", "manifest_id": "manifest", "manifest_version": "1", "reason": "conflict"}}
@@ -123,8 +94,42 @@ func validateCatalogSchema(root map[string]any, value any) error {
 				}
 			}
 		}
+		if alternatives, ok := schema["oneOf"].([]any); ok {
+			matched := 0
+			for _, alternative := range alternatives {
+				if validate(alternative.(map[string]any), value) == nil {
+					matched++
+				}
+			}
+			if matched != 1 {
+				return fmt.Errorf("oneOf matched %d alternatives", matched)
+			}
+		}
+		if alternatives, ok := schema["anyOf"].([]any); ok {
+			matched := false
+			for _, alternative := range alternatives {
+				matched = matched || validate(alternative.(map[string]any), value) == nil
+			}
+			if !matched {
+				return fmt.Errorf("anyOf did not match")
+			}
+		}
+		if clause, ok := schema["not"].(map[string]any); ok && validate(clause, value) == nil {
+			return fmt.Errorf("not matched")
+		}
+		if condition, ok := schema["if"].(map[string]any); ok {
+			branch := "else"
+			if validate(condition, value) == nil {
+				branch = "then"
+			}
+			if clause, ok := schema[branch].(map[string]any); ok {
+				if err := validate(clause, value); err != nil {
+					return err
+				}
+			}
+		}
 		typeName := schema["type"]
-		if typeName == nil && schema["properties"] != nil {
+		if typeName == nil && (schema["properties"] != nil || schema["required"] != nil) {
 			typeName = "object"
 		}
 		switch typeName {

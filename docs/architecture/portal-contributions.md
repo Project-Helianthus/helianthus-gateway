@@ -60,7 +60,14 @@ no discovery, acquisition, publication, decoding or operation dispatch. Capture
 registry/bindings and the selected publication pointers coherently; reject a
 changed generation instead of combining mismatched descriptor and data state.
 No provider can supply executable components, routes, query text or decoding.
-The host owns rendering, navigation, accessibility and transport policy.
+The host renders navigation from SemReg catalog planes, lenses and lens
+results (PTL-1). Neither the host nor a driver manifest defines a plane, lens
+or perspective. Manifests label and order their content, select renderers and
+fill view slots; a `lens` slot names an admitted catalog lens (PTL-2). Portal
+uses SemReg `resource_id` (PTL-3); the native registry remains outside the graph
+(NTV-1). `PortalTargetReportV1` accounts separately for Portal target
+presentation entries (PTL-4). The host owns rendering, accessibility and
+transport policy.
 
 ### Catalog and read coherence
 

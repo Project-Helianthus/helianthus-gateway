@@ -73,21 +73,23 @@ type View struct {
 	Label         Label    `json:"label"`
 	Renderer      string   `json:"renderer"`
 	Slot          string   `json:"slot"`
+	Lens          string   `json:"lens,omitempty"`
 	FieldIDs      []string `json:"field_ids"`
 	DiagnosticIDs []string `json:"diagnostic_ids"`
 	Order         int32    `json:"order"`
 }
 
 type Action struct {
-	ID            string        `json:"id"`
-	Group         string        `json:"group"`
-	Label         Label         `json:"label"`
-	OperationRef  DefinitionRef `json:"operation_ref"`
-	CapabilityRef DefinitionRef `json:"capability_ref"`
-	ServiceRef    DefinitionRef `json:"service_ref"`
-	ArgumentRef   DefinitionRef `json:"argument_ref"`
-	EffectRef     DefinitionRef `json:"effect_ref"`
-	Order         int32         `json:"order"`
+	ID             string         `json:"id"`
+	Group          string         `json:"group"`
+	Label          Label          `json:"label"`
+	NativeMemberID string         `json:"native_member_id,omitempty"`
+	OperationRef   *DefinitionRef `json:"operation_ref,omitempty"`
+	CapabilityRef  DefinitionRef  `json:"capability_ref"`
+	ServiceRef     DefinitionRef  `json:"service_ref"`
+	ArgumentRef    *DefinitionRef `json:"argument_ref,omitempty"`
+	EffectRef      *DefinitionRef `json:"effect_ref,omitempty"`
+	Order          int32          `json:"order"`
 }
 
 type Diagnostic struct {
@@ -122,6 +124,7 @@ type SemanticIndex interface {
 	FieldMatches(DefinitionRef, DefinitionRef, DefinitionRef) bool
 	OperationMatches(DefinitionRef, DefinitionRef, DefinitionRef, DefinitionRef, DefinitionRef) bool
 	HasNativeMember(NativeContractRef, string, string) bool
+	HasLens(string) bool
 }
 
 // StaticIndex is deliberately small and useful for deterministic fixtures.
@@ -134,6 +137,7 @@ type StaticIndex struct {
 	fieldRelations      map[fieldRelationKey]bool
 	operations          map[operationKey]bool
 	nativeMembers       map[nativeMemberKey]bool
+	lenses              map[string]bool
 }
 
 type packKey struct{ ID, Version string }
@@ -214,6 +218,15 @@ func (s *StaticIndex) AddNativeMember(contract NativeContractRef, kind, id strin
 	s.ensureMaps()
 	s.nativeMembers[nativeMemberKey{asNativeContractKey(contract), kind, id}] = true
 }
+
+func (s *StaticIndex) AddLens(lens string) {
+	if s.lenses == nil {
+		s.lenses = make(map[string]bool)
+	}
+	s.lenses[lens] = true
+}
+
+func (s StaticIndex) HasLens(lens string) bool { return s.lenses[lens] }
 
 func (s StaticIndex) HasPack(p PackRef) bool             { return s.packs[asPackKey(p)] }
 func (s StaticIndex) HasDefinition(r DefinitionRef) bool { return s.definitions[asDefinitionKey(r)] }

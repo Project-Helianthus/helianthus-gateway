@@ -13,17 +13,6 @@ const PORTAL_SEMANTIC_MAX_BYTES = 4 * 1024 * 1024;
 const PORTAL_CATALOG_MAX_EVIDENCE_PAGE_ROWS = 128;
 const PORTAL_CATALOG_MAX_QUALITY_CANDIDATES = 8;
 const PORTAL_CATALOG_TIMEOUT_MS = 5000;
-const PORTAL_CATALOG_PACK_VERSIONS = new Map([
-  ["helianthus.pack.evse", "1.0.0"],
-  ["helianthus.pack.infrastructure", "1.0.0"],
-  ["helianthus.pack.pv", "1.0.0"],
-  ["helianthus.pack.storage", "1.1.0"],
-  ["helianthus.pack.thermal", "1.0.0"],
-]);
-const PORTAL_CATALOG_DOMAIN_ORDER = [
-  "helianthus.pack.evse", "helianthus.pack.infrastructure", "helianthus.pack.pv", "helianthus.pack.storage", "helianthus.pack.thermal",
-];
-
 function isPlainRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -62,13 +51,8 @@ function catalogContributionKey(row) {
   ]);
 }
 
-function catalogResourceKey(row, resourceID) {
-  return JSON.stringify([
-    row.contribution_driver_id ?? row.driver_id,
-    row.contribution_manifest_id ?? row.manifest_id,
-    row.contribution_manifest_version ?? row.manifest_version,
-    resourceID ?? row.resource_id ?? row.id,
-  ]);
+function catalogResourceKey(row) {
+  return row?.resource_id;
 }
 
 function validCatalogSource(source) {
@@ -83,7 +67,7 @@ function validatePortalCatalog(catalog) {
   if (!hasCatalogStrings(catalog, ["contract", "catalog_revision", "catalog_digest", "evaluation_instant"]) ||
       catalog.contract !== PORTAL_CATALOG_CONTRACT ||
       !/^[a-f0-9]{64}$/.test(catalog.catalog_revision) || !/^[a-f0-9]{64}$/.test(catalog.catalog_digest) ||
-      !Array.isArray(catalog.domains) || catalog.domains.length !== PORTAL_CATALOG_PACK_VERSIONS.size ||
+      !Array.isArray(catalog.domains) ||
       !Array.isArray(catalog.contributions) || catalog.contributions.length > PORTAL_CATALOG_MAX_CONTRIBUTIONS ||
       !Array.isArray(catalog.resources) || catalog.resources.length > PORTAL_CATALOG_MAX_RESOURCES ||
       !Array.isArray(catalog.fields) || catalog.fields.length > PORTAL_CATALOG_MAX_FIELDS ||
@@ -93,9 +77,9 @@ function validatePortalCatalog(catalog) {
   }
   const domains = new Set();
   const domainStates = new Map();
-  for (const [index, domain] of catalog.domains.entries()) {
+  for (const domain of catalog.domains) {
     if (!isPlainRecord(domain) || !hasCatalogStrings(domain.pack, ["id", "version"]) ||
-        domain.pack.id !== PORTAL_CATALOG_DOMAIN_ORDER[index] || PORTAL_CATALOG_PACK_VERSIONS.get(domain.pack.id) !== domain.pack.version || domains.has(domain.pack.id) ||
+        !/^\d+\.\d+\.\d+$/.test(domain.pack.version) || domains.has(domain.pack.id) ||
         !["PRESENT", "ABSENT"].includes(domain.source_state) ||
         (domain.reason !== undefined && (typeof domain.reason !== "string" || domain.reason.length > PORTAL_CATALOG_MAX_TEXT))) return false;
     domains.add(domain.pack.id);
@@ -106,19 +90,23 @@ function validatePortalCatalog(catalog) {
     if (!hasCatalogStrings(contribution, ["driver_id", "manifest_id", "manifest_version", "digest"]) || !/^sha256:[a-f0-9]{64}$/.test(contribution.digest)) return false;
     contributionKeys.add(catalogContributionKey(contribution));
   }
-  const resources = new Set();
+  const resources = new Map();
   for (const resource of catalog.resources) {
-    if (!hasCatalogStrings(resource, ["id", "domain", "service_id", "capability_id", "contribution_driver_id", "contribution_manifest_id", "contribution_manifest_version", "state"]) ||
+    if (!hasCatalogStrings(resource, ["resource_id", "domain", "service_id", "capability_id", "contribution_driver_id", "contribution_manifest_id", "contribution_manifest_version", "state"]) ||
         !domains.has(resource.domain) || domainStates.get(resource.domain) !== "PRESENT" || !validCatalogSource(resource.source) || resources.has(catalogResourceKey(resource)) ||
         !contributionKeys.has(catalogContributionKey(resource))) return false;
-    resources.add(catalogResourceKey(resource));
+    resources.set(catalogResourceKey(resource), resource);
   }
   for (const field of catalog.fields) {
     if (!hasCatalogStrings(field, ["id", "resource_id", "definition_id", "unit_id", "contribution_driver_id", "contribution_manifest_id", "contribution_manifest_version", "quality", "projection"]) ||
-        !Object.hasOwn(field, "value") || !contributionKeys.has(catalogContributionKey(field)) || !resources.has(catalogResourceKey(field))) return false;
+        !Object.hasOwn(field, "value") || !contributionKeys.has(catalogContributionKey(field)) || !resources.has(catalogResourceKey(field)) || catalogContributionKey(resources.get(catalogResourceKey(field))) !== catalogContributionKey(field)) return false;
   }
   for (const action of catalog.actions) {
-    if (!hasCatalogStrings(action, ["id", "resource_id", "service_id", "capability_id", "operation_id", "contribution_driver_id", "contribution_manifest_id", "contribution_manifest_version"]) ||
+    const resource = resources.get(catalogResourceKey(action ?? {}));
+    const route = ["operation_id", "native_member_id"].filter((key) => Object.hasOwn(action ?? {}, key));
+    if (route.length !== 1 || !hasCatalogStrings(action, route) || !resource || catalogContributionKey(resource) !== catalogContributionKey(action) ||
+        resource.service_id !== action.service_id || resource.capability_id !== action.capability_id) return false;
+    if (!hasCatalogStrings(action, ["id", "resource_id", "service_id", "capability_id", "contribution_driver_id", "contribution_manifest_id", "contribution_manifest_version"]) ||
         !contributionKeys.has(catalogContributionKey(action)) || !resources.has(catalogResourceKey(action)) || !validCatalogSource(action.source) ||
         typeof action.discoverable !== "boolean" || typeof action.enabled !== "boolean" ||
         (action.reason !== undefined && (typeof action.reason !== "string" || action.reason.length > PORTAL_CATALOG_MAX_TEXT))) return false;
@@ -708,7 +696,7 @@ function portalCatalogResourceDetailRows(resource, fields, actions) {
   for (const summary of portalSelectionSummaries(resource.source.selections)) rows.push({ tag: "p", text: summary });
   for (const summary of portalConflictSummaries(resource.source.snapshot)) rows.push({ tag: "p", text: summary });
   for (const summary of portalRetainedSummaries(resource.source.snapshot)) rows.push({ tag: "p", text: summary });
-  for (const field of fields) rows.push({ tag: "p", className: "portal-catalog-field", text: `${catalogBrief(field.definition_id, 80)}=${catalogBrief(field.value, 128)} ${catalogBrief(field.unit_id, 64)}; quality=${catalogBrief(field.quality, 64)}; projection=${catalogBrief(field.projection, 64)}` });
+  for (const field of fields) rows.push({ tag: "p", className: "portal-catalog-field", text: `${catalogBrief(field.definition_id, 80)}=${(field.value?.kind === "quantity" ? formatContributionValue(field.value, field.quantity_kind) : `${catalogBrief(field.value, 128)} ${catalogBrief(field.unit_id, 64)}`)}; quality=${catalogBrief(field.quality, 64)}; projection=${catalogBrief(field.projection, 64)}` });
   for (const action of actions) {
     if (!action.discoverable) continue;
     rows.push({ tag: "button", className: "button portal-catalog-action", action: true, text: `Action: ${catalogBrief(action.id, 96)}; server_enabled=${action.enabled ? "true" : "false"}${action.reason ? `; reason=${catalogBrief(action.reason, 160)}` : ""}; read-only` });
@@ -974,17 +962,35 @@ function semanticSourceMatches(resource, asset) {
     typeof binding.driver_generation === "string" && binding.driver_generation === source.driver_generation);
 }
 
-function formatContributionValue(value) {
+// Display rules apply only to the presentation; quantity and its exact SI
+// decimal remain untouched in the source records and in the detail text.
+function displayQuantity(quantity, quantityKind) {
+  const number = quantity?.number;
+  if (!number || !/^-?\d+$/.test(number.coefficient) || !Number.isInteger(number.exponent10) || typeof quantity.unit !== "string") return "unknown";
+  const si = `${number.coefficient}e${number.exponent10} ${quantity.unit}`;
+  const value = Number(`${number.coefficient}e${number.exponent10}`);
+  if (!Number.isFinite(value)) return si;
+  const rules = {
+    "unit.joule": ["kWh", () => value / 3600000],
+    "unit.kelvin": quantityKind === "temperature_point" ? ["°C", () => value - 273.15] : quantityKind === "temperature_difference" ? ["K", () => value] : null,
+    "unit.ratio": quantityKind === "percentage" && value >= 0 && value <= 1 ? ["%", () => value * 100] : null,
+    "unit.pascal": ["bar", () => value / 100000],
+    "unit.cubic_metre_per_second": ["L/min", () => value * 60000],
+    "unit.reciprocal_second": ["rpm", () => value * 60],
+  };
+  if (!Object.hasOwn(rules, quantity.unit) || !rules[quantity.unit]) return si;
+  const [label, convert] = rules[quantity.unit];
+  const display = convert();
+  if (!Number.isFinite(display)) return si;
+  return `${new Intl.NumberFormat("en", { maximumSignificantDigits: 15, useGrouping: false }).format(display)} ${label} (SI: ${si})`;
+}
+
+function formatContributionValue(value, quantityKind) {
   if (!value) return "unknown";
   switch (value.kind) {
     case "boolean": return typeof value.boolean === "boolean" ? String(value.boolean) : "unknown";
     case "text": return typeof value.text === "string" ? (value.text === "" ? "<empty>" : value.text) : "unknown";
-    case "quantity": {
-      const number = value.quantity?.number;
-      // Keep the exact decimal coefficient and exponent; never pass through Number.
-      return number && /^-?\d+$/.test(number.coefficient) && Number.isInteger(number.exponent10)
-        ? `${number.coefficient}e${number.exponent10} ${value.quantity.unit}` : "unknown";
-    }
+    case "quantity": return displayQuantity(value.quantity, quantityKind);
     case "symbol": return value.symbol ? `${value.symbol.namespace}:${value.symbol.token} (known=${value.symbol.known})` : "unknown";
     case "symbols": return Array.isArray(value.symbols) ? value.symbols.map((symbol) => `${symbol.namespace}:${symbol.token} (known=${symbol.known})`).join(", ") : "unknown";
     case "time": return value.time ? `${value.time.unix_nanoseconds} (${value.time.clock_id})` : "unknown";
@@ -992,7 +998,215 @@ function formatContributionValue(value) {
   }
 }
 
-function semanticContributionCards(catalog, assets) {
+function graphRelationState(relation) {
+  if (relation.state === "conflict" || relation.coherence === "conflict") return "conflicting";
+  if (relation.state === "candidate") return "candidate";
+  return relation.state === "qualified" && relation.coherence === "coherent" && relation.in_plane !== false ? "current" : relation.coherence || relation.state;
+}
+
+function graphRelationText(relation) {
+  const state = graphRelationState(relation);
+  return `${relation.from}${state === "current" ? " → " : " / "}${relation.to} — ${relation.definition.id} (${state})`;
+}
+
+function resourceActions(catalog, id) {
+  const resource = catalog?.resources.find((row) => row.resource_id === id);
+  if (!resource) return [];
+  return catalog.actions.filter((action) => action.discoverable && action.resource_id === id &&
+    action.service_id === resource.service_id && action.capability_id === resource.capability_id &&
+    catalogContributionKey(action) === catalogContributionKey(resource));
+}
+
+function contributionRendererRows(renderer, resource, catalog, asset, lens) {
+  switch (renderer) {
+    case "summary": return [];
+    case "field_table": return ["Fields · Value · Quality"];
+    case "state_strip": return [`State: ${resource.state}`];
+    case "relationship_graph": return (lens?.relations ?? []).filter((relation) => relation.from === resource.resource_id || relation.to === resource.resource_id).map(graphRelationText);
+    case "timeline": return [`Evaluation: ${asset.evaluation.context ? semanticKey(asset.evaluation.context) : "unknown"}`];
+    case "evidence_table": return ["Evidence · Provenance · Projection"];
+    case "session_controls": return resourceActions(catalog, resource.resource_id).map((action) => `Action: ${action.id}${action.enabled ? "" : " (unavailable)"}`);
+  }
+  return [];
+}
+
+function portalGraphSelection(catalog, kind, id) {
+  if (kind === "lens") {
+    const lens = catalog.lenses.find((row) => row.id === id);
+    if (!lens) throw new Error("unknown catalog lens");
+    return { field: "semantic_lens", args: { lens: lens.id, entry: { kind: "lens_roots", lens: lens.id }, direction: "both", depth: lens.max_depth } };
+  }
+  if (kind === "plane" && !catalog.planes.some((plane) => plane.id === id)) throw new Error("unknown catalog plane");
+  return { field: "semantic_traversal", args: {
+    planes: kind === "plane" ? [id] : catalog.planes.map((plane) => plane.id),
+    entry: kind === "resource" ? { kind: "resource", resource: id } : { kind: "sites" },
+    direction: kind === "resource" ? "both" : "outgoing", depth: 32,
+  } };
+}
+
+function graphDefinitionKey(ref) {
+  return semanticKey([ref.pack.id, ref.pack.version, ref.id, ref.version]);
+}
+
+function resourceRelationsByPlane(catalog, relations) {
+  const planesByDefinition = new Map(catalog.entries.filter((entry) => entry.element_kind === "relation" && entry.ref.owner.kind === "pack")
+    .map((entry) => [graphDefinitionKey({ pack: entry.ref.owner.pack, id: entry.ref.id, version: entry.ref.version }), entry.planes]));
+  const grouped = new Map(catalog.planes.map((plane) => [plane.id, []]));
+  for (const relation of relations) {
+    for (const plane of planesByDefinition.get(graphDefinitionKey(relation.definition)) ?? []) grouped.get(plane)?.push(relation);
+  }
+  return grouped;
+}
+
+function graphPartial(result) {
+  const cut = result.cut ?? result;
+  return cut.completeness === "partial" || Boolean(cut.not_included?.length || cut.excluded?.length || result.not_included?.length || result.frontier?.length || result.next_page);
+}
+
+// TRV-5 and TRV-7 bound graph pages. Continuations use the returned cut and token.
+const PORTAL_GRAPH_PAGE_SIZE = 4096;
+
+function graphArgument(value) {
+  if (Array.isArray(value)) return `[${value.map(graphArgument).join(",")}]`;
+  if (isPlainRecord(value)) return `{${Object.entries(value).map(([key, entry]) => `${key}:${graphArgument(entry)}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+
+async function readPortalGraph(endpoint, field, args, signal) {
+  const input = Object.entries(args ?? {}).map(([key, value]) => `${key}:${graphArgument(value)}`).join(",");
+  const query = `query PortalGraph { ${field}${input ? `(${input})` : ""} }`;
+  const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, operationName: "PortalGraph" }), signal });
+  const body = await response.json();
+  const result = body?.data?.[field];
+  if (!response.ok || body.errors || !isPlainRecord(result)) throw new Error("semantic graph read failed");
+  return result;
+}
+
+async function readPortalGraphView(read, catalog, kind, id) {
+  const { field, args } = portalGraphSelection(catalog, kind, id);
+  let result, next, cut;
+  do {
+    const page = await read(field, { ...args, page_size: PORTAL_GRAPH_PAGE_SIZE, ...(next ? { cut_id: cut, page_token: next } : {}) });
+    const pageCut = page.cut?.cut_id ?? page.cut_id;
+    if (!pageCut || page.catalog !== catalog.digest || (cut && pageCut !== cut) || !Array.isArray(page.resources)) throw new Error("inconsistent graph read");
+    if (!result) result = { ...page, resources: [], relations: [], capabilities: [], services: [], facts: [], partial: false };
+    result.resources.push(...page.resources);
+    result.relations.push(...(page.relations ?? []));
+    result.capabilities.push(...(page.capabilities ?? []));
+    result.services.push(...(page.services ?? []));
+    result.facts.push(...(page.facts ?? []));
+    result.partial ||= graphPartial({ ...page, next_page: undefined });
+    cut = pageCut;
+    next = page.next_page;
+  } while (next);
+  return result;
+}
+
+function renderPortalGraphNavigation(nav, catalog, select) {
+  const entries = [["installation", undefined, "Installation tree"],
+    ...catalog.lenses.map((lens) => ["lens", lens.id, lens.id]),
+    ...catalog.planes.map((plane) => ["plane", plane.id, plane.id])];
+  const buttons = entries.map(([kind, id, label]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", () => select(kind, id));
+    return button;
+  });
+  nav.replaceChildren(...buttons);
+}
+
+function renderPortalGraphView(container, catalog, result, kind, id, portalCatalog, openResource) {
+  const make = (parent, tag, text) => {
+    const node = document.createElement(tag);
+    if (text) node.textContent = text;
+    parent.append(node);
+    return node;
+  };
+  const view = document.createElement("section");
+  make(view, "h3", id ?? "Installation tree");
+  if (result.partial) make(view, "p", "Partial — available resources and relations are shown.");
+  if (result.entry_status) make(view, "p", result.entry_status);
+  const resourceList = (parent, rows) => {
+    const list = make(parent, "ol");
+    const items = new Map();
+    for (const row of rows) {
+      const resourceID = kind === "lens" ? row.resource.resource_id : row.resource_id;
+      const item = make(list, "li");
+      items.set(resourceID, item);
+      const button = make(item, "button", resourceID);
+      button.type = "button";
+      button.addEventListener("click", () => openResource(resourceID));
+      returnItemActions(item, resourceID);
+    }
+    return items;
+  };
+  const cutMembers = result.cut?.members ?? result.members;
+  const returnItemActions = (item, resourceID) => {
+    const matchingCut = (action) => cutMembers?.some((member) => member.asset_id === action.source.asset_id && member.snapshot_id === action.source.snapshot_id);
+    for (const action of resourceActions(portalCatalog, resourceID).filter(matchingCut)) make(item, "p", `Action: ${action.id}${action.enabled ? "" : " (unavailable)"}`);
+  };
+  if (kind === "lens") {
+    make(view, "h4", "Resource tree");
+    const items = resourceList(view, result.resources);
+    make(view, "h4", "Capability tree");
+    const capabilities = make(view, "ul");
+    for (const [resourceID] of items) {
+      const serviceIDs = new Set(result.services.filter((row) => row.resource === resourceID).map((row) => row.instance_id));
+      const owned = result.capabilities.filter((row) => serviceIDs.has(row.service_instance));
+      if (!owned.length) continue;
+      const list = make(make(capabilities, "li", resourceID), "ul");
+      for (const capability of owned) make(list, "li", capability.definition.id);
+    }
+  } else if (kind === "installation") {
+    const list = make(view, "ul");
+    const resources = new Map(result.resources.map((resource) => [resource.resource_id, resource]));
+    const items = new Map();
+    const children = new Map();
+    for (const resource of result.resources) {
+      const parent = result.relations.find((relation) => relation.to === resource.resource_id && graphRelationState(relation) === "current" &&
+        resources.get(relation.from)?.depth === resource.depth - 1);
+      let group = list;
+      if (parent && items.has(parent.from)) {
+        if (!children.has(parent.from)) children.set(parent.from, make(items.get(parent.from), "ul"));
+        group = children.get(parent.from);
+      }
+      const item = make(group, "li");
+      items.set(resource.resource_id, item);
+      const button = make(item, "button", resource.resource_id);
+      button.type = "button";
+      button.addEventListener("click", () => openResource(resource.resource_id));
+      returnItemActions(item, resource.resource_id);
+    }
+  } else {
+    resourceList(view, result.resources);
+  }
+  const showRelations = (label, relations) => {
+    make(view, "h4", label);
+    const list = make(view, "ul");
+    for (const relation of relations) {
+      const row = make(list, "li", graphRelationText(relation));
+      row.setAttribute("data-relation-state", graphRelationState(relation));
+    }
+  };
+  if (kind === "resource") {
+    for (const [plane, relations] of resourceRelationsByPlane(catalog, result.relations)) if (relations.length) showRelations(plane, relations);
+  } else {
+    showRelations("Relations", result.relations);
+  }
+  if (kind === "lens" && portalCatalog) {
+    const members = new Map(result.resources.map((row) => [row.resource.resource_id, row.asset_id]));
+    const resources = portalCatalog.resources.filter((resource) => members.get(resource.resource_id) === resource.source.asset_id &&
+      result.cut.members.some((member) => member.asset_id === resource.source.asset_id && member.snapshot_id === resource.source.snapshot_id));
+    const assets = [...new Map(resources.map(({ source }) => [source.asset_id, { asset_id: source.asset_id, snapshot: source.snapshot,
+      evaluation: source.evaluation, selections: source.selections, projection: source.projection }])).values()];
+    const cards = make(view, "ul");
+    cards.innerHTML = semanticContributionCards({ ...portalCatalog, resources }, assets, result);
+  }
+  container.replaceChildren(view);
+}
+
+function semanticContributionCards(catalog, assets, lensResult) {
   if (!Array.isArray(catalog.descriptors) || catalog.descriptors.length > PORTAL_CATALOG_MAX_CONTRIBUTIONS) throw new Error("invalid descriptors");
   const descriptors = new Map();
   for (const descriptor of catalog.descriptors) {
@@ -1003,6 +1217,13 @@ function semanticContributionCards(catalog, assets) {
     descriptors.set(key, descriptor);
   }
   const byAsset = new Map(assets.map((asset) => [asset.asset_id, asset]));
+  const resourceCounts = new Map();
+  const fieldsByResource = new Map();
+  for (const resource of catalog.resources) resourceCounts.set(resource.source.asset_id, (resourceCounts.get(resource.source.asset_id) ?? 0) + 1);
+  for (const field of catalog.fields ?? []) {
+    if (!fieldsByResource.has(field.resource_id)) fieldsByResource.set(field.resource_id, new Map());
+    fieldsByResource.get(field.resource_id).set(field.id, field);
+  }
   const order = (a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   const cards = [];
   let nodes = 0;
@@ -1024,20 +1245,25 @@ function semanticContributionCards(catalog, assets) {
     };
     if (asset.unavailable_reason) addRow(() => `unavailable: ${asset.unavailable_reason}`);
     else {
-      const groups = descriptor.groups.filter((group) => group.resource_context === resource.id).sort(order);
+      const groups = [...descriptor.groups].sort(order);
       const views = groups.flatMap((group) => descriptor.views.filter((view) => view.group === group.id).sort(order));
       for (const view of views) {
-        if (!["summary", "field_table", "state_strip"].includes(view.renderer)) {
+        if (lensResult && (view.slot !== "lens" || view.lens !== lensResult.lens)) continue;
+        if (!["summary", "field_table", "relationship_graph", "state_strip", "timeline", "evidence_table", "session_controls"].includes(view.renderer)) {
           addRow(() => "unsupported contribution view");
           continue;
         }
+        if (view.field_ids.length && !descriptor.fields.some((field) => field.group === view.group && view.field_ids.includes(field.id))) continue;
         addRow(() => view.label?.default || view.id);
-        for (const field of descriptor.fields.filter((field) => view.field_ids.includes(field.id) &&
+        for (const row of contributionRendererRows(view.renderer, resource, catalog, asset, lensResult)) addRow(() => row);
+        for (const field of descriptor.fields.filter((field) => field.group === view.group && view.field_ids.includes(field.id) &&
           field.ref.pack.id === resource.domain && field.service_ref?.pack.id === resource.domain &&
           field.capability_ref?.pack.id === resource.domain && field.service_ref.id === resource.service_id &&
           field.capability_ref.id === resource.capability_id).sort(order)) {
           const prefix = field.label?.default || field.id;
-          const facts = asset.snapshot.facts.filter((fact) => fact.key.pack_id === field.ref.pack.id && fact.key.pack_version === field.ref.pack.version && fact.key.fact_id === field.ref.id);
+          const scopedFacts = lensResult ? lensResult.facts.filter((fact) => fact.subject === resource.resource_id) :
+            resourceCounts.get(asset.asset_id) === 1 ? asset.snapshot.facts : [];
+          const facts = scopedFacts.filter((fact) => fact.key.pack_id === field.ref.pack.id && fact.key.pack_version === field.ref.pack.version && fact.key.fact_id === field.ref.id);
           if (!facts.length) {
             addRow(() => `${prefix}: unknown`);
             const dispositions = asset.projection.dispositions.filter((entry) => entry.kind === "fact" && entry.item_id === field.ref.id &&
@@ -1061,7 +1287,7 @@ function semanticContributionCards(catalog, assets) {
             // a presentation selection cannot promote its own audit-only candidate.
             const eligible = candidate?.quality?.qualification === "qualified" && candidate.quality.promotion === "promoted" && ["good", "suspect"].includes(candidate.quality.validity);
             const readable = eligible && dispositions.length === 1 && ["exact", "transformed"].includes(dispositions[0].outcome) && evaluation && ["available", "degraded"].includes(evaluation.effective_availability) && ["fresh", "stale"].includes(evaluation.freshness);
-            addRow(() => `${prefix}: ${readable ? formatContributionValue(candidate?.value) : "withheld"}; key=${key}; freshness=${evaluation?.freshness || "unknown"}; availability=${evaluation?.effective_availability || "unknown"}${evaluation?.freshness === "stale" ? "; historical" : ""}`);
+            addRow(() => `${prefix}: ${readable ? formatContributionValue(candidate?.value, field.quantity_kind) : "withheld"}; key=${key}; freshness=${evaluation?.freshness || "unknown"}; availability=${evaluation?.effective_availability || "unknown"}${evaluation?.freshness === "stale" ? "; historical" : ""}`);
             if (candidate) {
               addRow(() => `Quality: ${semanticKey(candidate.quality)}; candidate=${candidate.candidate_id}; revision=${candidate.revision}`);
               const { binding_id, source_epoch_id, driver_generation, origin, causal, times, derivation } = candidate;
@@ -1077,7 +1303,7 @@ function semanticContributionCards(catalog, assets) {
       }
       if (asset.snapshot.retained_observations?.length) addRow(() => "Retained observations are historical; inspect the native evidence and catalog details.");
     }
-    cards.push({ identity, resourceID: resource.id, rows });
+    cards.push({ identity, resourceID: resource.resource_id, rows });
   }
   // Bound the complete UTF-8 HTML, including escaping, before allocating each
   // escaped row. Stop formatting immediately on overflow; never publish a prefix.
@@ -1345,6 +1571,7 @@ class PortalShell extends HTMLElement {
     const issueExportButton = this.querySelector('[data-role="issue-export-run"]');
     const projectionDeviceSelect = this.querySelector('[data-role="projection-device-select"]');
     const portalCatalogRefresh = this.querySelector('[data-role="portal-catalog-refresh"]');
+    this.querySelector('[data-role="semantic-graph-refresh"]')?.addEventListener("click", () => void this.refreshSemanticGraph());
     if (toggle) {
       toggle.addEventListener("click", () => {
         const current = loadTheme();
@@ -2085,7 +2312,7 @@ class PortalShell extends HTMLElement {
       for (const resource of resourcesByDomain.get(domain.pack.id) || []) {
         const resourceCard = append(card, "article", "", "portal-catalog-resource");
         if (!resourceCard) return false;
-        append(resourceCard, "h4", resource.id);
+        append(resourceCard, "h4", resource.resource_id);
         append(resourceCard, "p", `state=${catalogBrief(resource.state, 80)}; contribution=${catalogBrief(resource.contribution_driver_id, 96)}/${catalogBrief(resource.contribution_manifest_id, 96)}@${catalogBrief(resource.contribution_manifest_version, 48)}`, "portal-catalog-state");
       }
     }
@@ -2119,7 +2346,7 @@ class PortalShell extends HTMLElement {
       const detail = append(root, "section", "", "portal-catalog-detail");
       if (!detail) return false;
       append(detail, "h3", "Selected admitted resource");
-      append(detail, "p", `Resource ${selectedIndex + 1} of ${catalog.resources.length}: ${catalogBrief(selected.id, 160)}`);
+      append(detail, "p", `Resource ${selectedIndex + 1} of ${catalog.resources.length}: ${catalogBrief(selected.resource_id, 160)}`);
       const rerender = () => this._renderPortalCatalog(catalog, body);
       appendButton(detail, "Previous Resource", selectedIndex === 0, () => {
         this._portalCatalogResourceIndex = Math.max(0, selectedIndex - 1);
@@ -2161,6 +2388,53 @@ class PortalShell extends HTMLElement {
       target?.focus();
     }
     return true;
+  }
+
+  async refreshSemanticGraph() {
+    const nav = this.querySelector('[data-role="semantic-graph-nav"]');
+    const output = this.querySelector('[data-role="semantic-graph-view"]');
+    const notice = this.querySelector('[data-role="semantic-graph-notice"]');
+    const endpoint = this._semanticGraphqlEndpoint;
+    if (!nav || !output || !notice) return;
+    if (!semanticEndpoint(endpoint)) { notice.textContent = "Semantic graph unavailable."; return; }
+    this._semanticGraphRequest?.controller.abort();
+    this._semanticGraphViewRequest?.controller.abort();
+    output.setAttribute("aria-busy", "false");
+    const request = beginPortalCatalogRequestAbort(this.bootstrapLifecycleAbort);
+    this._semanticGraphRequest = request;
+    const current = () => this._semanticGraphRequest === request && !request.controller.signal.aborted;
+    try {
+      const catalog = await readPortalGraph(endpoint, "semantic_element_catalog", {}, request.controller.signal);
+      if (!current()) return;
+      if (![catalog.planes, catalog.lenses, catalog.entries].every(Array.isArray) || typeof catalog.digest !== "string") throw new Error("invalid element catalog");
+      const readView = async (kind, id) => {
+        this._semanticGraphViewRequest?.controller.abort();
+        const active = beginPortalCatalogRequestAbort(this.bootstrapLifecycleAbort);
+        this._semanticGraphViewRequest = active;
+        // A refreshed catalog invalidates pending views, but not the last valid view.
+        const fresh = () => this._semanticGraphRequest === request && this._semanticGraphViewRequest === active;
+        const read = (field, args) => readPortalGraph(endpoint, field, args, active.controller.signal);
+        output.setAttribute("aria-busy", "true");
+        notice.textContent = "Loading semantic graph view.";
+        try {
+          const result = await readPortalGraphView(read, catalog, kind, id);
+          if (!fresh() || active.controller.signal.aborted) return;
+          renderPortalGraphView(output, catalog, result, kind, id, this._admittedPortalCatalog, (resourceID) => void readView("resource", resourceID));
+          notice.textContent = "";
+        } catch {
+          if (fresh()) notice.textContent = "Semantic graph view unavailable. The last valid view is unchanged.";
+        } finally {
+          active.cleanup();
+          if (fresh()) output.setAttribute("aria-busy", "false");
+        }
+      };
+      renderPortalGraphNavigation(nav, catalog, (kind, id) => void readView(kind, id));
+      notice.textContent = "";
+    } catch {
+      if (this._semanticGraphRequest === request) notice.textContent = "Semantic graph unavailable. The last valid view is unchanged.";
+    } finally {
+      request.cleanup();
+    }
   }
 
   async refreshPortalCatalog(endpoint = this._portalCatalogEndpoint, lifecycleToken = this.bootstrapLifecycleToken, lifecycleAbort = this.bootstrapLifecycleAbort) {
@@ -2205,6 +2479,7 @@ class PortalShell extends HTMLElement {
         return false;
       }
       this._portalCatalogHasValid = true;
+      this._admittedPortalCatalog = catalog;
       this.setPortalCatalogNotice();
       return true;
     } catch {
@@ -4266,6 +4541,9 @@ class PortalShell extends HTMLElement {
     // render() replaces the Portal DOM. A prior catalog is no longer visible,
     // so a failed bootstrap after reattach must not claim it is still shown.
     this._portalCatalogHasValid = false;
+    this._admittedPortalCatalog = undefined;
+    this._semanticGraphRequest?.controller.abort();
+    this._semanticGraphViewRequest?.controller.abort();
     this._portalCatalogResourceIndex = undefined;
     this._portalCatalogEvidencePage = 0;
     this.innerHTML = `
@@ -4282,7 +4560,7 @@ class PortalShell extends HTMLElement {
         <div class="content">
           <aside class="sidebar" aria-label="Portal sections">
             <h2>Views</h2>
-            <button data-role="nav-registry" data-nav-target="section-registry" disabled><span class="nav-bullet"></span> Registry</button>
+            <button data-role="nav-registry" data-nav-target="section-registry" disabled><span class="nav-bullet"></span> Native Registry</button>
             <button data-role="nav-semantic" data-nav-target="section-semantic" disabled><span class="nav-bullet"></span> Semantic</button>
             <button data-role="nav-bus" data-nav-target="section-bus" disabled><span class="nav-bullet"></span> Bus</button>
             <button data-role="nav-projection" data-nav-target="section-projection" disabled><span class="nav-bullet"></span> Projection</button>
@@ -4311,13 +4589,17 @@ class PortalShell extends HTMLElement {
               </form>
             </section>
             <section id="section-registry" class="registry-preview">
-              <h2>Registry Preview</h2>
+              <h2>Native Registry Preview</h2>
               <ul data-role="registry-list">
                 <li>Loading discovered devices...</li>
               </ul>
             </section>
             <section id="section-semantic" class="registry-preview">
               <h2>Semantic Preview</h2>
+              <button type="button" data-role="semantic-graph-refresh">Load graph navigation</button>
+              <nav aria-label="Semantic graph" data-role="semantic-graph-nav"></nav>
+              <p role="status" data-role="semantic-graph-notice"></p>
+              <div data-role="semantic-graph-view" aria-busy="false"></div>
               <button type="button" data-role="semantic-refresh">Refresh Contributions</button>
               <p data-role="semantic-notice" role="status" aria-live="polite" aria-atomic="true">Loading semantic contributions.</p>
               <ul data-role="semantic-list" role="status" aria-live="polite" aria-atomic="true" aria-busy="false">

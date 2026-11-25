@@ -2,18 +2,22 @@
 package portalgraphql
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"time"
 
 	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 )
 
 const Path = "/graphql/portal/v1"
 
 type Handler struct {
-	Catalog *catalogv1.Composer
+	Catalog       *catalogv1.Composer
+	TargetCatalog func(context.Context) ([]graph.Element, error)
 }
 type request struct {
 	OperationName string          `json:"operationName"`
@@ -49,6 +53,17 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"portalCatalogV1": c}})
+	case "PortalTargetReportV1":
+		if h.TargetCatalog == nil {
+			writeError(w, errors.New("portal target report unavailable"))
+			return
+		}
+		entries, err := h.TargetCatalog(r.Context())
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"portalTargetReportV1": catalogv1.ReadTargetReport(entries)}})
 	case "PortalActionInvokeV1":
 		var v struct {
 			Claim catalogv1.Claims `json:"claim"`

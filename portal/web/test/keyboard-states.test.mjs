@@ -21,7 +21,7 @@ function catalog(value = 12) {
     })),
     contributions: [{ driver_id: "fixture.driver", manifest_id: "fixture.portal", manifest_version: "1.0.0", digest: `sha256:${digest("fixture")}` }],
     resources: ["primary", "secondary"].map((id) => ({
-      ...identity, id, domain: "helianthus.pack.pv", service_id: "fixture.service", capability_id: "fixture.read", state: "CURRENT",
+      ...identity, resource_id: id, domain: "helianthus.pack.pv", service_id: "fixture.service", capability_id: "fixture.read", state: "CURRENT",
       source: { asset_id: id, snapshot_id: "synthetic-snapshot", evaluation_digest: "synthetic-evaluation", revision: "1", binding_id: "fixture-binding", source_epoch: "fixture-epoch", driver_generation: "1", snapshot: {}, evaluation: {}, selections: [], projection: {} },
     })),
     fields: [{ ...identity, id: "power", resource_id: "primary", definition_id: "fixture.power", unit_id: "unit.watt", value, quality: "GOOD", projection: "LOSSLESS" }],

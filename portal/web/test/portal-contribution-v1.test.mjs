@@ -29,7 +29,7 @@ test("INT-09 schema is closed and matches the host renderer boundary", async () 
   assert.deepEqual(parsed.$defs.view.properties.slot.enum, ["lens", "native_diagnostics"]);
   assert.ok(!("ref" in parsed.$defs.action.properties));
   assert.ok(!parsed.$defs.action.required.includes("ref"));
-  assert.ok(parsed.$defs.action.required.includes("operation_ref"));
+  assert.ok(parsed.$defs.action.oneOf[0].required.includes("operation_ref"));
   assert.equal(parsed.$defs.order.minimum, -2147483648);
   assert.equal(parsed.$defs.order.maximum, 2147483647);
 });

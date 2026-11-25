@@ -9,6 +9,10 @@
     {"id":"mismatched operation","mutation":"operation-mismatch","want":"dangling reference"},
     {"id":"action without operation","mutation":"action-without-operation","want":"reference id"},
     {"id":"wrong existing effect","mutation":"wrong-effect","want":"operation mismatch"},
-    {"id":"cross service field","mutation":"cross-service-field","want":"field/service/capability mismatch"}
+    {"id":"cross service field","mutation":"cross-service-field","want":"field/service/capability mismatch"},
+    {"id":"manifest plane", "mutation":"define-plane", "want":"unknown member manifest.plane"},
+    {"id":"manifest lens", "mutation":"define-lens", "want":"unknown member manifest.lens"},
+    {"id":"manifest perspective", "mutation":"define-perspective", "want":"unknown member manifest.perspective"},
+    {"id":"unknown lens", "mutation":"unknown-lens", "want":"unknown catalog lens"}
   ]
 }

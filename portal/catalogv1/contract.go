@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +20,7 @@ var ErrCatalogChanged = errors.New("portal catalog changed during detached captu
 var ErrUnauthorized = errors.New("portal action is not authorized")
 var ErrStale = errors.New("portal action claims are stale")
 
-// FivePacks is structural input, never a product-specific source switch.
+// FivePacks is still referenced by the host’s existing descriptor constructors.
 var FivePacks = []contributionv1.PackRef{
 	{ID: "helianthus.pack.thermal", Version: "1.0.0"},
 	{ID: "helianthus.pack.pv", Version: "1.0.0"},
@@ -71,7 +70,7 @@ type Source struct {
 	Projection json.RawMessage `json:"projection"`
 }
 type Resource struct {
-	ID                          string `json:"id"`
+	ID                          string `json:"resource_id"`
 	Domain                      string `json:"domain"`
 	ServiceID                   string `json:"service_id"`
 	CapabilityID                string `json:"capability_id"`
@@ -89,6 +88,7 @@ type Field struct {
 	ContributionDriverID        string          `json:"contribution_driver_id"`
 	ContributionManifestID      string          `json:"contribution_manifest_id"`
 	ContributionManifestVersion string          `json:"contribution_manifest_version"`
+	QuantityKind                string          `json:"quantity_kind,omitempty"`
 	Value                       json.RawMessage `json:"value"`
 	Quality                     string          `json:"quality"`
 	Projection                  string          `json:"projection"`
@@ -98,7 +98,8 @@ type Action struct {
 	ResourceID                  string `json:"resource_id"`
 	ServiceID                   string `json:"service_id"`
 	CapabilityID                string `json:"capability_id"`
-	OperationID                 string `json:"operation_id"`
+	OperationID                 string `json:"operation_id,omitempty"`
+	NativeMemberID              string `json:"native_member_id,omitempty"`
 	ContributionDriverID        string `json:"contribution_driver_id"`
 	ContributionManifestID      string `json:"contribution_manifest_id"`
 	ContributionManifestVersion string `json:"contribution_manifest_version"`
@@ -132,8 +133,24 @@ type Descriptor struct {
 	Manifest contributionv1.Manifest
 	Digest   string
 }
+
+// Capture is the host's detached presentation data for a single served cut.
+// Domains come from the element catalog and membership from the lens reads of
+// that cut. Presentation rows and manifest groups do not establish membership.
+type Capture struct {
+	Domains     []contributionv1.PackRef
+	LensMembers map[string][]LensMember
+	Resources   []Resource
+	Fields      []Field
+}
+
+type LensMember struct {
+	ResourceID string
+	AssetID    string
+}
+
 type SourceCapture interface {
-	Capture(at time.Time) ([]Resource, []Field, error)
+	Capture(at time.Time) (Capture, error)
 }
 
 // FencedSourceCapture exposes a stable, detached source/lifecycle vector. The
@@ -339,4 +356,3 @@ func less(a ...string) bool {
 	}
 	return false
 }
-func canonicalDomain(id string) string { return strings.TrimSpace(id) }

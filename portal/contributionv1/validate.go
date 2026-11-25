@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -13,6 +14,9 @@ import (
 	"sync"
 	"unicode/utf8"
 )
+
+// ErrLensReference means a semantic view does not name a lens of the catalog.
+var ErrLensReference = errors.New("invalid lens reference")
 
 var renderers = map[string]bool{"summary": true, "field_table": true, "relationship_graph": true, "state_strip": true, "timeline": true, "evidence_table": true, "session_controls": true}
 var slots = map[string]bool{"lens": true, "native_diagnostics": true}
@@ -456,9 +460,28 @@ func requireManifestMembers(root map[string]any) error {
 		return err
 	}
 	for i, item := range views {
-		object, err := requiredObject(item, fmt.Sprintf("views[%d]", i), "id", "group", "label", "renderer", "slot", "field_ids", "diagnostic_ids", "order")
+		path := fmt.Sprintf("views[%d]", i)
+		members := []string{"id", "group", "label", "renderer", "slot", "field_ids", "diagnostic_ids", "order"}
+		raw, _ := item.(map[string]any)
+		slot, _ := raw["slot"].(string)
+		// A lens name is checked when the view carries one. Host descriptors
+		// whose slot is lens and which do not name a lens stay readable; a
+		// name that is present must be a string, and any other slot cannot
+		// carry one.
+		if _, present := raw["lens"]; present {
+			members = append(members, "lens")
+		}
+		object, err := requiredObject(item, path, members...)
 		if err != nil {
 			return err
+		}
+		if slot != "lens" && raw["lens"] != nil {
+			return fmt.Errorf("closed manifest: unknown member %s.lens", path)
+		}
+		if _, present := raw["lens"]; present {
+			if err := requiredString(object, path, "lens"); err != nil {
+				return err
+			}
 		}
 		if err := requireLabel(object["label"], fmt.Sprintf("views[%d].label", i)); err != nil {
 			return err
@@ -488,15 +511,31 @@ func requireManifestMembers(root map[string]any) error {
 		return err
 	}
 	for i, item := range actions {
-		object, err := requiredObject(item, fmt.Sprintf("actions[%d]", i), "id", "group", "label", "operation_ref", "capability_ref", "service_ref", "argument_ref", "effect_ref", "order")
+		path := fmt.Sprintf("actions[%d]", i)
+		members := []string{"id", "group", "label", "capability_ref", "service_ref", "order"}
+		refs := []string{"capability_ref", "service_ref"}
+		raw, _ := item.(map[string]any)
+		_, native := raw["native_member_id"]
+		if native {
+			members = append(members, "native_member_id")
+		} else {
+			members = append(members, "operation_ref", "argument_ref", "effect_ref")
+			refs = append(refs, "operation_ref", "argument_ref", "effect_ref")
+		}
+		object, err := requiredObject(item, path, members...)
 		if err != nil {
 			return err
 		}
-		if err := requireLabel(object["label"], fmt.Sprintf("actions[%d].label", i)); err != nil {
+		if native {
+			if err := requiredString(object, path, "native_member_id"); err != nil {
+				return err
+			}
+		}
+		if err := requireLabel(object["label"], path+".label"); err != nil {
 			return err
 		}
-		for _, name := range []string{"operation_ref", "capability_ref", "service_ref", "argument_ref", "effect_ref"} {
-			if err := requireRef(object[name], fmt.Sprintf("actions[%d].%s", i, name)); err != nil {
+		for _, name := range refs {
+			if err := requireRef(object[name], path+"."+name); err != nil {
 				return err
 			}
 		}
@@ -662,10 +701,10 @@ func Validate(m Manifest, index SemanticIndex) error {
 	if err != nil {
 		return err
 	}
-	if err := validateViews(m.Views, groups, fields, diagnostics); err != nil {
+	if err := validateViews(m.Views, groups, fields, diagnostics, index); err != nil {
 		return err
 	}
-	if err := validateActions(m.Actions, groups, m.Requires.Packs, index); err != nil {
+	if err := validateActions(m.Actions, groups, m.Requires.Packs, m.Contributor.NativeContract, index); err != nil {
 		return err
 	}
 	return nil
@@ -863,7 +902,7 @@ func validateDiagnostics(items []Diagnostic, groups map[string]bool, contract Na
 	}
 	return ids, nil
 }
-func validateViews(views []View, groups map[string]bool, fields, diagnostics map[string]string) error {
+func validateViews(views []View, groups map[string]bool, fields, diagnostics map[string]string, index SemanticIndex) error {
 	ids, orders := map[string]bool{}, map[int32]bool{}
 	for _, v := range views {
 		if err := id("view id", v.ID); err != nil {
@@ -883,6 +922,16 @@ func validateViews(views []View, groups map[string]bool, fields, diagnostics map
 		}
 		if !slots[v.Slot] {
 			return fmt.Errorf("unsupported host slot %q", v.Slot)
+		}
+		if v.Slot == "lens" && v.Lens != "" {
+			if err := id("lens reference", v.Lens); err != nil {
+				return ErrLensReference
+			}
+			if !index.HasLens(v.Lens) {
+				return fmt.Errorf("%w: unknown catalog lens %q", ErrLensReference, v.Lens)
+			}
+		} else if v.Lens != "" {
+			return fmt.Errorf("native diagnostics view %q cannot reference a lens", v.ID)
 		}
 		if v.FieldIDs == nil || v.DiagnosticIDs == nil {
 			return fmt.Errorf("view %q schema-required reference array is nil", v.ID)
@@ -915,7 +964,7 @@ func validateViews(views []View, groups map[string]bool, fields, diagnostics map
 	}
 	return nil
 }
-func validateActions(actions []Action, groups map[string]bool, packs []PackRef, index SemanticIndex) error {
+func validateActions(actions []Action, groups map[string]bool, packs []PackRef, contract NativeContractRef, index SemanticIndex) error {
 	ids, orders := map[string]bool{}, map[int32]bool{}
 	for _, a := range actions {
 		if err := id("action id", a.ID); err != nil {
@@ -930,7 +979,7 @@ func validateActions(actions []Action, groups map[string]bool, packs []PackRef, 
 		if err := orderValue("action order", a.Order); err != nil {
 			return err
 		}
-		for _, r := range []DefinitionRef{a.OperationRef, a.CapabilityRef, a.ServiceRef, a.ArgumentRef, a.EffectRef} {
+		for _, r := range []DefinitionRef{a.CapabilityRef, a.ServiceRef} {
 			if err := ref(r, packs, index); err != nil {
 				return err
 			}
@@ -938,8 +987,28 @@ func validateActions(actions []Action, groups map[string]bool, packs []PackRef, 
 		if !index.ServiceOwnsCapability(a.ServiceRef, a.CapabilityRef) {
 			return fmt.Errorf("action %q service/capability mismatch", a.ID)
 		}
-		if !index.OperationMatches(a.OperationRef, a.CapabilityRef, a.ServiceRef, a.ArgumentRef, a.EffectRef) {
-			return fmt.Errorf("action %q operation mismatch", a.ID)
+		if a.NativeMemberID != "" {
+			if a.OperationRef != nil || a.ArgumentRef != nil || a.EffectRef != nil {
+				return fmt.Errorf("action %q mixes native and semantic routes", a.ID)
+			}
+			if err := id("native action member", a.NativeMemberID); err != nil {
+				return err
+			}
+			if !index.HasNativeMember(contract, "action", a.NativeMemberID) {
+				return fmt.Errorf("unknown native action member %q", a.NativeMemberID)
+			}
+		} else {
+			for _, r := range []*DefinitionRef{a.OperationRef, a.ArgumentRef, a.EffectRef} {
+				if r == nil {
+					return fmt.Errorf("action %q missing semantic reference", a.ID)
+				}
+				if err := ref(*r, packs, index); err != nil {
+					return err
+				}
+			}
+			if !index.OperationMatches(*a.OperationRef, a.CapabilityRef, a.ServiceRef, *a.ArgumentRef, *a.EffectRef) {
+				return fmt.Errorf("action %q operation mismatch", a.ID)
+			}
 		}
 		if ids[a.ID] {
 			return fmt.Errorf("duplicate action id %q", a.ID)
@@ -1258,6 +1327,15 @@ func Canonicalize(m Manifest, index SemanticIndex) (Manifest, error) {
 	out.Views = append(make([]View, 0, len(m.Views)), m.Views...)
 	out.Actions = append(make([]Action, 0, len(m.Actions)), m.Actions...)
 	out.Diagnostics = append(make([]Diagnostic, 0, len(m.Diagnostics)), m.Diagnostics...)
+	for i := range out.Actions {
+		action := &out.Actions[i]
+		for _, ref := range []**DefinitionRef{&action.OperationRef, &action.ArgumentRef, &action.EffectRef} {
+			if *ref != nil {
+				detached := **ref
+				*ref = &detached
+			}
+		}
+	}
 	for i := range out.Views {
 		out.Views[i].FieldIDs = append(make([]string, 0, len(out.Views[i].FieldIDs)), out.Views[i].FieldIDs...)
 		out.Views[i].DiagnosticIDs = append(make([]string, 0, len(out.Views[i].DiagnosticIDs)), out.Views[i].DiagnosticIDs...)

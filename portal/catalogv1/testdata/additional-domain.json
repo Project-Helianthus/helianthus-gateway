@@ -1,0 +1,7 @@
+{
+  "pack": {"id": "fixture.additional", "version": "2.4.1"},
+  "resources": [
+    {"resource_id": "resource:first", "asset_id": "asset:first"},
+    {"resource_id": "resource:second", "asset_id": "asset:second"}
+  ]
+}

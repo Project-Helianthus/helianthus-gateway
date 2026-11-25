@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"sort"
 	"time"
 
 	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
+	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 
 // Catalog is a bounded optimistic detached capture. Sources are called once per
@@ -34,76 +34,28 @@ func (c *Composer) Catalog() (Catalog, error) {
 			fence = fenced.Fence()
 		}
 		at := now().UTC()
-		out := Catalog{Contract: Contract, EvaluationInstant: at, Domains: make([]Domain, 0, len(FivePacks)), Contributions: make([]Identity, 0, len(descriptors)), Descriptors: []ReadDescriptor{}, Resources: []Resource{}, Fields: []Field{}, Actions: []Action{}, Quarantines: make([]Quarantine, 0, len(quarantined))}
+		out := Catalog{Contract: Contract, EvaluationInstant: at, Domains: []Domain{}, Contributions: make([]Identity, 0, len(descriptors)), Descriptors: []ReadDescriptor{}, Resources: []Resource{}, Fields: []Field{}, Actions: []Action{}, Quarantines: make([]Quarantine, 0, len(quarantined))}
 		accepted := make(map[identity]Descriptor, len(descriptors))
 		for _, descriptor := range descriptors {
 			accepted[identity{descriptor.Manifest.Contributor.DriverID, descriptor.Manifest.ManifestID, descriptor.Manifest.ManifestVersion}] = descriptor
 		}
-		for _, p := range FivePacks {
-			out.Domains = append(out.Domains, Domain{Pack: p, SourceState: "ABSENT", Reason: "source_unavailable"})
-		}
+		var matches map[string]map[string]bool
 		if source != nil {
-			resources, fields, err := source.Capture(at)
+			captured, err := source.Capture(at)
 			if err != nil {
 				return Catalog{}, err
 			}
-			resourceCounts := make(map[sourceResourceKey]int, len(resources))
-			resourceOwnerCounts := make(map[sourceResourceOwnerKey]int, len(resources))
-			resourceByOwner := make(map[sourceResourceOwnerKey]Resource, len(resources))
-			for _, resource := range resources {
-				owner := identity{resource.ContributionDriverID, resource.ContributionManifestID, resource.ContributionManifestVersion}
-				descriptor, admitted := accepted[owner]
-				if !admitted || !resourceMatchesManifest(resource, descriptor.Manifest) {
-					continue
-				}
-				key := sourceResourceKey{owner, resource.ID, resource.ServiceID, resource.CapabilityID}
-				resourceCounts[key]++
-				if resourceCounts[key] != 1 {
-					return Catalog{}, errors.New("ambiguous detached resource context")
-				}
-				ownerKey := sourceResourceOwnerKey{owner, resource.ID}
-				resourceOwnerCounts[ownerKey]++
-				if resourceOwnerCounts[ownerKey] == 1 {
-					resourceByOwner[ownerKey] = resource
-				} else {
-					delete(resourceByOwner, ownerKey)
-				}
-				out.Resources = append(out.Resources, resource)
-			}
-			fieldIdentities := make(map[sourceFieldKey]bool, len(fields))
-			for _, field := range fields {
-				owner := identity{field.ContributionDriverID, field.ContributionManifestID, field.ContributionManifestVersion}
-				descriptor, admitted := accepted[owner]
-				if !admitted {
-					continue
-				}
-				ownerKey := sourceResourceOwnerKey{owner, field.ResourceID}
-				if resourceOwnerCounts[ownerKey] != 1 {
-					return Catalog{}, errors.New("field has no exact detached resource context")
-				}
-				if !fieldMatchesManifest(field, resourceByOwner[ownerKey], descriptor.Manifest) {
-					continue
-				}
-				fieldKey := sourceFieldKey{owner, field.ResourceID, field.ID}
-				if fieldIdentities[fieldKey] {
-					return Catalog{}, errors.New("ambiguous detached field identity")
-				}
-				fieldIdentities[fieldKey] = true
-				out.Fields = append(out.Fields, field)
-			}
-			present := map[string]bool{}
-			for _, r := range out.Resources {
-				present[canonicalDomain(r.Domain)] = true
-			}
-			for i := range out.Domains {
-				if present[out.Domains[i].Pack.ID] {
-					out.Domains[i].SourceState = "PRESENT"
-					out.Domains[i].Reason = ""
-				}
+			matches, err = composeResources(&out, captured, accepted)
+			if err != nil {
+				return Catalog{}, err
 			}
 			if fenced, ok := source.(FencedSourceCapture); ok && fence != fenced.Fence() {
 				continue
 			}
+		}
+		admittedPacks := make(map[string]contributionv1.PackRef, len(out.Domains))
+		for _, domain := range out.Domains {
+			admittedPacks[domain.Pack.ID] = domain.Pack
 		}
 		for _, d := range descriptors {
 			out.Contributions = append(out.Contributions, Identity{DriverID: d.Manifest.Contributor.DriverID, ManifestID: d.Manifest.ManifestID, ManifestVersion: d.Manifest.ManifestVersion, Digest: d.Digest})
@@ -111,35 +63,21 @@ func (c *Composer) Catalog() (Catalog, error) {
 				Identity:          Identity{DriverID: d.Manifest.Contributor.DriverID, ManifestID: d.Manifest.ManifestID, ManifestVersion: d.Manifest.ManifestVersion, Digest: d.Digest},
 				DescriptorVersion: DescriptorVersion, Groups: d.Manifest.Groups, Fields: d.Manifest.Fields, Views: d.Manifest.Views, Diagnostics: d.Manifest.Diagnostics,
 			})
-			groups := make(map[string]string, len(d.Manifest.Groups))
-			invalid := false
-			for _, g := range d.Manifest.Groups {
-				if g.ID == "" || g.ResourceContext == "" {
-					invalid = true
-					break
-				}
-				if _, exists := groups[g.ID]; exists {
-					invalid = true
-					break
-				}
-				groups[g.ID] = g.ResourceContext
+			if invoker == nil {
+				continue
 			}
-			if invalid {
-				return Catalog{}, errors.New("contribution group resource mapping is invalid")
-			}
-			for _, a := range d.Manifest.Actions {
-				resourceID, ok := groups[a.Group]
-				if !ok {
-					return Catalog{}, errors.New("action group has no resource context")
-				}
-				resource, exists := findResource(out.Resources, resourceID, d.Manifest, a)
-				if !exists {
+			for _, resource := range out.Resources {
+				if resource.ContributionDriverID != d.Manifest.Contributor.DriverID || resource.ContributionManifestID != d.Manifest.ManifestID || resource.ContributionManifestVersion != d.Manifest.ManifestVersion {
 					continue
 				}
-				action := Action{ID: a.ID, ResourceID: resourceID, ServiceID: a.ServiceRef.ID, CapabilityID: a.CapabilityRef.ID, OperationID: a.OperationRef.ID, ContributionDriverID: d.Manifest.Contributor.DriverID, ContributionManifestID: d.Manifest.ManifestID, ContributionManifestVersion: d.Manifest.ManifestVersion, Source: resource.Source}
-				action.Discoverable = invoker != nil
-				action.Enabled = action.Discoverable && revalidator != nil
-				if action.Discoverable {
+				for _, a := range d.Manifest.Actions {
+					if !matches[resource.ID][a.Group] || !matchesCapability(resource, a.ServiceRef, a.CapabilityRef) || a.CapabilityRef.Pack != admittedPacks[resource.Domain] || a.ServiceRef.Pack != admittedPacks[resource.Domain] {
+						continue
+					}
+					action := Action{ID: a.ID, ResourceID: resource.ID, ServiceID: resource.ServiceID, CapabilityID: resource.CapabilityID, NativeMemberID: a.NativeMemberID, ContributionDriverID: resource.ContributionDriverID, ContributionManifestID: resource.ContributionManifestID, ContributionManifestVersion: resource.ContributionManifestVersion, Source: resource.Source, Discoverable: true, Enabled: revalidator != nil}
+					if a.OperationRef != nil {
+						action.OperationID = a.OperationRef.ID
+					}
 					out.Actions = append(out.Actions, action)
 				}
 			}
@@ -229,51 +167,131 @@ func stripEvaluationClock(value any) {
 	}
 }
 
-type sourceResourceKey struct {
-	owner      identity
-	id         string
-	service    string
-	capability string
-}
-
-type sourceResourceOwnerKey struct {
-	owner identity
-	id    string
-}
-
 type sourceFieldKey struct {
-	owner      identity
 	resourceID string
 	id         string
 }
 
-func resourceMatchesManifest(resource Resource, manifest contributionv1.Manifest) bool {
-	groups := make(map[string]bool, len(manifest.Groups))
-	for _, group := range manifest.Groups {
-		if group.ResourceContext == resource.ID {
-			groups[group.ID] = true
+func composeResources(out *Catalog, capture Capture, accepted map[identity]Descriptor) (map[string]map[string]bool, error) {
+	domains := make(map[string]int, len(capture.Domains))
+	for _, pack := range capture.Domains {
+		if pack.ID == "" || pack.Version == "" {
+			return nil, errors.New("invalid catalog domain")
+		}
+		if i, exists := domains[pack.ID]; exists {
+			if out.Domains[i].Pack != pack {
+				return nil, errors.New("ambiguous catalog domain version")
+			}
+			continue
+		}
+		domains[pack.ID] = len(out.Domains)
+		out.Domains = append(out.Domains, Domain{Pack: pack, SourceState: "ABSENT", Reason: "source_unavailable"})
+	}
+	members := make(map[string]map[LensMember]bool, len(capture.LensMembers))
+	for lens, result := range capture.LensMembers {
+		members[lens] = make(map[LensMember]bool, len(result))
+		for _, member := range result {
+			members[lens][member] = true
 		}
 	}
+	resources := make(map[string]Resource, len(capture.Resources))
+	matchedGroups := make(map[string]map[string]bool, len(capture.Resources))
+	for _, resource := range capture.Resources {
+		owner := identity{resource.ContributionDriverID, resource.ContributionManifestID, resource.ContributionManifestVersion}
+		descriptor, admitted := accepted[owner]
+		if !admitted {
+			continue
+		}
+		i, knownDomain := domains[resource.Domain]
+		if !knownDomain {
+			return nil, errors.New("invalid detached resource domain")
+		}
+		pack := out.Domains[i].Pack
+		if semreg.ResourceID(resource.ID).Validate() != nil {
+			return nil, errors.New("invalid detached resource_id")
+		}
+		member := LensMember{ResourceID: resource.ID, AssetID: resource.Source.AssetID}
+		groups := make(map[string]bool)
+		namedLens := false
+		for _, view := range descriptor.Manifest.Views {
+			if view.Slot != "lens" || view.Lens == "" {
+				continue
+			}
+			namedLens = true
+			if members[view.Lens][member] {
+				groups[view.Group] = true
+			}
+		}
+		// A named lens admits only a member of that lens result. A lens slot
+		// that does not name a lens selects the group's resource context.
+		if !namedLens {
+			for _, group := range descriptor.Manifest.Groups {
+				if group.ResourceContext == resource.ID {
+					groups[group.ID] = true
+				}
+			}
+		}
+		if len(groups) == 0 {
+			if namedLens {
+				return nil, errors.New("invalid detached resource_id: outside the contribution's served lens")
+			}
+			continue
+		}
+		if !resourceMatchesManifest(resource, descriptor.Manifest, pack, groups) {
+			continue
+		}
+		if _, exists := resources[resource.ID]; exists {
+			return nil, errors.New("ambiguous detached resource_id")
+		}
+		resources[resource.ID], matchedGroups[resource.ID] = resource, groups
+		out.Resources = append(out.Resources, resource)
+		out.Domains[i].SourceState, out.Domains[i].Reason = "PRESENT", ""
+	}
+	seenFields := make(map[sourceFieldKey]bool, len(capture.Fields))
+	for _, field := range capture.Fields {
+		owner := identity{field.ContributionDriverID, field.ContributionManifestID, field.ContributionManifestVersion}
+		descriptor, admitted := accepted[owner]
+		if !admitted {
+			continue
+		}
+		resource, exists := resources[field.ResourceID]
+		if !exists || owner != (identity{resource.ContributionDriverID, resource.ContributionManifestID, resource.ContributionManifestVersion}) {
+			return nil, errors.New("field has no exact detached resource context")
+		}
+		if !fieldMatchesManifest(field, resource, descriptor.Manifest, out.Domains[domains[resource.Domain]].Pack, matchedGroups[field.ResourceID]) {
+			continue
+		}
+		key := sourceFieldKey{field.ResourceID, field.ID}
+		if seenFields[key] {
+			return nil, errors.New("ambiguous detached field identity")
+		}
+		seenFields[key] = true
+		out.Fields = append(out.Fields, field)
+	}
+	return matchedGroups, nil
+}
+
+func matchesCapability(resource Resource, service, capability contributionv1.DefinitionRef) bool {
+	return service.ID == resource.ServiceID && capability.ID == resource.CapabilityID && service.Pack.ID == resource.Domain && capability.Pack.ID == resource.Domain
+}
+
+func resourceMatchesManifest(resource Resource, manifest contributionv1.Manifest, pack contributionv1.PackRef, groups map[string]bool) bool {
 	for _, field := range manifest.Fields {
-		if groups[field.Group] && field.ServiceRef.ID == resource.ServiceID && field.CapabilityRef.ID == resource.CapabilityID && field.ServiceRef.Pack.ID == resource.Domain && field.CapabilityRef.Pack.ID == resource.Domain {
+		if groups[field.Group] && field.ServiceRef.Pack == pack && field.CapabilityRef.Pack == pack && matchesCapability(resource, field.ServiceRef, field.CapabilityRef) {
 			return true
 		}
 	}
 	for _, action := range manifest.Actions {
-		if groups[action.Group] && action.ServiceRef.ID == resource.ServiceID && action.CapabilityRef.ID == resource.CapabilityID && action.ServiceRef.Pack.ID == resource.Domain && action.CapabilityRef.Pack.ID == resource.Domain {
+		if groups[action.Group] && action.ServiceRef.Pack == pack && action.CapabilityRef.Pack == pack && matchesCapability(resource, action.ServiceRef, action.CapabilityRef) {
 			return true
 		}
 	}
 	return false
 }
 
-func fieldMatchesManifest(field Field, resource Resource, manifest contributionv1.Manifest) bool {
-	groups := make(map[string]string, len(manifest.Groups))
-	for _, group := range manifest.Groups {
-		groups[group.ID] = group.ResourceContext
-	}
+func fieldMatchesManifest(field Field, resource Resource, manifest contributionv1.Manifest, pack contributionv1.PackRef, groups map[string]bool) bool {
 	for _, declared := range manifest.Fields {
-		if declared.ID == field.ID && groups[declared.Group] == field.ResourceID && declared.Ref.ID == field.DefinitionID && declared.UnitRef.ID == field.UnitID && declared.ServiceRef.ID == resource.ServiceID && declared.CapabilityRef.ID == resource.CapabilityID && declared.Ref.Pack.ID == resource.Domain && declared.ServiceRef.Pack.ID == resource.Domain && declared.CapabilityRef.Pack.ID == resource.Domain {
+		if groups[declared.Group] && declared.ID == field.ID && declared.Ref.ID == field.DefinitionID && declared.UnitRef.ID == field.UnitID && declared.Ref.Pack == pack && declared.ServiceRef.Pack == pack && declared.CapabilityRef.Pack == pack && matchesCapability(resource, declared.ServiceRef, declared.CapabilityRef) {
 			return true
 		}
 	}
@@ -327,20 +345,6 @@ func (c *Composer) Invoke(claim Claims) (any, error) {
 	return invoker.Invoke(*action, claim)
 }
 
-func findResource(resources []Resource, id string, manifest contributionv1.Manifest, action contributionv1.Action) (Resource, bool) {
-	var found Resource
-	matched := false
-	for _, r := range resources {
-		if r.ID != id || r.ContributionDriverID != manifest.Contributor.DriverID || r.ContributionManifestID != manifest.ManifestID || r.ContributionManifestVersion != manifest.ManifestVersion || r.ServiceID != action.ServiceRef.ID || r.CapabilityID != action.CapabilityRef.ID {
-			continue
-		}
-		if matched {
-			return Resource{}, false
-		}
-		found, matched = r, true
-	}
-	return found, matched
-}
 func matchesClaim(a Action, c Claims) bool {
 	return a.ID == c.ActionID && a.ResourceID == c.ResourceID && a.CapabilityID == c.CapabilityID && a.ContributionDriverID == c.DriverID && a.ContributionManifestID == c.ManifestID && a.ContributionManifestVersion == c.ManifestVersion && a.Source.SnapshotID == c.SnapshotID && a.Source.Revision == c.Revision && a.Source.BindingID == c.BindingID && a.Source.SourceEpoch == c.SourceEpoch && a.Source.DriverGeneration == c.DriverGeneration && c.Digest != ""
 }
@@ -355,5 +359,3 @@ func matchesDigest(items []Identity, c Claims) bool {
 
 // CanonicalJSON is public for transport and fixed wire tests.
 func CanonicalJSON(c Catalog) ([]byte, error) { sortCatalog(&c); return canonical(c) }
-
-var _ = sort.Strings

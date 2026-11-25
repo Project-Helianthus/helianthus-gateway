@@ -88,6 +88,7 @@ func readFixture(t *testing.T, name string, into any) {
 
 func indexFromCatalog(c fixtureCatalog) StaticIndex {
 	s := NewStaticIndex()
+	s.AddLens("fixture.lens")
 	for _, p := range c.Index.Packs {
 		s.AddPack(p)
 	}
@@ -219,8 +220,33 @@ func TestInvalidManifestsFailClosed(t *testing.T) {
 	for _, tc := range cases.Cases {
 		t.Run(tc.ID, func(t *testing.T) {
 			m := cloneManifest(t, c.Manifests[0])
-			applyInvalidMutation(&m, tc.Mutation)
-			err := Validate(m, idx)
+			var err error
+			switch tc.Mutation {
+			case "define-plane", "define-lens", "define-perspective":
+				var wire map[string]any
+				raw, err := json.Marshal(m)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal(raw, &wire); err != nil {
+					t.Fatal(err)
+				}
+				wire[strings.TrimPrefix(tc.Mutation, "define-")] = map[string]any{"id": "fixture.structure"}
+				raw, err = json.Marshal(wire)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, decodeErr := Decode(raw)
+				if decodeErr == nil || !strings.Contains(decodeErr.Error(), tc.Want) {
+					t.Fatalf("error=%v, want %q", decodeErr, tc.Want)
+				}
+				return
+			case "unknown-lens":
+				m.Views[0].Lens = "fixture.unregistered"
+			default:
+				applyInvalidMutation(&m, tc.Mutation)
+			}
+			err = Validate(m, idx)
 			if err == nil || !strings.Contains(err.Error(), tc.Want) {
 				t.Fatalf("error=%v, want %q", err, tc.Want)
 			}
@@ -244,7 +270,7 @@ func TestViewsRequireFieldsAndDiagnosticsFromTheirOwnGroup(t *testing.T) {
 	idx.AddNativeMember(m.Contributor.NativeContract, "field", "zone-member")
 	idx.AddNativeMember(m.Contributor.NativeContract, "field", "system-member")
 	m.Views[0].DiagnosticIDs = []string{"zone-diagnostic"}
-	m.Views = append(m.Views, View{ID: "system-summary", Group: "system", Label: Label{Key: "thermal.system.summary", Default: "System summary"}, Renderer: "summary", Slot: "lens", FieldIDs: []string{"system-temperature"}, DiagnosticIDs: []string{"system-diagnostic"}, Order: 20})
+	m.Views = append(m.Views, View{ID: "system-summary", Group: "system", Label: Label{Key: "thermal.system.summary", Default: "System summary"}, Renderer: "summary", Slot: "lens", Lens: "fixture.lens", FieldIDs: []string{"system-temperature"}, DiagnosticIDs: []string{"system-diagnostic"}, Order: 20})
 	if err := Validate(m, idx); err != nil {
 		t.Fatalf("same-group references rejected: %v", err)
 	}
@@ -312,9 +338,9 @@ func applyInvalidMutation(m *Manifest, mutation string) {
 		m.Actions = append(m.Actions, m.Actions[0])
 		m.Actions[len(m.Actions)-1].ID = "no-operation"
 		m.Actions[len(m.Actions)-1].Order = 99
-		m.Actions[len(m.Actions)-1].OperationRef = DefinitionRef{}
+		m.Actions[len(m.Actions)-1].OperationRef = &DefinitionRef{}
 	case "wrong-effect":
-		m.Actions[0].EffectRef = m.Fields[0].Ref
+		m.Actions[0].EffectRef = &m.Fields[0].Ref
 	case "cross-service-field":
 		m.Fields[0].Ref.ID = "thermal.temperature.system"
 	}

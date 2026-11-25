@@ -47,7 +47,7 @@ function validCatalog() {
   };
   const identity = (driver, manifest) => ({ driver_id: driver, manifest_id: manifest, manifest_version: "1.0.0", digest: `sha256:${"a".repeat(64)}` });
   const resource = (id, domain, driver, manifest) => ({
-    id, domain, service_id: `${domain}.service`, capability_id: `${domain}.capability`,
+    resource_id: id, domain, service_id: `${domain}.service`, capability_id: `${domain}.capability`,
     contribution_driver_id: driver, contribution_manifest_id: manifest, contribution_manifest_version: "1.0.0",
     source, state: "CURRENT",
   });
@@ -77,7 +77,7 @@ function validCatalog() {
       field("pv-field", "pv-1", "pv", "pv.driver", "portal.pv", 42),
       field("storage-field", "storage-1", "storage", "storage.driver", "portal.storage", 73),
     ],
-    actions: [{ id: "catalog-action", resource_id: "pv-1", service_id: "pv.service", capability_id: "pv.capability", operation_id: "pv.read", contribution_driver_id: "pv.driver", contribution_manifest_id: "portal.pv", contribution_manifest_version: "1.0.0", source, discoverable: true, enabled: true }],
+    actions: [{ id: "catalog-action", resource_id: "pv-1", service_id: "helianthus.pack.pv.service", capability_id: "helianthus.pack.pv.capability", operation_id: "pv.read", contribution_driver_id: "pv.driver", contribution_manifest_id: "portal.pv", contribution_manifest_version: "1.0.0", source, discoverable: true, enabled: true }],
     quarantines: [{ driver_id: "bad.driver", manifest_id: "bad.manifest", manifest_version: "1.0.0", reason: "digest_conflict" }],
   };
 }
@@ -144,7 +144,7 @@ function overBudgetCatalog() {
     const manifest = `manifest-${index}`;
     catalog.contributions.push({ driver_id: driver, manifest_id: manifest, manifest_version: "1.0.0", digest: `sha256:${"a".repeat(64)}` });
     catalog.resources.push({
-      ...validCatalog().resources[1], id: `resource-${index}`,
+      ...validCatalog().resources[1], resource_id: `resource-${index}`,
       contribution_driver_id: driver, contribution_manifest_id: manifest, contribution_manifest_version: "1.0.0",
     });
   }
@@ -787,7 +787,7 @@ test("Portal reattach clears discarded catalog validity before a failed first re
   assert.doesNotMatch(notice.textContent, /last valid catalog snapshot/);
 });
 
-test("Portal catalog keeps duplicate bare resource IDs isolated by delimiter-containing contribution identities", async () => {
+test("Portal catalog keeps distinct resource IDs isolated by delimiter-containing contribution identities", async () => {
   const body = new FakeNode();
   const catalog = validCatalog();
   const pv = catalog.resources[1];
@@ -806,19 +806,19 @@ test("Portal catalog keeps duplicate bare resource IDs isolated by delimiter-con
     row.contribution_driver_id = storageIdentity.driver_id;
     row.contribution_manifest_id = storageIdentity.manifest_id;
   }
-  pv.id = "asset";
-  storage.id = "asset";
+  pv.resource_id = "asset";
+  storage.resource_id = "asset-storage";
   catalog.fields[1].resource_id = "asset";
-  catalog.fields[2].resource_id = "asset";
+  catalog.fields[2].resource_id = "asset-storage";
   catalog.actions[0].resource_id = "asset";
   catalog.actions.push({
-    ...catalog.actions[0], id: "storage-action", resource_id: "asset", service_id: "storage.service", capability_id: "storage.capability", operation_id: "storage.read",
+    ...catalog.actions[0], id: "storage-action", resource_id: "asset-storage", service_id: "helianthus.pack.storage.service", capability_id: "helianthus.pack.storage.capability", operation_id: "storage.read",
     contribution_driver_id: storage.contribution_driver_id, contribution_manifest_id: storage.contribution_manifest_id, contribution_manifest_version: storage.contribution_manifest_version,
   });
   const { shell } = await harness(() => Promise.resolve(response({ data: { portalCatalogV1: catalog } })), new Map([["[data-role=\"portal-catalog-body\"]", body]]));
   const token = shell.beginBootstrapLifecycle();
   await shell.refreshPortalCatalog("/graphql/portal/v1", token, shell.bootstrapLifecycleAbort);
-  const cards = tags(body).filter((node) => node.tagName === "article" && node.children.some((child) => child.tagName === "h4" && child.textContent === "asset"));
+  const cards = tags(body).filter((node) => node.tagName === "article" && node.children.some((child) => child.tagName === "h4" && ["asset", "asset-storage"].includes(child.textContent)));
   assert.equal(cards.length, 2);
   assert.match(text(cards[0]), /contribution=a\u0000b\/c@1\.0\.0|contribution=a\/b\u0000c@1\.0\.0/);
   assert.match(text(cards[1]), /contribution=a\u0000b\/c@1\.0\.0|contribution=a\/b\u0000c@1\.0\.0/);
@@ -941,7 +941,7 @@ test("Portal catalog refresh control and catalog navigation fetch a newer snapsh
   const refresh = { disabled: true, addEventListener(_event, handler) { this.handler = handler; } };
   const first = validCatalog();
   const second = validCatalog();
-  second.resources[1].id = "newest-pv";
+  second.resources[1].resource_id = "newest-pv";
   second.fields[1].resource_id = "newest-pv";
   second.actions[0].resource_id = "newest-pv";
   const responses = [response({ data: { portalCatalogV1: first } }), response({ data: { portalCatalogV1: second } }), response({}, false)];
@@ -975,7 +975,7 @@ test("Portal catalog refresh control and catalog navigation fetch a newer snapsh
 
 test("Portal catalog fails closed for GraphQL, malformed, wrong-pack-version, and oversized records without inventing a value", async () => {
   const wrongPackVersion = validCatalog();
-  wrongPackVersion.domains[2].pack.version = "9.9.9";
+  wrongPackVersion.domains[2].pack.version = "not-a-version";
   const wrongCatalogDigest = validCatalog();
   wrongCatalogDigest.catalog_digest = "d".repeat(63);
   for (const payload of [
@@ -997,9 +997,9 @@ test("Portal catalog fails closed for GraphQL, malformed, wrong-pack-version, an
 test("Portal catalog makes catalog strings inert text, bounds nodes, and has no executable action", async () => {
   const body = new FakeNode();
   const catalog = validCatalog();
-  catalog.resources[1].id = '<img src=x onerror=alert(1)>';
-  catalog.fields[1].resource_id = catalog.resources[1].id;
-  catalog.actions[0].resource_id = catalog.resources[1].id;
+  catalog.resources[1].resource_id = '<img src=x onerror=alert(1)>';
+  catalog.fields[1].resource_id = catalog.resources[1].resource_id;
+  catalog.actions[0].resource_id = catalog.resources[1].resource_id;
   catalog.fields[1].value = '<style>body{display:none}</style>';
   catalog.actions[0].id = 'javascript:alert(1)';
   const { shell, source } = await harness(() => Promise.resolve(response({ data: { portalCatalogV1: catalog } })), new Map([["[data-role=\"portal-catalog-body\"]", body]]));
@@ -1026,7 +1026,7 @@ test("Portal catalog keeps the latest valid UI across HTTP failure, abort, stale
   const token = shell.beginBootstrapLifecycle();
   const refreshOne = shell.refreshPortalCatalog("/graphql/portal/v1", token, shell.bootstrapLifecycleAbort);
   const refreshTwo = shell.refreshPortalCatalog("/graphql/portal/v1", token, shell.bootstrapLifecycleAbort);
-  const newer = validCatalog(); newer.resources[1].id = "newest-pv"; newer.fields[1].resource_id = "newest-pv"; newer.actions[0].resource_id = "newest-pv";
+  const newer = validCatalog(); newer.resources[1].resource_id = "newest-pv"; newer.fields[1].resource_id = "newest-pv"; newer.actions[0].resource_id = "newest-pv";
   second.resolve(response({ data: { portalCatalogV1: newer } }));
   await refreshTwo;
   first.resolve(response({ data: { portalCatalogV1: validCatalog() } }));
@@ -1099,10 +1099,40 @@ test("Portal catalog pages Snapshot fact, service, and capability metadata", asy
   assert.doesNotMatch(rendered, /service-8|capability-8|fact-asset-8|token-7-8/); assert.ok(tags(body).length <= 512); assert.ok(tags(body).every((node) => node.textContent.length <= 512));
 });
 
-test("Portal catalog rejects a reordered five-domain refresh and retains the latest valid UI", async () => {
+test("Portal catalog accepts a reordered catalog domain list", async () => {
   const body = new FakeNode(); const notice = new FakeNode(); const valid = validCatalog(); const reordered = validCatalog(); [reordered.domains[0], reordered.domains[1]] = [reordered.domains[1], reordered.domains[0]];
   const responses = [response({ data: { portalCatalogV1: valid } }), response({ data: { portalCatalogV1: reordered } })];
   const { shell } = await harness(() => Promise.resolve(responses.shift()), new Map([["[data-role=\"portal-catalog-body\"]", body], ["[data-role=\"portal-catalog-notice\"]", notice]])); const token = shell.beginBootstrapLifecycle();
   await shell.refreshPortalCatalog("/graphql/portal/v1", token, shell.bootstrapLifecycleAbort); await shell.refreshPortalCatalog("/graphql/portal/v1", token, shell.bootstrapLifecycleAbort);
-  assert.match(text(body), /pv-1/); assert.match(notice.textContent, /Catalog refresh failed.*last valid catalog snapshot/);
+  assert.match(text(body), /pv-1/); assert.equal(notice.textContent, "");
+});
+
+
+test("renders both resources of an additional catalog domain and fails closed on missing references", async () => {
+  const extra = JSON.parse(await readFile(new URL("../../catalogv1/testdata/additional-domain.json", import.meta.url), "utf8"));
+  const body = new FakeNode(), notice = new FakeNode();
+  let nextCatalog;
+  const { shell } = await harness(() => Promise.resolve(response({ data: { portalCatalogV1: nextCatalog } })), new Map([["[data-role=\"portal-catalog-body\"]", body], ["[data-role=\"portal-catalog-notice\"]", notice]]));
+  const token = shell.beginBootstrapLifecycle();
+  const refresh = () => shell.refreshPortalCatalog("/graphql/portal/v1", token, shell.bootstrapLifecycleAbort);
+  const catalog = validCatalog();
+  const base = catalog.resources[0];
+  catalog.domains.push({ pack: extra.pack, source_state: "PRESENT" });
+  for (const { resource_id, asset_id } of extra.resources) {
+    catalog.resources.push({ ...base, resource_id, domain: extra.pack.id, source: { ...base.source, asset_id } });
+  }
+  nextCatalog = catalog;
+  await refresh();
+  assert.match(text(body), /fixture\.additional.*resource:first.*resource:second/s);
+  const previous = text(body);
+  for (const mutate of [
+    (next) => { next.resources.at(-1).domain = "fixture.unknown"; },
+    (next) => { next.fields[0].resource_id = "resource:unknown"; },
+    (next) => { next.resources.at(-1).resource_id = ""; },
+  ]) {
+    const invalid = structuredClone(catalog); mutate(invalid); nextCatalog = invalid;
+    await refresh();
+    assert.equal(text(body), previous);
+    assert.match(notice.textContent, /last valid catalog snapshot/);
+  }
 });
