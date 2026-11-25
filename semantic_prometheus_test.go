@@ -16,13 +16,23 @@ func TestSemanticPrometheusRendersOnlyFreshQualifiedNumericFacts(t *testing.T) {
 	var out bytes.Buffer
 	writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
 	metrics := out.String()
-	if !strings.Contains(metrics, `helianthus_semantic_fact_value{dimension="inverter",domain="pv",fact_id="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",unit="unit.watt"} 42`) {
+	if !strings.Contains(metrics, `helianthus_semantic_fact_value{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="resource:inverter.synthetic",resource_kind="resource.inverter",unit="unit.watt"} 42`) {
 		t.Fatalf("missing accepted value:\n%s", metrics)
 	}
-	if strings.Contains(metrics, "asset:private") {
+	if strings.Contains(metrics, "asset:") {
 		t.Fatalf("forbidden asset identifier leaked:\n%s", metrics)
 	}
-	if !strings.Contains(metrics, `helianthus_semantic_evidence_age{dimension="inverter",domain="pv",fact_id="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",unit="seconds"} 1`) {
+	for _, line := range strings.Split(metrics, "\n") {
+		if strings.HasPrefix(line, "helianthus_semantic_fact_") || strings.HasPrefix(line, "helianthus_semantic_evidence_age{") || strings.HasPrefix(line, "helianthus_semantic_open_conflicts{") {
+			if strings.Contains(line, "domain=") || strings.Contains(line, "fact_id=") {
+				t.Fatalf("per-fact series kept a domain or fact_id label:\n%s", line)
+			}
+		}
+	}
+	if !strings.Contains(metrics, `helianthus_semantic_projection_available{domain="pv"} 1`) {
+		t.Fatalf("projection family lost its domain label:\n%s", metrics)
+	}
+	if !strings.Contains(metrics, `helianthus_semantic_evidence_age{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="resource:inverter.synthetic",resource_kind="resource.inverter",unit="seconds"} 1`) {
 		t.Fatalf("missing evidence age:\n%s", metrics)
 	}
 }
@@ -165,23 +175,29 @@ func TestSemanticPrometheusRejectsCrossSchemaValues(t *testing.T) {
 
 func TestSemanticPrometheusEVSEExportsBoundedConfiguredAndConnectorFacts(t *testing.T) {
 	domain := semanticMetricsFixture("evse", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
-	addEVSEAllocatedFixture(&domain, "connector:private-a", "candidate:allocated-a")
-	addEVSEAllocatedFixture(&domain, "connector:private-b", "candidate:allocated-b")
+	domain.Snapshot.Resources = []semreg.Resource{
+		semanticResourceFixture("resource:evse.synthetic", "resource.evse", ""),
+		semanticResourceFixture("resource:connector.a", "resource.connector", ""),
+		semanticResourceFixture("resource:connector.b", "resource.connector", ""),
+	}
+	addEVSEAllocatedFixture(&domain, "resource:connector.a", "candidate:allocated-a")
+	addEVSEAllocatedFixture(&domain, "resource:connector.b", "candidate:allocated-b")
 	var out bytes.Buffer
 	writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
 	metrics := out.String()
 	for _, want := range []string{
-		`fact_id="evse.limit.configured_current"`,
-		`connector="connector_1"`,
-		`connector="connector_2"`,
-		`fact_id="evse.limit.allocated_current"`,
+		`fact="evse.limit.configured_current"`,
+		`resource="resource:evse.synthetic"`,
+		`connector="resource:connector.a"`,
+		`connector="resource:connector.b"`,
+		`fact="evse.limit.allocated_current"`,
 	} {
 		if !strings.Contains(metrics, want) {
 			t.Fatalf("missing EVSE metric %q:\n%s", want, metrics)
 		}
 	}
-	if strings.Contains(metrics, "private-a") || strings.Contains(metrics, "private-b") || strings.Contains(metrics, "asset:private") {
-		t.Fatalf("EVSE identity leaked through labels:\n%s", metrics)
+	if strings.Contains(metrics, "connector_1") || strings.Contains(metrics, "connector_2") || strings.Contains(metrics, "asset:") {
+		t.Fatalf("EVSE ordinal or asset leaked through labels:\n%s", metrics)
 	}
 }
 
@@ -192,7 +208,7 @@ func TestSemanticPrometheusEVSEWithheldAllocationDoesNotSuppressConfiguredCurren
 	var out bytes.Buffer
 	writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
 	metrics := out.String()
-	if !strings.Contains(metrics, `helianthus_semantic_fact_value{dimension="evse",domain="evse",fact_id="evse.limit.configured_current",pack="helianthus.pack.evse",unit="unit.ampere"} 42`) || !strings.Contains(metrics, `item="evse.limit.allocated_current",loss_kind="policy"`) {
+	if !strings.Contains(metrics, `helianthus_semantic_fact_value{dimension="evse",fact="evse.limit.configured_current",pack="helianthus.pack.evse",resource_kind="resource.evse",unit="unit.ampere"} 42`) || !strings.Contains(metrics, `item="evse.limit.allocated_current",loss_kind="policy"`) {
 		t.Fatalf("withheld allocation changed configured current:\n%s", metrics)
 	}
 }
@@ -228,48 +244,40 @@ func TestSemanticPrometheusEVSERejectsHostileSchemaAndConnectorOverflow(t *testi
 		})
 	}
 	domain := semanticMetricsFixture("evse", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
-	for index := 0; index < semanticEVSEConnectorBudget+1; index++ {
-		addEVSEAllocatedFixture(&domain, "connector:hostile-"+strconv.Itoa(index), semreg.CandidateID("candidate:allocated-"+strconv.Itoa(index)))
-	}
+	domain.Snapshot.Resources = []semreg.Resource{semanticResourceFixture("resource:evse.synthetic", "resource.evse", "")}
+	addEVSEAllocatedFixture(&domain, "resource:connector.absent", "candidate:allocated-absent")
 	var out bytes.Buffer
 	writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
 	metrics := out.String()
-	if strings.Contains(metrics, "hostile-") || !strings.Contains(metrics, "helianthus_semantic_render_overflow") {
-		t.Fatalf("unbounded EVSE connector labels leaked:\n%s", metrics)
+	if strings.Contains(metrics, "resource:connector.absent") || !strings.Contains(metrics, "helianthus_semantic_render_overflow") {
+		t.Fatalf("absent connector was exported:\n%s", metrics)
 	}
 }
 
 func TestSemanticPrometheusEVSEConnectorSlotsIgnoreUnrenderableCandidates(t *testing.T) {
 	domain := semanticMetricsFixture("evse", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
-	for index := 0; index < semanticEVSEConnectorBudget; index++ {
-		candidateID := semreg.CandidateID("candidate:rejected-" + strconv.Itoa(index))
-		addEVSEAllocatedFixture(&domain, "connector:blocked-"+strconv.Itoa(index), candidateID)
-		for factIndex := range domain.Snapshot.Facts {
-			if len(domain.Snapshot.Facts[factIndex].Candidates) == 1 && domain.Snapshot.Facts[factIndex].Candidates[0].CandidateID == candidateID {
-				domain.Snapshot.Facts[factIndex].Candidates[0].Quality.Qualification = semreg.QualificationRejected
-			}
-		}
-	}
-	addEVSEAllocatedFixture(&domain, "connector:promoted", "candidate:promoted")
+	domain.Snapshot.Resources = []semreg.Resource{semanticResourceFixture("resource:connector.promoted", "resource.connector", "")}
+	addEVSEAllocatedFixture(&domain, "resource:connector.absent", "candidate:rejected")
+	addEVSEAllocatedFixture(&domain, "resource:connector.promoted", "candidate:promoted")
 	var out bytes.Buffer
 	writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
 	metrics := out.String()
-	if !strings.Contains(metrics, `helianthus_semantic_fact_value{connector="connector_1",dimension="connector",domain="evse",fact_id="evse.limit.allocated_current",pack="helianthus.pack.evse",unit="unit.ampere"} 16`) {
-		t.Fatalf("renderable connector was displaced by rejected candidates:\n%s", metrics)
+	if !strings.Contains(metrics, `helianthus_semantic_fact_value{connector="resource:connector.promoted",dimension="connector",fact="evse.limit.allocated_current",pack="helianthus.pack.evse",resource="resource:connector.promoted",resource_kind="resource.connector",unit="unit.ampere"} 16`) {
+		t.Fatalf("renderable connector was dropped:\n%s", metrics)
 	}
-	if strings.Contains(metrics, "blocked-") || strings.Contains(metrics, "connector:promoted") {
-		t.Fatalf("connector identity leaked through labels:\n%s", metrics)
+	if strings.Contains(metrics, "resource:connector.absent") {
+		t.Fatalf("absent connector was exported:\n%s", metrics)
 	}
 }
 
 func semanticMetricsFixture(domain string, available bool, freshness semreg.Freshness, availability semreg.Availability, validity semreg.Validity, conflicts int) SemanticMetricsDomain {
-	dimensionID, dimensionValue, factID := semreg.DefinitionID("pv.dimension.inverter"), "resource:asset:private:inverter", semreg.DefinitionID("pv.ac.aggregate_active_power")
+	dimensionID, dimensionValue, factID := semreg.DefinitionID("pv.dimension.inverter"), "resource:inverter.synthetic", semreg.DefinitionID("pv.ac.aggregate_active_power")
 	unit := semreg.DefinitionID("unit.watt")
 	if domain == "storage" {
-		dimensionID, dimensionValue, factID, unit = "storage.dimension.pack", "resource:asset:private:pack", "storage.pack.voltage", "unit.volt"
+		dimensionID, dimensionValue, factID, unit = "storage.dimension.pack", "resource:pack.synthetic", "storage.pack.voltage", "unit.volt"
 	}
 	if domain == "evse" {
-		dimensionID, dimensionValue, factID, unit = "evse.dimension.evse", "evse:asset:private", "evse.limit.configured_current", "unit.ampere"
+		dimensionID, dimensionValue, factID, unit = "evse.dimension.evse", "resource:evse.synthetic", "evse.limit.configured_current", "unit.ampere"
 	}
 	version := semreg.SemanticVersion("1.0.0")
 	if domain == "storage" {
@@ -349,7 +357,7 @@ func TestSemanticPrometheusPVLabelsFollowResourceKindAndSlot(t *testing.T) {
 		{"names no resource", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "resource:test-missing", "unit.watt", []semreg.Resource{semanticResourceFixture("resource:test-inverter", "resource.inverter", "")}, rendered{}},
 		{"resource of another kind", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "resource:test-input", "unit.watt", []semreg.Resource{semanticResourceFixture("resource:test-input", "resource.dc_input", "1")}, rendered{}},
 		{"ungraphed literal text", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter", "unit.watt", nil, rendered{"inverter", true}},
-		{"ungraphed role text", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter:asset:private", "unit.watt", nil, rendered{"inverter", true}},
+		{"ungraphed role text", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter:asset:private", "unit.watt", nil, rendered{}},
 		{"ungraphed role of another dimension", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "system:asset:private", "unit.watt", nil, rendered{}},
 		{"graphed role text", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter:asset:private", "unit.watt", []semreg.Resource{semanticResourceFixture("resource:test-inverter", "resource.inverter", "")}, rendered{}},
 	} {
@@ -360,10 +368,23 @@ func TestSemanticPrometheusPVLabelsFollowResourceKindAndSlot(t *testing.T) {
 			var out bytes.Buffer
 			writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
 			metrics := out.String()
-			if strings.Contains(metrics, "resource:test") || strings.Contains(metrics, "asset:private") {
-				t.Fatalf("an identifier leaked into a label:\n%s", metrics)
+			if strings.Contains(metrics, "asset:") {
+				t.Fatalf("an asset identifier leaked into a label:\n%s", metrics)
 			}
-			want := `helianthus_semantic_fact_value{dimension="` + tc.want.label + `",domain="pv",fact_id="` + tc.fact + `",pack="helianthus.pack.pv",unit="` + string(tc.unit) + `"} 42`
+			if !tc.want.ok && strings.Contains(metrics, tc.value) {
+				t.Fatalf("an unresolved subject was labeled:\n%s", metrics)
+			}
+			kind := semanticUngraphedKind(tc.value)
+			resource := ""
+			if len(tc.resources) > 0 && tc.want.ok {
+				kind = string(tc.resources[0].Kind)
+				resource = `,resource="` + tc.value + `"`
+			}
+			tail := ""
+			if tc.want.ok {
+				tail = resource + `,resource_kind="` + kind + `"`
+			}
+			want := `helianthus_semantic_fact_value{dimension="` + tc.want.label + `",fact="` + tc.fact + `",pack="helianthus.pack.pv"` + tail + `,unit="` + string(tc.unit) + `"} 42`
 			if tc.want.ok != strings.Contains(metrics, want) {
 				t.Fatalf("rendered=%v, want %v (%s):\n%s", !tc.want.ok, tc.want.ok, want, metrics)
 			}
@@ -390,8 +411,8 @@ func TestSemanticPrometheusPVLabelsFollowResourceKindAndSlot(t *testing.T) {
 // withdrawn pack renders no fact, and so does a pack value in a snapshot
 // without resources. No identifier reaches a label.
 func TestSemanticPrometheusStorageLabelFollowsResourceKind(t *testing.T) {
-	const value = `helianthus_semantic_fact_value{dimension="pack",domain="storage",fact_id="storage.pack.voltage",pack="helianthus.pack.storage",unit="unit.volt"} 42`
-	pack := semanticResourceFixture("resource:asset:private:pack", "resource.battery_pack", "")
+	const value = `helianthus_semantic_fact_value{dimension="pack",fact="storage.pack.voltage",pack="helianthus.pack.storage",resource="resource:pack.synthetic",resource_kind="resource.battery_pack",unit="unit.volt"} 42`
+	pack := semanticResourceFixture("resource:pack.synthetic", "resource.battery_pack", "")
 	withdrawn := pack
 	withdrawn.State = semreg.ResourceWithdrawn
 	for _, tc := range []struct {
@@ -400,8 +421,8 @@ func TestSemanticPrometheusStorageLabelFollowsResourceKind(t *testing.T) {
 		rendered  bool
 	}{
 		{"battery pack", []semreg.Resource{pack}, true},
-		{"names no resource", []semreg.Resource{semanticResourceFixture("resource:test-other", "resource.battery_pack", "")}, false},
-		{"resource of another kind", []semreg.Resource{semanticResourceFixture("resource:asset:private:pack", "resource.inverter", "")}, false},
+		{"names no resource", []semreg.Resource{semanticResourceFixture("resource:other", "resource.battery_pack", "")}, false},
+		{"resource of another kind", []semreg.Resource{semanticResourceFixture("resource:pack.synthetic", "resource.inverter", "")}, false},
 		{"withdrawn pack", []semreg.Resource{withdrawn}, false},
 		{"asset-valued text without resources", nil, false},
 	} {
@@ -411,7 +432,7 @@ func TestSemanticPrometheusStorageLabelFollowsResourceKind(t *testing.T) {
 			var out bytes.Buffer
 			writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
 			metrics := out.String()
-			if strings.Contains(metrics, "asset:private") || strings.Contains(metrics, "resource:") {
+			if strings.Contains(metrics, "asset:") || (!tc.rendered && strings.Contains(metrics, "resource:")) {
 				t.Fatalf("an identifier leaked into a label:\n%s", metrics)
 			}
 			if tc.rendered != strings.Contains(metrics, value) {
@@ -457,9 +478,9 @@ func addSemanticSourceCandidate(domain *SemanticMetricsDomain, first, second sem
 // two sources exports the candidate the presentation policy selects instead of
 // dropping the fact; a conflict still withholds the value.
 func TestSemanticPrometheusTwoCandidatesExportSelected(t *testing.T) {
-	const value = `helianthus_semantic_fact_value{dimension="inverter",domain="pv",fact_id="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",unit="unit.watt"} `
-	const age = `helianthus_semantic_evidence_age{dimension="inverter",domain="pv",fact_id="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",unit="seconds"} `
-	const conflicts = `helianthus_semantic_open_conflicts{dimension="inverter",domain="pv",fact_id="pv.ac.aggregate_active_power",pack="helianthus.pack.pv"} `
+	const value = `helianthus_semantic_fact_value{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="resource:inverter.synthetic",resource_kind="resource.inverter",unit="unit.watt"} `
+	const age = `helianthus_semantic_evidence_age{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="resource:inverter.synthetic",resource_kind="resource.inverter",unit="seconds"} `
+	const conflicts = `helianthus_semantic_open_conflicts{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="resource:inverter.synthetic",resource_kind="resource.inverter"} `
 	for _, tc := range []struct {
 		name        string
 		owner       semreg.SourceID
@@ -516,13 +537,14 @@ func TestSemanticPrometheusTwoCandidatesExportSelected(t *testing.T) {
 // the owner's candidate; without an owner neither candidate is selected, so
 // the connector receives no slot and nothing is exported.
 func TestSemanticPrometheusEVSEConnectorSlotTwoCandidates(t *testing.T) {
-	const value = `helianthus_semantic_fact_value{connector="connector_1",dimension="connector",domain="evse",fact_id="evse.limit.allocated_current",pack="helianthus.pack.evse",unit="unit.ampere"} 16`
+	const value = `helianthus_semantic_fact_value{connector="resource:connector.shared",dimension="connector",fact="evse.limit.allocated_current",pack="helianthus.pack.evse",resource="resource:connector.shared",resource_kind="resource.connector",unit="unit.ampere"} 16`
 	for _, tc := range []struct {
 		owner  semreg.SourceID
 		export bool
 	}{{"source:owner", true}, {"", false}} {
 		domain := semanticMetricsFixture("evse", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
-		addEVSEAllocatedFixture(&domain, "connector:shared", "candidate:allocated")
+		domain.Snapshot.Resources = []semreg.Resource{semanticResourceFixture("resource:connector.shared", "resource.connector", "")}
+		addEVSEAllocatedFixture(&domain, "resource:connector.shared", "candidate:allocated")
 		envelope := &domain.Snapshot.Facts[len(domain.Snapshot.Facts)-1]
 		owner, contributor := semreg.SourceID("source:owner"), semreg.SourceID("source:contributor")
 		envelope.Candidates[0].Origin = semreg.OriginRef{OriginID: "origin:owner", Kind: semreg.OriginNativeObservation, SourceID: &owner}
@@ -538,8 +560,112 @@ func TestSemanticPrometheusEVSEConnectorSlotTwoCandidates(t *testing.T) {
 		if strings.Contains(metrics, value) != tc.export {
 			t.Fatalf("owner %q: connector value exported %v want %v:\n%s", tc.owner, !tc.export, tc.export, metrics)
 		}
-		if strings.Contains(metrics, "connector:shared") {
-			t.Fatalf("connector identity leaked through labels:\n%s", metrics)
+	}
+}
+
+// semanticStorageSeries appends one storage fact. The resource identifier,
+// the fact definition and the qualifier text are the value key. A later call
+// does not alias an earlier qualifier: each text has its own variable.
+func semanticStorageSeries(domain *SemanticMetricsDomain, resource, fact, coefficient string, unit semreg.DefinitionID, candidate semreg.CandidateID) {
+	text := resource
+	key := semreg.FactKey{PackID: "helianthus.pack.storage", PackVersion: "1.1.0", FactID: semreg.DefinitionID(fact), Dimensions: []semreg.Dimension{{ID: "storage.dimension.pack", Value: semreg.Value{Kind: semreg.ValueText, Text: &text}}}}
+	value := semreg.Value{Kind: semreg.ValueQuantity, Quantity: &semreg.Quantity{Number: semreg.Decimal{Coefficient: coefficient}, Unit: unit}}
+	candidateValue := semreg.FactCandidate{CandidateID: candidate, Key: key, Value: &value, Quality: semreg.Quality{Qualification: semreg.QualificationQualified, Promotion: semreg.PromotionPromoted, Validity: semreg.ValidityGood}, Times: semreg.Times{ReceivedAt: semreg.TimePoint{UnixNanoseconds: "100000000000", ClockID: "clock.utc"}}}
+	domain.Snapshot.Facts = append(domain.Snapshot.Facts, semreg.FactEnvelope{Key: key, Candidates: []semreg.FactCandidate{candidateValue}})
+	domain.Evaluation.Facts = append(domain.Evaluation.Facts, semreg.EvaluatedFact{CandidateID: candidate, Freshness: semreg.FreshnessFresh, EffectiveAvailability: semreg.AvailabilityAvailable})
+	domain.Projection.Dispositions = append(domain.Projection.Dispositions, projection.ProjectionDisposition{ItemID: semreg.DefinitionID(fact), Outcome: projection.ProjectionExact, SourceKeys: []semreg.FactKey{key}})
+}
+
+// TestSemanticPrometheusTwoAssetsOfOnePack varies every field of the value
+// key. Swapping the resource identifier moves 11 onto the other series.
+// Using the soc fact on the voltage series, or the voltage fact on the ratio
+// series, removes the line this test requires. A percent is exported as a
+// ratio; an ampere-hour is not rewritten as a coulomb.
+func TestSemanticPrometheusTwoAssetsOfOnePack(t *testing.T) {
+	domain := semanticMetricsFixture("storage", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
+	domain.Snapshot.Facts = nil
+	domain.Evaluation.Facts = nil
+	domain.Projection.Dispositions = nil
+	domain.Snapshot.Resources = []semreg.Resource{
+		semanticResourceFixture("resource:pack.alpha", "resource.battery_pack", ""),
+		semanticResourceFixture("resource:pack.beta", "resource.battery_pack", ""),
+	}
+	semanticStorageSeries(&domain, "resource:pack.alpha", "storage.pack.voltage", "11", "unit.volt", "candidate:alpha-voltage")
+	semanticStorageSeries(&domain, "resource:pack.beta", "storage.pack.voltage", "22", "unit.volt", "candidate:beta-voltage")
+	semanticStorageSeries(&domain, "resource:pack.alpha", "storage.state.soc", "75", "unit.percent", "candidate:alpha-soc")
+	semanticStorageSeries(&domain, "resource:pack.alpha", "storage.capacity.charge", "40", "unit.ampere_hour", "candidate:alpha-capacity")
+	var out bytes.Buffer
+	writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
+	metrics := out.String()
+	for _, line := range []string{
+		`helianthus_semantic_fact_value{dimension="pack",fact="storage.pack.voltage",pack="helianthus.pack.storage",resource="resource:pack.alpha",resource_kind="resource.battery_pack",unit="unit.volt"} 11`,
+		`helianthus_semantic_fact_value{dimension="pack",fact="storage.pack.voltage",pack="helianthus.pack.storage",resource="resource:pack.beta",resource_kind="resource.battery_pack",unit="unit.volt"} 22`,
+		`helianthus_semantic_fact_value{dimension="pack",fact="storage.state.soc",pack="helianthus.pack.storage",resource="resource:pack.alpha",resource_kind="resource.battery_pack",unit="ratio"} 0.75`,
+		`helianthus_semantic_fact_value{dimension="pack",fact="storage.capacity.charge",pack="helianthus.pack.storage",resource="resource:pack.alpha",resource_kind="resource.battery_pack",unit="unit.ampere_hour"} 40`,
+		`helianthus_semantic_projection_available{domain="storage"} 1`,
+	} {
+		if !strings.Contains(metrics, line) {
+			t.Fatalf("missing %s\n%s", line, metrics)
+		}
+	}
+	if strings.Contains(metrics, "unit.percent") || strings.Contains(metrics, "coulomb") || strings.Contains(metrics, "fact_id=") || strings.Contains(metrics, "domain=\"storage\",fact=") {
+		t.Fatalf("unit or key drifted:\n%s", metrics)
+	}
+}
+
+// TestSemanticPrometheusReplacementAndSupersession: an anchor change on the
+// same resource keeps the series bytes. Replacing the equipment resource
+// withdraws the old series and exports the new resource.
+func TestSemanticPrometheusReplacementAndSupersession(t *testing.T) {
+	domain := semanticMetricsFixture("storage", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
+	render := func() string {
+		t.Helper()
+		var out bytes.Buffer
+		writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
+		return out.String()
+	}
+	before := render()
+	const kept = `helianthus_semantic_fact_value{dimension="pack",fact="storage.pack.voltage",pack="helianthus.pack.storage",resource="resource:pack.synthetic",resource_kind="resource.battery_pack",unit="unit.volt"} 42`
+	if !strings.Contains(before, kept) {
+		t.Fatal(before)
+	}
+	slot := "successor"
+	domain.Snapshot.Resources[0].Revision = "2"
+	domain.Snapshot.Resources[0].Anchor.Slot = &slot
+	if render() != before {
+		t.Fatal("anchor supersession changed the series")
+	}
+	domain.Snapshot.Resources[0].State = semreg.ResourceWithdrawn
+	domain.Snapshot.Resources = append(domain.Snapshot.Resources, semanticResourceFixture("resource:pack.replacement", "resource.battery_pack", ""))
+	text := "resource:pack.replacement"
+	domain.Snapshot.Facts[0].Key.Dimensions[0].Value.Text = &text
+	domain.Snapshot.Facts[0].Candidates[0].Key = domain.Snapshot.Facts[0].Key
+	domain.Projection.Dispositions[0].SourceKeys[0] = domain.Snapshot.Facts[0].Key
+	replaced := render()
+	if strings.Contains(replaced, "resource:pack.synthetic") || !strings.Contains(replaced, `helianthus_semantic_fact_value{dimension="pack",fact="storage.pack.voltage",pack="helianthus.pack.storage",resource="resource:pack.replacement",resource_kind="resource.battery_pack",unit="unit.volt"} 42`) {
+		t.Fatalf("replacement series:\n%s", replaced)
+	}
+}
+
+// TestSemanticPrometheusRekeyKeepsProjectionSeries: on one fixture the
+// projection series keeps its domain label and the per-fact value keeps its
+// magnitude under the resource key. The old domain and fact_id labels are
+// not emitted.
+func TestSemanticPrometheusRekeyKeepsProjectionSeries(t *testing.T) {
+	domain := semanticMetricsFixture("pv", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
+	var out bytes.Buffer
+	writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
+	metrics := out.String()
+	const projection = `helianthus_semantic_projection_available{domain="pv"} 1`
+	const value = `helianthus_semantic_fact_value{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="resource:inverter.synthetic",resource_kind="resource.inverter",unit="unit.watt"} 42`
+	if !strings.Contains(metrics, projection) || !strings.Contains(metrics, value) {
+		t.Fatal(metrics)
+	}
+	for _, line := range strings.Split(metrics, "\n") {
+		if strings.HasPrefix(line, "helianthus_semantic_fact_") || strings.HasPrefix(line, "helianthus_semantic_evidence_age{") || strings.HasPrefix(line, "helianthus_semantic_open_conflicts{") {
+			if strings.Contains(line, "domain=") || strings.Contains(line, "fact_id=") {
+				t.Fatal(line)
+			}
 		}
 	}
 }

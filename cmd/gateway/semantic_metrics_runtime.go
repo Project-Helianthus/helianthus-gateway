@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
+	"time"
 
 	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticmetrics"
@@ -16,14 +18,25 @@ import (
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 
-// gatewaySemanticMetricRegistry is the production Thermal and Infrastructure
-// binding registry of the scrape route. The coverage contract requires every
-// slot assignment to be durably persisted before publication and retired slots
-// to stay reserved for the scrape target. No such store exists yet, so the
-// production route configures no binding: it declares the availability family
-// without samples and never captures.
-func gatewaySemanticMetricRegistry() semanticmetrics.Registry {
-	return semanticmetrics.Registry{}
+// gatewaySemanticMetricTarget is the scrape target of the metric store. The
+// store location is supplied by the caller. This row does not choose a default
+// path and does not add a flag.
+const gatewaySemanticMetricTarget = "gateway-semantic-metrics"
+
+// gatewaySemanticMetricRegistry is the production binding registry of the
+// scrape route. With no store location it declares the availability family
+// and does not capture. With a location it creates the store when absent and
+// reopens it when present. A scrape only reads the registry this returns.
+func gatewaySemanticMetricRegistry(storePath ...string) semanticmetrics.Registry {
+	if len(storePath) == 0 || storePath[0] == "" {
+		return semanticmetrics.Registry{}
+	}
+	registry, err := composeGatewaySemanticStore(storePath[0], nil)
+	if err != nil {
+		log.Printf("semantic metric store: %s", err.Error())
+		return semanticmetrics.Registry{StoreError: err.Error()}
+	}
+	return registry
 }
 
 // gatewaySemanticMetrics renders the configured semantic families of the
@@ -34,10 +47,12 @@ type gatewaySemanticMetrics struct {
 	provider *hubSemanticSnapshotProvider
 	registry semanticmetrics.Registry
 	// assets are the distinct assets of the bindings that can still export a
-	// value, in bytewise order. Validation bounds a registry to 16 slots per
-	// domain, so the selection never exceeds the capture bound of 32 assets.
-	assets []semreg.AssetID
-	logf   func(string, ...any)
+	// value, in bytewise order.
+	assets  []semreg.AssetID
+	native  []ebusgateway.NativeObservation
+	domains []ebusgateway.SemanticMetricsDomain
+	now     func() time.Time
+	logf    func(string, ...any)
 
 	mu          sync.Mutex
 	lastFailure string
@@ -50,7 +65,7 @@ func newGatewaySemanticMetrics(provider *hubSemanticSnapshotProvider, registry s
 	if _, err := semanticmetrics.Render(semanticview.View{}, registry); err != nil {
 		return nil, fmt.Errorf("semantic metric registry: %w", err)
 	}
-	metrics := &gatewaySemanticMetrics{provider: provider, registry: registry, logf: log.Printf}
+	metrics := &gatewaySemanticMetrics{provider: provider, registry: registry, logf: log.Printf, now: time.Now}
 	// An unvalidated registry or a retired slot withholds the value whatever
 	// the capture holds, so neither needs a hub read.
 	if registry.Validated {
@@ -85,6 +100,19 @@ func (m *gatewaySemanticMetrics) text(ctx context.Context) string {
 	if err != nil {
 		text, failure = "", fmt.Errorf("render: %w", err)
 	}
+	if m.registry.StoreError != "" {
+		reason := strings.ReplaceAll(strings.ReplaceAll(m.registry.StoreError, "\n", " "), "\r", " ")
+		failure = errors.Join(failure, errors.New(reason))
+		text = "# semantic metric store: " + reason + "\n" + text
+	}
+	now := time.Now
+	if m.now != nil {
+		now = m.now
+	}
+	if len(m.domains) > 0 {
+		text += ebusgateway.RenderSemanticPrometheus(m.domains, now())
+	}
+	text += ebusgateway.RenderNativePrometheus(m.native)
 	m.note(failure)
 	return text
 }

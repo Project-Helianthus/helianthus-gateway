@@ -234,7 +234,8 @@ func m38Setup(t *testing.T) *m38Fixture {
 		for _, entry := range d.entries() {
 			dimension := d.dimension(t, entry.field)
 			if bindings[dimension] == nil {
-				bindings[dimension] = &semanticmetrics.Binding{Domain: d.name, Slot: m38Slots[dimension], AssetID: d.asset, SourceID: handle.Source(), SourceEpochID: handle.Epoch(), BindingID: d.binding, DriverGeneration: handle.GenerationID(), ServiceInstance: d.service(dimension), Dimensions: m38DimensionValue(dimension)}
+				dimensions := m38DimensionValue(dimension)
+				bindings[dimension] = &semanticmetrics.Binding{Domain: d.name, Slot: m38Slots[dimension], ResourceID: semreg.ResourceID(*dimensions[0].Value.Text), AssetID: d.asset, SourceID: handle.Source(), SourceEpochID: handle.Epoch(), BindingID: d.binding, DriverGeneration: handle.GenerationID(), ServiceInstance: d.service(dimension), Dimensions: dimensions}
 				order = append(order, dimension)
 			}
 			bindings[dimension].Fields = append(bindings[dimension].Fields, entry.field)
@@ -477,7 +478,9 @@ func TestM38ScrapeRouteServesTransportAndSemanticInventory(t *testing.T) {
 	}
 	var got []string
 	for _, line := range strings.Split(strings.TrimSuffix(section, "\n"), "\n") {
-		if strings.HasPrefix(line, "# HELP ") {
+		// Native families are always appended (D6). They are not rows of this
+		// thermal and infrastructure inventory.
+		if strings.HasPrefix(line, "# HELP ") || strings.Contains(line, "helianthus_native_") {
 			continue
 		}
 		got = append(got, line)
@@ -738,7 +741,7 @@ func TestM38LabelsStayBoundedWithManyHubAssets(t *testing.T) {
 	labelRE := regexp.MustCompile(`([a-z_]+)="([^"]*)"`)
 	series := 0
 	for _, line := range strings.Split(m38SemanticSection(t, body), "\n") {
-		if line == "" || strings.HasPrefix(line, "#") {
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "helianthus_native_") {
 			continue
 		}
 		match := sampleRE.FindStringSubmatch(line)
@@ -789,9 +792,11 @@ func TestM38ProductionRegistryNeedsNoProbe(t *testing.T) {
 	body := m38Scrape(t, newGatewayMetricsHandler(f.store, metrics))
 	m38AssertTransport(t, body)
 	section := m38SemanticSection(t, body)
-	lines := strings.Split(strings.TrimSuffix(section, "\n"), "\n")
-	if len(lines) != 2 || !strings.HasPrefix(lines[0], "# HELP "+m38AvailabilityName+" ") || lines[1] != "# TYPE "+m38AvailabilityName+" gauge" {
+	if !strings.Contains(section, "# HELP "+m38AvailabilityName+" ") || !strings.Contains(section, "# TYPE "+m38AvailabilityName+" gauge\n") || strings.Contains(section, m38AvailabilityName+"{") {
 		t.Fatalf("production registry must declare the family without samples:\n%s", section)
+	}
+	if !strings.Contains(section, "helianthus_native_render_overflow 0\n") || strings.Contains(section, "helianthus_native_power{") {
+		t.Fatalf("native export must be on without retained points:\n%s", section)
 	}
 	if captures := f.source.captures(); len(captures) != 0 {
 		t.Fatalf("production scrape captured %v without a configured binding", captures)
@@ -800,7 +805,7 @@ func TestM38ProductionRegistryNeedsNoProbe(t *testing.T) {
 
 func TestM38MalformedRegistryFailsComposition(t *testing.T) {
 	changes := map[string]func(*semanticmetrics.Registry){
-		"slot_out_of_range": func(r *semanticmetrics.Registry) { r.Bindings[0].Slot = 16 },
+		"slot_out_of_range": func(r *semanticmetrics.Registry) { r.Bindings[0].Slot = -1 },
 		"slot_collision":    func(r *semanticmetrics.Registry) { r.Bindings[1].Slot = r.Bindings[0].Slot },
 		"foreign_field": func(r *semanticmetrics.Registry) {
 			r.Bindings[0].Fields = []semreg.DefinitionID{"infrastructure.ac.voltage"}

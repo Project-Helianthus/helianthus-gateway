@@ -533,6 +533,7 @@ func TestSlotFileStoreCapacityAndDetachedExports(t *testing.T) {
 			b := o21Clone(registry.Bindings[0])
 			b.Slot = slot
 			b.AssetID = semreg.AssetID(fmt.Sprintf("asset:%s-%d", b.Domain, slot))
+			b.ResourceID = semreg.ResourceID(fmt.Sprintf("resource:%s-%d", b.Domain, slot))
 			exported, err := s.Assign("target", b)
 			if err != nil {
 				t.Fatal(err)
@@ -548,12 +549,17 @@ func TestSlotFileStoreCapacityAndDetachedExports(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		extra := o21Clone(registry.Bindings[0])
-		extra.Slot = 16
-		extra.AssetID = "asset:extra"
-		if _, err = s.Assign("target", extra); err == nil {
-			t.Fatal("capacity exceeded")
-		}
+	}
+	_, registry := m36Fixture(t, "infrastructure.ac.voltage", m36Quantity("230", "unit.volt"))
+	extra := o21Clone(registry.Bindings[0])
+	extra.Slot = 32
+	extra.AssetID = "asset:extra"
+	extra.ResourceID = "resource:extra"
+	if _, err = s.Assign("target", extra); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Retire("target", extra); err != nil {
+		t.Fatal(err)
 	}
 	if err = p.Close(); err != nil {
 		t.Fatal(err)
@@ -563,8 +569,8 @@ func TestSlotFileStoreCapacityAndDetachedExports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(restarted.Export().Bindings) != 32 || restarted.Export().Validated {
-		t.Fatal("capacity lost on restart")
+	if len(restarted.Export().Bindings) != 33 || restarted.Export().Validated {
+		t.Fatal("assignments lost on restart")
 	}
 	for _, b := range restarted.Export().Bindings {
 		if !b.Retired {

@@ -71,6 +71,7 @@ func TestO21DurabilityRestartAndZero(t *testing.T) {
 	next := o21Clone(b)
 	next.Slot = 1
 	next.AssetID = "asset:o21-next"
+	next.ResourceID = "resource:o21-next"
 	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
 	p.commit = func() { close(entered); <-release }
 	go func() { _, err := s.Assign("o21-target", next); done <- err }()
@@ -174,6 +175,9 @@ func TestO21RetirementExhaustionAndDetached(t *testing.T) {
 		next := o21Clone(b)
 		next.Slot = i
 		next.AssetID = semreg.AssetID(fmt.Sprintf("asset:o21-%d", i))
+		if i > 0 {
+			next.ResourceID = semreg.ResourceID(fmt.Sprintf("resource:o21-%d", i))
+		}
 		r := o21Assign(t, s, next)
 		if len(s.Export().Bindings) != i+1 {
 			t.Fatal("lost permanent reservations")
@@ -251,7 +255,7 @@ func TestO21UncertainAndCorrupt(t *testing.T) {
 		})
 	}
 	for _, change := range []func(*o21Document){
-		func(d *o21Document) { d.Version = 2 }, func(d *o21Document) { d.Bindings[0].Slot = 16 }, func(d *o21Document) { d.Bindings[0].SourceID = "" }, func(d *o21Document) { d.Bindings = append(d.Bindings, d.Bindings[0]) }, func(d *o21Document) { d.Bindings[0].Fields = nil },
+		func(d *o21Document) { d.Version = 2 }, func(d *o21Document) { d.Bindings[0].Slot = -1 }, func(d *o21Document) { d.Bindings[0].SourceID = "" }, func(d *o21Document) { d.Bindings = append(d.Bindings, d.Bindings[0]) }, func(d *o21Document) { d.Bindings[0].Fields = nil },
 	} {
 		var d o21Document
 		if err := json.Unmarshal(p.raw, &d); err != nil {

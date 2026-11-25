@@ -32,7 +32,7 @@ type o21Document struct {
 	Bindings []Binding
 }
 
-// O21SlotStore owns at most 32 assignments for one opaque scrape target.
+// O21SlotStore owns the assignments of one opaque scrape target.
 // Export returns detached state; failures retain assignments but withhold values.
 type O21SlotStore struct {
 	operation   sync.Mutex
@@ -51,8 +51,8 @@ func o21Clone[T any](v T) T {
 }
 
 func o21Check(d o21Document, target string) error {
-	if target == "" || len(target) > 256 || d.Target != target || d.Version != 1 || len(d.Bindings) > 32 {
-		return fmt.Errorf("invalid slot store identity or bounds")
+	if target == "" || len(target) > 256 || d.Target != target || d.Version != 1 {
+		return fmt.Errorf("invalid slot store identity")
 	}
 	_, err := Render(semanticview.View{}, Registry{Bindings: d.Bindings})
 	return err

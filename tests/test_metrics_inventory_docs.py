@@ -18,7 +18,7 @@ SOURCES = [
     "internal/semanticmetrics/metrics.go", "cmd/gateway/huawei_transport_metrics.go",
     "cmd/gateway/semantic_metrics_runtime.go", "cmd/gateway/gateway_http_server.go",
     "cmd/gateway/gateway_http_control_plane.go", "cmd/gateway/gateway_http_providers.go",
-    "semantic_prometheus_text.go",
+    "semantic_prometheus_text.go", "semantic_prometheus_native.go",
 ]
 
 # Parse Go syntax rather than treating literal name matches as an output graph.
@@ -84,7 +84,10 @@ def expected_families(analysis):
                     ["name", "value", "labels"]), "uncovered dynamic writer"
                 continue
             name = literal(args[0])
-            samples.setdefault(name, []).append(args[2])
+            sample = args[2]
+            if sample.startswith("nativePointLabels("):
+                sample = 'labelMap("protocol", "x", "device", "x", "index", "x", "point", "x", "unit", "x", "driver_instance", "x")'
+            samples.setdefault(name, []).append(sample)
             # Only conditions shared by every alternative emission are guards.
             path_guards = set(c["Guards"])
             if name in guards:
@@ -95,7 +98,12 @@ def expected_families(analysis):
     for name, row in families.items():
         assert name in samples, f"declaration without resolved sample: {name}"
         row["source_guards"] = sorted(guards[name])
-        row["labels"] = sorted(set().union(*(sample_labels(x, name) for x in samples[name])))
+        labels = sorted(set().union(*(sample_labels(x, name) for x in samples[name])))
+        native_order = ["protocol", "device", "index", "point", "unit", "driver_instance"]
+        if name.startswith("helianthus_native_") and labels:
+            assert labels == sorted(native_order), name
+            labels = native_order
+        row["labels"] = labels
     for field, name in analysis["Fields"].items():
         assert name not in families
         families[name] = dict(type="gauge", source="internal/semanticmetrics/metrics.go", labels=["slot", "unit"] if field in {"thermal.measurement.air_temperature", "thermal.setpoint.temperature_setpoint"} else ["slot"], field=field)
@@ -115,7 +123,7 @@ def semantic_fact_base_labels():
     assert call, "semanticFactLabels no longer builds labels with labelMap"
     keys = {literal(x) for x in split_top_level(call.group(1))[::2] if x.startswith('"')}
     keys |= set(re.findall(r'labels\["([a-z_]+)"\]\s*=', body))
-    assert {"domain", "pack", "fact_id", "dimension"} <= keys, "unexpected semanticFactLabels shape"
+    assert keys == {"pack", "fact", "resource", "resource_kind", "dimension", "connector"}, "unexpected semanticFactLabels shape"
     return keys
 
 
@@ -177,7 +185,7 @@ def sample_labels(expr, name):
         return base | {"qualification", "promotion", "quality", "availability", "freshness"}
     assert expr.startswith("semanticFactLabels("), f"uncovered label builder: {expr}"
     args = split_args(expr[len("semanticFactLabels("):-1])
-    return base | {literal(x) for x in args[4::2]}
+    return base | {literal(x) for x in args[2::2]}
 
 
 @pytest.fixture(scope="module")

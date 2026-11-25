@@ -1,4 +1,4 @@
-// Package semanticmetrics renders bounded semantic gauges without acquisition.
+// Package semanticmetrics renders semantic gauges without acquisition.
 package semanticmetrics
 
 import (
@@ -18,12 +18,15 @@ import (
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/projection"
 )
 
-// Binding is a configured resource/service/dimension tuple, never a label source.
-// The collector must persist assignments before publication, reserve retired slots
-// forever for its target, and revalidate the original registry after restart.
+// Binding is one durable slot. Its identity is the resource, the fact
+// definition and the qualifier values. Source, epoch, binding, generation,
+// service and asset are the provenance recorded at assignment, not identity.
+// The collector persists assignments before publication, keeps a retired slot
+// reserved for its target, and revalidates the stored registry after restart.
 type Binding struct {
 	Domain           string
 	Slot             int
+	ResourceID       semreg.ResourceID
 	AssetID          semreg.AssetID
 	SourceID         semreg.SourceID
 	SourceEpochID    semreg.SourceEpochID
@@ -36,11 +39,14 @@ type Binding struct {
 }
 
 // Registry carries an externally persisted registry's validation result. A
-// missing/corrupt registry must set Validated false; the renderer never allocates
-// or reuses slots. Configured availability remains zero until revalidation.
+// missing or corrupt registry sets Validated false; the renderer never
+// allocates or reuses slots. Configured availability remains zero until
+// revalidation. StoreError is the reason a store object could not be read.
+// It is not part of the stored document.
 type Registry struct {
-	Validated bool
-	Bindings  []Binding
+	Validated  bool
+	Bindings   []Binding
+	StoreError string `json:"-"`
 }
 
 // metric is one exported row. A thermal quantity row exports the registry
@@ -105,17 +111,13 @@ func Render(view semanticview.View, registry Registry) (string, error) {
 	bindings := append([]Binding(nil), registry.Bindings...)
 	slots, tuples := map[string]bool{}, map[string]bool{}
 	for _, b := range bindings {
-		if (b.Domain != "thermal" && b.Domain != "infrastructure") || b.Slot < 0 || b.Slot > 15 ||
-			b.AssetID.Validate() != nil || b.SourceID.Validate() != nil || b.SourceEpochID.Validate() != nil ||
+		if (b.Domain != "thermal" && b.Domain != "infrastructure") || b.Slot < 0 ||
+			b.ResourceID.Validate() != nil || b.AssetID.Validate() != nil || b.SourceID.Validate() != nil || b.SourceEpochID.Validate() != nil ||
 			b.BindingID.Validate() != nil || b.DriverGeneration.Validate() != nil || b.ServiceInstance.Validate() != nil || len(b.Fields) == 0 || len(b.Dimensions) != 1 {
 			return "", fmt.Errorf("invalid semantic metric binding")
 		}
 		slot := fmt.Sprintf("%s/%d", b.Domain, b.Slot)
-		tuple := b
-		tuple.Slot = 0
-		tuple.Fields = nil
-		tuple.Retired = false
-		raw, err := json.Marshal(tuple)
+		raw, err := json.Marshal(bindingIdentity(b))
 		if err != nil || slots[slot] || tuples[string(raw)] {
 			return "", fmt.Errorf("ambiguous semantic metric binding")
 		}
@@ -163,7 +165,7 @@ func Render(view semanticview.View, registry Registry) (string, error) {
 			if !configured {
 				continue
 			}
-			value, ok := sample(assets[b.AssetID], b, m, metadata)
+			value, ok := sample(metricAsset(assets, b), b, m, metadata)
 			ok = ok && registry.Validated && !b.Retired
 			available := 0
 			if ok {
@@ -225,6 +227,71 @@ func presentedCandidate(selections []semreg.Selection, key semreg.FactKey) (semr
 	return found[0], true
 }
 
+// bindingIdentity is the slot key: resource, fact definitions and qualifiers.
+// Provenance and the slot number are not part of it, and a retired slot keeps
+// the key so the series is not assigned again.
+func bindingIdentity(b Binding) Binding {
+	b.Slot = 0
+	b.Retired = false
+	b.AssetID = ""
+	b.SourceID = ""
+	b.SourceEpochID = ""
+	b.BindingID = ""
+	b.DriverGeneration = ""
+	b.ServiceInstance = ""
+	return b
+}
+
+// metricAsset returns the one asset whose current resource is the binding's
+// resource. A snapshot that carries no resources matches when its qualifier
+// text is that resource identifier and the snapshot itself carries that
+// qualifier, so a sibling asset of the same capture is not selected. Zero or
+// several matches select nothing. The captured snapshot is the one read.
+func metricAsset(assets map[semreg.AssetID]semanticview.Asset, b Binding) semanticview.Asset {
+	if b.ResourceID.Validate() != nil {
+		return semanticview.Asset{}
+	}
+	ids := make([]semreg.AssetID, 0, len(assets))
+	for id := range assets {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	var found semanticview.Asset
+	matches := 0
+	for _, id := range ids {
+		asset := assets[id]
+		if asset.UnavailableReason != "" || asset.Snapshot == nil || !metricAssetMatches(asset, b) {
+			continue
+		}
+		found = asset
+		matches++
+	}
+	if matches != 1 {
+		return semanticview.Asset{}
+	}
+	return found
+}
+
+func metricAssetMatches(asset semanticview.Asset, b Binding) bool {
+	if len(asset.Snapshot.Resources) > 0 {
+		for _, resource := range asset.Snapshot.Resources {
+			if resource.ResourceID == b.ResourceID && resource.State == semreg.ResourceCurrent {
+				return true
+			}
+		}
+		return false
+	}
+	if len(b.Dimensions) != 1 || b.Dimensions[0].Value.Text == nil || *b.Dimensions[0].Value.Text != string(b.ResourceID) {
+		return false
+	}
+	for _, fact := range asset.Snapshot.Facts {
+		if reflect.DeepEqual(fact.Key.Dimensions, b.Dimensions) {
+			return true
+		}
+	}
+	return false
+}
+
 func sample(a semanticview.Asset, b Binding, m metric, metadata *semreg.PackMetadataRegistry) (float64, bool) {
 	if a.UnavailableReason != "" || a.Snapshot == nil || a.Evaluation == nil || !projectionExact(a, projection.ItemFact, m.field) {
 		return 0, false
@@ -232,12 +299,12 @@ func sample(a semanticview.Asset, b Binding, m metric, metadata *semreg.PackMeta
 	s, e := a.Snapshot, a.Evaluation
 	sourceOK, bindingOK := false, false
 	for _, source := range s.Sources {
-		if source.SourceID == b.SourceID && source.SourceEpochID == b.SourceEpochID && source.State == semreg.SourceCurrent {
+		if source.State == semreg.SourceCurrent {
 			sourceOK = true
 		}
 	}
 	for _, binding := range s.Bindings {
-		if binding.BindingID == b.BindingID && binding.AssetID == b.AssetID && binding.SourceID == b.SourceID && binding.SourceEpochID == b.SourceEpochID && binding.DriverGeneration == b.DriverGeneration && binding.State == semreg.BindingCurrent {
+		if binding.State == semreg.BindingCurrent {
 			bindingOK = true
 		}
 	}
@@ -252,11 +319,11 @@ func sample(a semanticview.Asset, b Binding, m metric, metadata *semreg.PackMeta
 
 	serviceOK := false
 	for _, service := range s.Services {
-		if service.InstanceID != b.ServiceInstance || service.BindingID != b.BindingID || service.SourceEpochID != b.SourceEpochID || service.DriverGeneration != b.DriverGeneration || service.Qualification != semreg.QualificationQualified || service.Availability != semreg.AvailabilityAvailable {
+		if service.Qualification != semreg.QualificationQualified || service.Availability != semreg.AvailabilityAvailable {
 			continue
 		}
 		for _, cap := range s.Capabilities {
-			if cap.ServiceInstance == service.InstanceID && cap.BindingID == b.BindingID && cap.SourceEpochID == b.SourceEpochID && cap.DriverGeneration == b.DriverGeneration && cap.Qualification == semreg.QualificationQualified && cap.Availability == semreg.AvailabilityAvailable && service.Definition.Pack == pack && metadata.FieldMatches(field, service.Definition, cap.Definition) && strings.HasPrefix(string(cap.Definition.ID), b.Domain+".capability.read.") && projectionExact(a, projection.ItemCapability, cap.Definition.ID) {
+			if cap.ServiceInstance == service.InstanceID && cap.Qualification == semreg.QualificationQualified && cap.Availability == semreg.AvailabilityAvailable && service.Definition.Pack == pack && metadata.FieldMatches(field, service.Definition, cap.Definition) && strings.HasPrefix(string(cap.Definition.ID), b.Domain+".capability.read.") && projectionExact(a, projection.ItemCapability, cap.Definition.ID) {
 				serviceOK = true
 			}
 		}
@@ -275,10 +342,7 @@ func sample(a semanticview.Asset, b Binding, m metric, metadata *semreg.PackMeta
 		c := fact.Candidates[0]
 		if len(fact.Candidates) > 1 {
 			// Candidates of several sources: the slot renders only the candidate
-			// named by the view's one presentation selection for this key. The
-			// gateway's presentation policy made that choice and the view
-			// validated it against this snapshot and evaluation; the checks below
-			// still require it to be the slot's own binding.
+			// named by the view's one presentation selection for this key.
 			selected, ok := presentedCandidate(a.Selections, key)
 			if !ok {
 				return 0, false
@@ -293,7 +357,7 @@ func sample(a semanticview.Asset, b Binding, m metric, metadata *semreg.PackMeta
 				return 0, false
 			}
 		}
-		if c.BindingID == nil || *c.BindingID != b.BindingID || c.SourceEpochID == nil || *c.SourceEpochID != b.SourceEpochID || c.DriverGeneration == nil || *c.DriverGeneration != b.DriverGeneration || c.Value == nil || c.Quality.Qualification != semreg.QualificationQualified || c.Quality.Promotion != semreg.PromotionPromoted || c.Quality.Validity != semreg.ValidityGood {
+		if c.Value == nil || c.Quality.Qualification != semreg.QualificationQualified || c.Quality.Promotion != semreg.PromotionPromoted || c.Quality.Validity != semreg.ValidityGood {
 			return 0, false
 		}
 		fresh := false
