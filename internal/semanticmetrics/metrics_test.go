@@ -146,7 +146,7 @@ func m36Fixture(t *testing.T, field string, value semreg.Value) (semreg.Snapshot
 	binding := s.Bindings[0]
 	s.Services = []semreg.ServiceInstance{{InstanceID: serviceID, AssetID: s.AssetID, Definition: ref(serviceName), BindingID: binding.BindingID, SourceEpochID: binding.SourceEpochID, DriverGeneration: binding.DriverGeneration, Qualification: semreg.QualificationQualified, Availability: semreg.AvailabilityAvailable, Revision: "1"}}
 	s.Capabilities = []semreg.CapabilityInstance{{InstanceID: "capability:synthetic", AssetID: s.AssetID, ServiceInstance: serviceID, Definition: ref(capName), BindingID: binding.BindingID, SourceEpochID: binding.SourceEpochID, DriverGeneration: binding.DriverGeneration, Qualification: semreg.QualificationQualified, Availability: semreg.AvailabilityAvailable, Constraints: []semreg.TypedField{}, ActivationEvidence: []semreg.EvidenceRef{binding.NativeResource}, Revision: "1"}}
-	r := Registry{Validated: true, Bindings: []Binding{{Domain: domain, Slot: 0, AssetID: s.AssetID, SourceID: binding.SourceID, SourceEpochID: binding.SourceEpochID, BindingID: binding.BindingID, DriverGeneration: binding.DriverGeneration, ServiceInstance: serviceID, Dimensions: key.Dimensions, Fields: []semreg.DefinitionID{f.Ref.ID}}}}
+	r := Registry{Validated: true, Bindings: []Binding{{Domain: domain, Slot: 0, ResourceID: semreg.ResourceID(dim), AssetID: s.AssetID, SourceID: binding.SourceID, SourceEpochID: binding.SourceEpochID, BindingID: binding.BindingID, DriverGeneration: binding.DriverGeneration, ServiceInstance: serviceID, Dimensions: key.Dimensions, Fields: []semreg.DefinitionID{f.Ref.ID}}}}
 	return s, r
 }
 
@@ -237,6 +237,9 @@ func TestM36Quantities(t *testing.T) {
 			}
 			if !strings.Contains(text, fmt.Sprintf("%s{%s} %s\n", tt.name, labels, tt.want)) || !strings.Contains(text, "# TYPE "+tt.name+" gauge\n") || !strings.Contains(text, "# HELP "+tt.name+" "+tt.field+" (") || !m36Available(text, r.Bindings[0], semreg.DefinitionID(tt.field), 1) {
 				t.Fatal(text)
+			}
+			if strings.Contains(text, "helianthus_thermal_dhw_setpoint_celsius") || strings.Contains(text, "helianthus_thermal_water_temperature_celsius") {
+				t.Fatalf("stale public-only row emitted:\n%s", text)
 			}
 			if text != m36Render(t, v, r) || !reflect.DeepEqual(before, m36JSON(t, v)) {
 				t.Fatal("nondeterministic or mutating render")
@@ -351,10 +354,25 @@ func TestM36Unavailable(t *testing.T) {
 }
 
 func TestM36BindingIdentity(t *testing.T) {
-	changes := map[string]func(*Binding){
+	// Provenance is not the slot identity: a new source epoch still exports.
+	provenance := map[string]func(*Binding){
 		"asset": func(b *Binding) { b.AssetID = "asset:other" }, "source": func(b *Binding) { b.SourceID = "source:other" },
 		"epoch": func(b *Binding) { b.SourceEpochID = "epoch:other" }, "native_binding": func(b *Binding) { b.BindingID = "binding:other" },
 		"generation": func(b *Binding) { b.DriverGeneration = "2" }, "service": func(b *Binding) { b.ServiceInstance = "service:other" },
+	}
+	for name, change := range provenance {
+		t.Run(name, func(t *testing.T) {
+			s, r := m36Fixture(t, "infrastructure.ac.voltage", m36Quantity("230", "unit.volt"))
+			v := m36View(t, s)
+			change(&r.Bindings[0])
+			text := m36Render(t, v, r)
+			if !m36Available(text, r.Bindings[0], r.Bindings[0].Fields[0], 1) || !strings.Contains(text, "helianthus_infrastructure_ac_voltage_volts{slot=\"0\"} 230") {
+				t.Fatal(text)
+			}
+		})
+	}
+	identity := map[string]func(*Binding){
+		"resource":        func(b *Binding) { b.ResourceID = "resource:other" },
 		"dimension_id":    func(b *Binding) { b.Dimensions[0].ID = "infrastructure.dimension.meter" },
 		"dimension_value": func(b *Binding) { value := "other"; b.Dimensions[0].Value.Text = &value },
 		"field":           func(b *Binding) { b.Fields[0] = "infrastructure.ac.current" },
@@ -363,7 +381,7 @@ func TestM36BindingIdentity(t *testing.T) {
 			b.Fields = []semreg.DefinitionID{"thermal.measurement.thermal_power"}
 		},
 	}
-	for name, change := range changes {
+	for name, change := range identity {
 		t.Run(name, func(t *testing.T) {
 			s, r := m36Fixture(t, "infrastructure.ac.voltage", m36Quantity("230", "unit.volt"))
 			v := m36View(t, s)
@@ -446,11 +464,13 @@ func TestM36Cardinality(t *testing.T) {
 	if !m36Available(text, r.Bindings[0], r.Bindings[0].Fields[0], 1) || strings.Contains(text, "opaque") {
 		t.Fatal(text)
 	}
-	for _, slot := range []int{-1, 16} {
-		r.Bindings[0].Slot = slot
-		if _, err := Render(v, r); err == nil {
-			t.Fatal("invalid slot accepted")
-		}
+	r.Bindings[0].Slot = -1
+	if _, err := Render(v, r); err == nil {
+		t.Fatal("negative slot accepted")
+	}
+	r.Bindings[0].Slot = 16
+	if text, err := Render(v, r); err != nil || !strings.Contains(text, "helianthus_infrastructure_ac_voltage_volts{slot=\"16\"} 230") {
+		t.Fatalf("slot 16: %v\n%s", err, text)
 	}
 	r.Bindings[0].Slot = 0
 	r.Bindings = append(r.Bindings, r.Bindings[0])
@@ -689,10 +709,10 @@ func m36SelectedView(t *testing.T, s semreg.Snapshot, picks ...m36Pick) semantic
 
 // TestM36TwoSourceSelection: with a second source's candidate on the slot's
 // key, the slot exports the candidate named by the view's one presentation
-// selection of that key instead of dropping the fact. It withholds the field
-// without a selection, with two selections, when the selection names another
-// binding, when the named candidate is not exportable, and when the key is
-// conflicted.
+// selection of that key. The stored source path is provenance, not a pin, so
+// a selection that names the contributor still exports that candidate. The
+// field stays withheld without a selection, with two selections, when the
+// named candidate is not exportable, and when the key is conflicted.
 func TestM36TwoSourceSelection(t *testing.T) {
 	const slot, contributor = semreg.CandidateID("candidate:test"), semreg.CandidateID("candidate:test-contributor")
 	owner := func(id semreg.CandidateID) m36Pick { return m36Pick{policy: "policy:test-owner-first", candidate: id} }
@@ -709,8 +729,8 @@ func TestM36TwoSourceSelection(t *testing.T) {
 		{name: "no selection", value: "230", promote: [2]bool{true, true}, available: 0},
 		// Two selections of one key under different policies are ambiguous.
 		{name: "two selections", value: "230", promote: [2]bool{true, true}, picks: []m36Pick{owner(slot), {policy: "policy:test-other", candidate: slot}}, available: 0},
-		// The slot's binding does not pin the contributor's candidate.
-		{name: "selected contributor candidate", value: "230", promote: [2]bool{true, true}, picks: []m36Pick{owner(contributor)}, available: 0},
+		// Provenance does not pin the slot: the selected contributor is the value.
+		{name: "selected contributor candidate", value: "230", promote: [2]bool{true, true}, picks: []m36Pick{owner(contributor)}, available: 1},
 		// The selected candidate still passes every per-candidate check.
 		{name: "selected slot candidate unpromoted", value: "231", promote: [2]bool{false, true}, picks: []m36Pick{owner(slot)}, available: 0},
 		{name: "contributor unpromoted", value: "231", promote: [2]bool{true, false}, picks: []m36Pick{owner(slot)}, available: 1},

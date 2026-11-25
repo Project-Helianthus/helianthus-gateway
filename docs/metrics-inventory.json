@@ -1005,6 +1005,285 @@
       "type": "gauge"
     },
     {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_temperature",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "kelvin"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_temperature_difference",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "kelvin"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_pressure",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "pascals"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_volume_flow",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "cubic_meters_per_second"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_energy",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "joules"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_power",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "watts"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_time",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "seconds"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_ratio",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "ratio"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_count",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "count"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_rotational_speed",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "hertz"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_frequency",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "hertz"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_current",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "amperes"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_voltage",
+      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge",
+      "constant_unit": "volts"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [
+        "protocol",
+        "device",
+        "index",
+        "point",
+        "unit",
+        "driver_instance"
+      ],
+      "name": "helianthus_native_point_age",
+      "omission": "HELP and TYPE always. A sample requires a held nonnegative age. A stale point emits its age and no value.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [
+        "held"
+      ],
+      "type": "gauge",
+      "constant_unit": "seconds"
+    },
+    {
+      "enablement": "Driver namespace observations are retained for the scrape.",
+      "labels": [],
+      "name": "helianthus_native_render_overflow",
+      "omission": "HELP, TYPE and the omitted value-series count are always present. Zero means none were omitted.",
+      "owner_page": "docs/observability/semantic-prometheus-coverage.md",
+      "production": "Always composed on the scrape route, with no switch.",
+      "source": "semantic_prometheus_native.go",
+      "source_guards": [],
+      "type": "gauge"
+    },
+    {
       "enablement": "Rollout snapshot provider is non-nil.",
       "labels": [],
       "name": "helianthus_payload_aa_auto_syn_absorbed_total",
@@ -1061,9 +1340,10 @@
       "labels": [
         "connector",
         "dimension",
-        "domain",
-        "fact_id",
+        "fact",
         "pack",
+        "resource",
+        "resource_kind",
         "unit"
       ],
       "name": "helianthus_semantic_evidence_age",
@@ -1083,13 +1363,14 @@
         "availability",
         "connector",
         "dimension",
-        "domain",
-        "fact_id",
+        "fact",
         "freshness",
         "pack",
         "promotion",
         "qualification",
-        "quality"
+        "quality",
+        "resource",
+        "resource_kind"
       ],
       "name": "helianthus_semantic_fact_state",
       "omission": "Metadata always with provider; samples require matching keys, known evaluation/state vocabulary, schema and dimensions. This state can describe unqualified facts.",
@@ -1104,19 +1385,18 @@
       "labels": [
         "connector",
         "dimension",
-        "domain",
-        "fact_id",
+        "fact",
         "pack",
+        "resource",
+        "resource_kind",
         "unit"
       ],
       "name": "helianthus_semantic_fact_value",
-      "omission": "Metadata always with provider; values require exact/transformed disposition, one conflict-free qualified/promoted/good, available/fresh candidate and valid numeric conversion. Otherwise omit, never fabricate zero.",
+      "omission": "Metadata always with provider; values require one conflict-free qualified/promoted/good, available/fresh candidate and valid numeric conversion. Otherwise omit, never fabricate zero.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Provider installed when Modbus TCP, storage RS485 or EVSE Prometheus is enabled; individual domains follow their configuration.",
       "source": "semantic_prometheus.go",
-      "source_guards": [
-        "ok"
-      ],
+      "source_guards": [],
       "type": "gauge"
     },
     {
@@ -1138,9 +1418,10 @@
       "labels": [
         "connector",
         "dimension",
-        "domain",
-        "fact_id",
-        "pack"
+        "fact",
+        "pack",
+        "resource",
+        "resource_kind"
       ],
       "name": "helianthus_semantic_open_conflicts",
       "omission": "Metadata always with provider; selected fact state required; zero means no open conflicts in that envelope.",
@@ -1175,7 +1456,9 @@
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Provider installed when Modbus TCP, storage RS485 or EVSE Prometheus is enabled; individual domains follow their configuration.",
       "source": "semantic_prometheus.go",
-      "source_guards": [],
+      "source_guards": [
+        "projectionOK"
+      ],
       "type": "gauge"
     },
     {
@@ -1191,6 +1474,7 @@
       "production": "Provider installed when Modbus TCP, storage RS485 or EVSE Prometheus is enabled; individual domains follow their configuration.",
       "source": "semantic_prometheus.go",
       "source_guards": [
+        "projectionOK",
         "validLoss(string(loss.Kind))"
       ],
       "type": "gauge"
@@ -1199,7 +1483,7 @@
       "enablement": "Detached semantic domain provider is non-nil.",
       "labels": [],
       "name": "helianthus_semantic_render_overflow",
-      "omission": "Metadata always with provider; sample only when invalid input, duplicates or the fixed 192-series budget cause overflow; no sample for zero.",
+      "omission": "Metadata always with provider; sample only when invalid input or a duplicate series is withheld; no sample for zero.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Provider installed when Modbus TCP, storage RS485 or EVSE Prometheus is enabled; individual domains follow their configuration.",
       "source": "semantic_prometheus.go",
@@ -1520,11 +1804,11 @@
     "cmd/gateway/semantic_metrics_runtime.go:newGatewayMetricsHandler": [
       "huaweiWireCounters.text",
       "io.WriteString",
-      "semantic.text",
+      "semantic.sections",
       "store.MetricsHandler",
       "transport.ServeHTTP"
     ],
-    "cmd/gateway/semantic_metrics_runtime.go:text": [
+    "cmd/gateway/semantic_metrics_runtime.go:sections": [
       "semanticmetrics.Render"
     ],
     "internal/semanticmetrics/metrics.go:Render": [

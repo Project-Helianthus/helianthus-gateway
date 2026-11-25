@@ -104,14 +104,14 @@ func (s *SlotFileStore) openData() (*os.File, error) {
 	}
 	f := os.NewFile(uintptr(fd), s.name+".json")
 	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() > o21MaxBytes {
+	if err != nil || !info.Mode().IsRegular() {
 		_ = f.Close()
-		return nil, fmt.Errorf("invalid or oversized slot file")
+		return nil, fmt.Errorf("invalid slot file")
 	}
 	return f, nil
 }
 
-// Load returns a bounded detached document; only a missing document yields
+// Load returns a detached document; only a missing document yields
 // fs.ErrNotExist. Closed, uncertain and unfenced adapters reject all operations.
 func (s *SlotFileStore) Load(target string) ([]byte, error) {
 	s.mu.Lock()
@@ -132,16 +132,13 @@ func (s *SlotFileStore) Load(target string) ([]byte, error) {
 		}
 		return nil, err
 	}
-	raw, err := io.ReadAll(io.LimitReader(f, o21MaxBytes+1))
+	raw, err := io.ReadAll(f)
 	closeErr := f.Close()
 	if err != nil {
 		return nil, err
 	}
 	if closeErr != nil {
 		return nil, closeErr
-	}
-	if len(raw) > o21MaxBytes {
-		return nil, fmt.Errorf("slot file too large")
 	}
 	if err := s.check(target); err != nil {
 		return nil, err
@@ -158,16 +155,13 @@ func (s *SlotFileStore) step(operation string, action func() error) error {
 	return action()
 }
 
-// Commit replaces a whole bounded document. Every commit failure latches
+// Commit replaces a whole document. Every commit failure latches
 // uncertainty, even when the previous file may still be intact.
 func (s *SlotFileStore) Commit(target string, document []byte) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err = s.check(target); err != nil {
 		return err
-	}
-	if len(document) > o21MaxBytes {
-		return fmt.Errorf("slot file too large")
 	}
 	defer func() {
 		if err != nil {

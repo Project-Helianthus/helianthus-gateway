@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,22 +9,37 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
+	"time"
 
 	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticmetrics"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/tree"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 
-// gatewaySemanticMetricRegistry is the production Thermal and Infrastructure
-// binding registry of the scrape route. The coverage contract requires every
-// slot assignment to be durably persisted before publication and retired slots
-// to stay reserved for the scrape target. No such store exists yet, so the
-// production route configures no binding: it declares the availability family
-// without samples and never captures.
-func gatewaySemanticMetricRegistry() semanticmetrics.Registry {
-	return semanticmetrics.Registry{}
+// gatewaySemanticMetricTarget is the scrape target of the metric store. The
+// store location is supplied by the caller. This row does not choose a default
+// path and does not add a flag.
+const gatewaySemanticMetricTarget = "gateway-semantic-metrics"
+
+// gatewaySemanticMetricRegistry is the production binding registry of the
+// scrape route. With no store location it declares the availability family
+// and does not capture. With a location it creates the store when absent and
+// reopens it when present, with the persisted assignments validated again. A
+// scrape only reads the registry this returns.
+func gatewaySemanticMetricRegistry(storePath ...string) semanticmetrics.Registry {
+	if len(storePath) == 0 || storePath[0] == "" {
+		return semanticmetrics.Registry{}
+	}
+	registry, err := composeGatewaySemanticStore(storePath[0], nil, false)
+	if err != nil {
+		log.Printf("semantic metric store: %s", err.Error())
+		return semanticmetrics.Registry{StoreError: err.Error(), StoreDirectory: storePath[0]}
+	}
+	return registry
 }
 
 // gatewaySemanticMetrics renders the configured semantic families of the
@@ -32,14 +48,19 @@ func gatewaySemanticMetricRegistry() semanticmetrics.Registry {
 // never acquires native data, publishes or touches the transport store.
 type gatewaySemanticMetrics struct {
 	provider *hubSemanticSnapshotProvider
+	// native are observations the caller holds beside the namespace tree.
+	native  []ebusgateway.NativeObservation
+	domains []ebusgateway.SemanticMetricsDomain
+	now     func() time.Time
+	logf    func(string, ...any)
+	// tree holds the retained namespace members of the drivers.
+	tree *tree.Tree
+
+	mu       sync.Mutex
 	registry semanticmetrics.Registry
 	// assets are the distinct assets of the bindings that can still export a
-	// value, in bytewise order. Validation bounds a registry to 16 slots per
-	// domain, so the selection never exceeds the capture bound of 32 assets.
-	assets []semreg.AssetID
-	logf   func(string, ...any)
-
-	mu          sync.Mutex
+	// value, in bytewise order.
+	assets      []semreg.AssetID
 	lastFailure string
 }
 
@@ -50,20 +71,35 @@ func newGatewaySemanticMetrics(provider *hubSemanticSnapshotProvider, registry s
 	if _, err := semanticmetrics.Render(semanticview.View{}, registry); err != nil {
 		return nil, fmt.Errorf("semantic metric registry: %w", err)
 	}
-	metrics := &gatewaySemanticMetrics{provider: provider, registry: registry, logf: log.Printf}
-	// An unvalidated registry or a retired slot withholds the value whatever
-	// the capture holds, so neither needs a hub read.
+	metrics := &gatewaySemanticMetrics{provider: provider, logf: log.Printf, now: time.Now}
+	metrics.adopt(registry)
+	return metrics, nil
+}
+
+// adopt installs the registry the scrape reads. An unvalidated registry or a
+// retired slot withholds the value whatever the capture holds, so neither
+// needs a hub read.
+func (m *gatewaySemanticMetrics) adopt(registry semanticmetrics.Registry) {
+	var assets []semreg.AssetID
 	if registry.Validated {
 		seen := map[semreg.AssetID]bool{}
 		for _, binding := range registry.Bindings {
 			if !binding.Retired && !seen[binding.AssetID] {
 				seen[binding.AssetID] = true
-				metrics.assets = append(metrics.assets, binding.AssetID)
+				assets = append(assets, binding.AssetID)
 			}
 		}
-		sort.Slice(metrics.assets, func(i, j int) bool { return metrics.assets[i] < metrics.assets[j] })
+		sort.Slice(assets, func(i, j int) bool { return assets[i] < assets[j] })
 	}
-	return metrics, nil
+	m.mu.Lock()
+	m.registry, m.assets = registry, assets
+	m.mu.Unlock()
+}
+
+func (m *gatewaySemanticMetrics) configured() (semanticmetrics.Registry, []semreg.AssetID) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.registry, append([]semreg.AssetID(nil), m.assets...)
 }
 
 // text renders every configured field from one coherent capture. A failed
@@ -71,22 +107,71 @@ func newGatewaySemanticMetrics(provider *hubSemanticSnapshotProvider, registry s
 // availability 0 and no other read path is tried. Text is empty only when the
 // renderer itself fails, which omits the semantic section from that scrape.
 func (m *gatewaySemanticMetrics) text(ctx context.Context) string {
+	slots, cut, native := m.sections(ctx)
+	return slots + cut + native
+}
+
+// sections splits one scrape into slot text, per-fact text and native text.
+// The per-fact text is the served cut plus any domains the caller attached.
+// The slot view and the served cut are read from the same capture.
+func (m *gatewaySemanticMetrics) sections(ctx context.Context) (string, string, string) {
+	registry, assets := m.configured()
 	view := semanticview.View{}
 	var failure error
-	if len(m.assets) > 0 {
-		metadata, inputs, err := m.provider.Capture(ctx, m.assets)
+	var served []ebusgateway.SemanticMetricsDomain
+	if ids := m.provider.captureIDs(assets); len(ids) > 0 {
+		metadata, inputs, err := m.provider.Capture(ctx, ids)
 		if err != nil {
 			failure = fmt.Errorf("capture: %w", err)
-		} else if view, err = semanticview.Build(metadata, inputs); err != nil {
-			view, failure = semanticview.View{}, fmt.Errorf("view: %w", err)
+		} else {
+			served = m.provider.servedDomains(inputs)
+			if len(assets) > 0 {
+				if view, err = semanticview.Build(metadata, inputsOfAssets(inputs, assets)); err != nil {
+					view, failure = semanticview.View{}, fmt.Errorf("view: %w", err)
+				}
+			}
 		}
 	}
-	text, err := semanticmetrics.Render(view, m.registry)
+	text, err := semanticmetrics.Render(view, registry)
 	if err != nil {
 		text, failure = "", fmt.Errorf("render: %w", err)
 	}
+	if registry.StoreError != "" {
+		reason := strings.ReplaceAll(strings.ReplaceAll(registry.StoreError, "\n", " "), "\r", " ")
+		failure = errors.Join(failure, errors.New(reason))
+		text = "# semantic metric store: " + reason + "\n" + text
+	}
+	now := time.Now
+	if m.now != nil {
+		now = m.now
+	}
+	at := now()
+	domains := append(served, m.domains...)
+	cut := ""
+	if len(domains) > 0 {
+		cut = ebusgateway.RenderSemanticPrometheus(domains, at)
+	}
+	retained, err := m.namespaceObservations(ctx, at)
+	failure = errors.Join(failure, err)
+	native := ebusgateway.RenderNativePrometheus(append(append([]ebusgateway.NativeObservation{}, m.native...), retained...))
 	m.note(failure)
-	return text
+	return text, cut, native
+}
+
+// inputsOfAssets keeps the captured inputs of the configured assets, in
+// capture order.
+func inputsOfAssets(inputs []semanticview.Input, assets []semreg.AssetID) []semanticview.Input {
+	wanted := make(map[semreg.AssetID]bool, len(assets))
+	for _, id := range assets {
+		wanted[id] = true
+	}
+	out := make([]semanticview.Input, 0, len(assets))
+	for _, input := range inputs {
+		if wanted[input.AssetID] {
+			out = append(out, input)
+		}
+	}
+	return out
 }
 
 // note logs a failure once when it begins or changes, so a scrape interval
@@ -119,11 +204,102 @@ func newGatewayMetricsHandler(store *ebusgateway.BusObservabilityStore, semantic
 		return nil
 	}
 	transport := store.MetricsHandler()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(out http.ResponseWriter, r *http.Request) {
+		capture := &metricsResponseCapture{header: make(http.Header)}
+		var w http.ResponseWriter = capture
 		transport.ServeHTTP(w, r)
+		w = out
+		body := capture.body.String()
+		extra := huaweiWireCounters.text()
 		if semantic != nil {
-			_, _ = io.WriteString(w, semantic.text(r.Context()))
+			slots, cut, native := semantic.sections(r.Context())
+			body, cut = mergeServedCut(body, cut)
+			extra = slots + cut + native + extra
 		}
-		_, _ = io.WriteString(w, huaweiWireCounters.text())
+		for key, values := range capture.header {
+			if key == "Content-Length" {
+				continue
+			}
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+		code := capture.code
+		if code == 0 {
+			code = http.StatusOK
+		}
+		w.WriteHeader(code)
+		_, _ = io.WriteString(w, body)
+		_, _ = io.WriteString(w, extra)
 	})
+}
+
+// metricsResponseCapture records one transport exposition so the semantic
+// section can follow it without a second declaration of the same family.
+type metricsResponseCapture struct {
+	header http.Header
+	code   int
+	body   bytes.Buffer
+}
+
+func (c *metricsResponseCapture) Header() http.Header { return c.header }
+
+func (c *metricsResponseCapture) WriteHeader(code int) {
+	if c.code == 0 {
+		c.code = code
+	}
+}
+
+func (c *metricsResponseCapture) Write(p []byte) (int, error) {
+	if c.code == 0 {
+		c.code = http.StatusOK
+	}
+	return c.body.Write(p)
+}
+
+// mergeServedCut keeps one declaration of the per-fact families. Samples the
+// transport exposition does not already carry are inserted with that
+// declaration. A transport exposition without one returns the cut unchanged.
+func mergeServedCut(body, cut string) (string, string) {
+	if cut == "" || !strings.Contains(body, "# TYPE helianthus_semantic_fact_value ") {
+		return body, cut
+	}
+	have := map[string]struct{}{}
+	for _, line := range strings.Split(body, "\n") {
+		have[line] = struct{}{}
+	}
+	var novel []string
+	for _, line := range strings.Split(cut, "\n") {
+		if line == "" || strings.HasPrefix(line, "# ") {
+			continue
+		}
+		if _, ok := have[line]; ok {
+			continue
+		}
+		novel = append(novel, line)
+	}
+	if len(novel) == 0 {
+		return body, ""
+	}
+	return insertSemanticSamples(body, novel), ""
+}
+
+func insertSemanticSamples(body string, samples []string) string {
+	lines := strings.Split(body, "\n")
+	end := 0
+	for _, line := range lines {
+		if line == "" || strings.HasPrefix(line, "# HELP helianthus_semantic_") || strings.HasPrefix(line, "# TYPE helianthus_semantic_") || strings.HasPrefix(line, "helianthus_semantic_") {
+			end++
+			continue
+		}
+		break
+	}
+	if end == 0 {
+		return body
+	}
+	out := make([]string, 0, len(lines)+len(samples))
+	out = append(out, lines[:end]...)
+	out = append(out, samples...)
+	out = append(out, lines[end:]...)
+	return strings.Join(out, "\n")
 }
