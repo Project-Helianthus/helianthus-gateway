@@ -290,7 +290,7 @@ func TestM09FivePacksHandler(t *testing.T) {
 	if p.calls != 2 {
 		t.Fatalf("captures %d want 2", p.calls)
 	}
-	if len(want.Assets[0].Availability.Packs) != 5 {
+	if want.Assets[0].Snapshot == nil || len(want.Assets[0].Snapshot.Facts) != 5 || len(want.Assets[0].Snapshot.Capabilities) != 5 {
 		t.Fatal("fixture lacks five packs")
 	}
 }

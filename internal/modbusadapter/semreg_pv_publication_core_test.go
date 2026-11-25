@@ -314,7 +314,7 @@ func TestPVPublicationCorePublishesGeneratedEnergyAndKeepsCompleteProjection(t *
 		t.Fatal(err)
 	}
 	words := observedFroniusFloatControlsWords()
-	pvCoreSetFloat(words, 30, 7_310) // native Wh, required public representation is exact kWh.
+	pvCoreSetFloat(words, 30, 7_310) // native Wh; the pack publishes 26_316_000 J.
 	draft := pvCoreDraft(t, words, "source-epoch:pv:test-a", 1, 2_000)
 	receipt, err := core.ingest(draft)
 	if err != nil {
@@ -342,8 +342,8 @@ func TestPVPublicationCorePublishesGeneratedEnergyAndKeepsCompleteProjection(t *
 			if candidate.Key.FactID != "pv.energy.generated" {
 				continue
 			}
-			if candidate.Value == nil || candidate.Value.Quantity == nil || candidate.Value.Quantity.Unit != "unit.kilowatt_hour" || candidate.Value.Quantity.Number.Coefficient != "731" || candidate.Value.Quantity.Number.Exponent10 != -2 {
-				t.Fatalf("generated energy transform=%+v; want exact 7.31 kWh", candidate.Value)
+			if candidate.Value == nil || candidate.Value.Quantity == nil || candidate.Value.Quantity.Unit != "unit.joule" || candidate.Value.Quantity.Number.Coefficient != "26316" || candidate.Value.Quantity.Number.Exponent10 != 3 {
+				t.Fatalf("generated energy transform=%+v; want exact 26316000 J", candidate.Value)
 			}
 		}
 	}
@@ -364,8 +364,8 @@ func TestPVPublicationCorePublishesCanonicalZeroGeneratedEnergy(t *testing.T) {
 		if candidate.Key.FactID != "pv.energy.generated" {
 			continue
 		}
-		if candidate.Value == nil || candidate.Value.Quantity == nil || candidate.Value.Quantity.Unit != "unit.kilowatt_hour" || candidate.Value.Quantity.Number.Coefficient != "0" || candidate.Value.Quantity.Number.Exponent10 != 0 {
-			t.Fatalf("zero generated energy=%+v; want canonical 0e0 kWh", candidate.Value)
+		if candidate.Value == nil || candidate.Value.Quantity == nil || candidate.Value.Quantity.Unit != "unit.joule" || candidate.Value.Quantity.Number.Coefficient != "0" || candidate.Value.Quantity.Number.Exponent10 != 0 {
+			t.Fatalf("zero generated energy=%+v; want canonical 0e0 J", candidate.Value)
 		}
 		return
 	}

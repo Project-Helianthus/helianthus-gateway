@@ -370,7 +370,7 @@ func m57PVFacts(generation uint64, late bool) []m57Fact {
 	if late {
 		power = m57Quantity(9999, "unit.watt")
 	}
-	return []m57Fact{{field: m57PowerField, value: power}, {field: m57TempField, value: m57Quantity(41, "unit.celsius"), withheld: true}}
+	return []m57Fact{{field: m57PowerField, value: power}, {field: m57TempField, value: semreg.Value{Kind: semreg.ValueQuantity, Quantity: &semreg.Quantity{Number: semreg.Decimal{Coefficient: "31415", Exponent10: -2}, Unit: "unit.kelvin"}}, withheld: true}}
 }
 
 func m57ThermalPublication() *m57Publication {

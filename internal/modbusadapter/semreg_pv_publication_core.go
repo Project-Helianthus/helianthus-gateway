@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"sort"
 	"strconv"
 	"strings"
@@ -245,8 +246,8 @@ var pvPublicationMappings = []pvMappingSpec{
 	{"inverter.ac.voltage.phase_c", "pv.ac.voltage", "pv.dimension.phase", "phase:L3", "unit.volt", "pv.telemetry.fast.v1", projection.ProjectionExact, "", ""},
 	{"inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter", "unit.watt", "pv.telemetry.fast.v1", projection.ProjectionExact, "", ""},
 	{"inverter.ac.frequency", "pv.ac.frequency", "pv.dimension.inverter", "inverter", "unit.hertz", "pv.telemetry.fast.v1", projection.ProjectionExact, "", ""},
-	{"inverter.ac.energy_lifetime", "pv.energy.generated", "pv.dimension.system", "system", "unit.kilowatt_hour", "pv.accumulator.v1", projection.ProjectionTransformed, projection.LossPolicy, "counter_continuity_unavailable; native baseline/reset/rollover/delta evidence remains native"},
-	{"inverter.temperature.cabinet", "pv.temperature.inverter", "pv.dimension.inverter", "inverter", "unit.celsius", "pv.telemetry.fast.v1", projection.ProjectionTransformed, projection.LossProvenance, "provenance: cabinet sensor specificity reduced to inverter"},
+	{"inverter.ac.energy_lifetime", "pv.energy.generated", "pv.dimension.system", "system", "unit.joule", "pv.accumulator.v1", projection.ProjectionTransformed, projection.LossPolicy, "counter_continuity_unavailable; native baseline/reset/rollover/delta evidence remains native"},
+	{"inverter.temperature.cabinet", "pv.temperature.inverter", "pv.dimension.inverter", "inverter", "unit.kelvin", "pv.telemetry.fast.v1", projection.ProjectionTransformed, projection.LossProvenance, "provenance: cabinet sensor specificity reduced to inverter"},
 	{"inverter.operating_state", "pv.status.operating", "pv.dimension.inverter", "inverter", "", "pv.status.v1", projection.ProjectionTransformed, projection.LossSymbol, "symbol: native MPPT mapped to generating"},
 	{"inverter.ac.current.total", "", "", "", "", "", projection.ProjectionWithheld, projection.LossProvenance, "provenance: aggregate current has no accepted semantic equivalence"},
 	{"inverter.events.1", "", "", "", "", "", projection.ProjectionWithheld, projection.LossProvenance, "provenance: event word has no accepted semantic mapping"},
@@ -427,13 +428,20 @@ func pvPublicationCandidate(native sunspec.CapabilityFact, mapping pvMappingSpec
 		if err != nil {
 			return semreg.FactCandidate{}, err
 		}
-		if mapping.nativeID == "inverter.ac.energy_lifetime" {
-			// SunSpec exposes this counter in Wh; the accepted PV pack publishes kWh.
-			// Canonical decimal zero always uses exponent 0, regardless of unit.
+		switch mapping.nativeID {
+		case "inverter.ac.energy_lifetime":
+			// SunSpec exposes this counter in watt-hour. The pack publishes joule:
+			// one watt-hour is 3600 joule. Canonical zero keeps exponent 0.
 			if decimal.Coefficient != "0" {
-				decimal.Exponent10 -= 3
+				decimal, err = pvMultiplyDecimal(decimal, 36, 2)
+				if err != nil {
+					return semreg.FactCandidate{}, err
+				}
 			}
-			if err := decimal.Validate(); err != nil {
+		case "inverter.temperature.cabinet":
+			// The cabinet reading is degree Celsius. The pack publishes kelvin.
+			decimal, err = pvCelsiusToKelvin(decimal)
+			if err != nil {
 				return semreg.FactCandidate{}, err
 			}
 		}
@@ -1662,6 +1670,73 @@ func pvCoreHash(domain string, payload []byte) string {
 func pvCoreRawHash(payload []byte) string {
 	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:])
+}
+
+// pvMultiplyDecimal scales a canonical decimal by multiplier * 10^exponentDelta
+// and strips trailing zeros. The exponent stays within the decimal bound.
+func pvMultiplyDecimal(d semreg.Decimal, multiplier int64, exponentDelta int32) (semreg.Decimal, error) {
+	if d.Coefficient == "0" {
+		return semreg.Decimal{Coefficient: "0", Exponent10: 0}, nil
+	}
+	coeff, ok := new(big.Int).SetString(d.Coefficient, 10)
+	if !ok {
+		return semreg.Decimal{}, &semreg.Error{ID: semreg.InvalidDecimal, Detail: "PV number"}
+	}
+	coeff.Mul(coeff, big.NewInt(multiplier))
+	exp := d.Exponent10 + exponentDelta
+	ten, rem := big.NewInt(10), new(big.Int)
+	for coeff.Sign() != 0 && exp < 18 {
+		next, rest := new(big.Int).QuoRem(coeff, ten, rem)
+		if rest.Sign() != 0 {
+			break
+		}
+		coeff, exp = next, exp+1
+	}
+	out := semreg.Decimal{Coefficient: coeff.String(), Exponent10: exp}
+	if err := out.Validate(); err != nil {
+		return semreg.Decimal{}, err
+	}
+	return out, nil
+}
+
+// pvCelsiusToKelvin adds 273.15 to a degree Celsius decimal. The sum is the
+// kelvin quantity the pack accepts, normalized like every other PV decimal.
+func pvCelsiusToKelvin(d semreg.Decimal) (semreg.Decimal, error) {
+	if d.Coefficient == "0" {
+		return semreg.Decimal{Coefficient: "27315", Exponent10: -2}, nil
+	}
+	coeff, ok := new(big.Int).SetString(d.Coefficient, 10)
+	if !ok {
+		return semreg.Decimal{}, &semreg.Error{ID: semreg.InvalidDecimal, Detail: "PV number"}
+	}
+	exp := d.Exponent10
+	pow10 := func(n int32) *big.Int {
+		if n <= 0 {
+			return big.NewInt(1)
+		}
+		return new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(n)), nil)
+	}
+	if exp > -2 {
+		coeff.Mul(coeff, pow10(exp+2))
+		exp = -2
+	}
+	coeff.Add(coeff, new(big.Int).Mul(big.NewInt(27315), pow10(-2-exp)))
+	ten, rem := big.NewInt(10), new(big.Int)
+	for coeff.Sign() != 0 && exp < 18 {
+		next, rest := new(big.Int).QuoRem(coeff, ten, rem)
+		if rest.Sign() != 0 {
+			break
+		}
+		coeff, exp = next, exp+1
+	}
+	if coeff.Sign() == 0 {
+		return semreg.Decimal{Coefficient: "0", Exponent10: 0}, nil
+	}
+	out := semreg.Decimal{Coefficient: coeff.String(), Exponent10: exp}
+	if err := out.Validate(); err != nil {
+		return semreg.Decimal{}, err
+	}
+	return out, nil
 }
 
 func pvCoreDecimal(number string) (semreg.Decimal, error) {

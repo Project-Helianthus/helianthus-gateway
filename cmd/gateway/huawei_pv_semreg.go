@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
 	"sort"
 	"strconv"
@@ -30,6 +31,34 @@ const huaweiPVPack semreg.DefinitionID = "helianthus.pack.pv"
 func huaweiAssetID(label, class string, unit byte) semreg.AssetID {
 	return semreg.AssetID(class + "-asset-" + huaweiHash("helianthus.modbus.asset.v1", label, class, strconv.Itoa(int(unit)))[:32])
 }
+
+// scaleDecimalBy scales a decimal by multiplier * 10^exponentDelta and
+// strips trailing zeros, keeping the exponent inside the decimal bound.
+func scaleDecimalBy(d semreg.Decimal, multiplier int64, exponentDelta int32) (semreg.Decimal, error) {
+	if d.Coefficient == "0" || d.Coefficient == "" {
+		return semreg.Decimal{Coefficient: "0", Exponent10: 0}, nil
+	}
+	coeff, ok := new(big.Int).SetString(d.Coefficient, 10)
+	if !ok {
+		return semreg.Decimal{}, errors.New("decimal coefficient")
+	}
+	coeff.Mul(coeff, big.NewInt(multiplier))
+	exp := d.Exponent10 + exponentDelta
+	ten, rem := big.NewInt(10), new(big.Int)
+	for coeff.Sign() != 0 && exp < 18 {
+		next, rest := new(big.Int).QuoRem(coeff, ten, rem)
+		if rest.Sign() != 0 {
+			break
+		}
+		coeff, exp = next, exp+1
+	}
+	out := semreg.Decimal{Coefficient: coeff.String(), Exponent10: exp}
+	if err := out.Validate(); err != nil {
+		return semreg.Decimal{}, err
+	}
+	return out, nil
+}
+
 func huaweiHash(fields ...string) string {
 	hash := sha256.New()
 	for _, field := range fields {
@@ -1016,7 +1045,13 @@ func (p *huaweiPVPublication) facts(graph huaweiPVGraph, binding, systemBinding 
 			}
 			id, dimension, group = "pv.status.operating", "pv.dimension.inverter", 32064
 		case "energy_accumulated":
-			id, dimension, unit, group = "pv.energy.generated", "pv.dimension.system", "unit.kilowatt_hour", 32106
+			// The register reading is kilowatt-hour. The pack publishes joule.
+			id, dimension, unit, group = "pv.energy.generated", "pv.dimension.system", "unit.joule", 32106
+			joule, scaleErr := scaleDecimalBy(number, 36, 5)
+			if scaleErr != nil {
+				return nil, scaleErr
+			}
+			number = joule
 		default:
 			continue
 		}

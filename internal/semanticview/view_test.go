@@ -241,16 +241,8 @@ func TestM08FivePacks(t *testing.T) {
 			if !bytes.Equal(m08JSON(t, *a.Snapshot), m08JSON(t, *in.Snapshot)) || !bytes.Equal(m08JSON(t, *a.Evaluation), m08JSON(t, e)) {
 				t.Fatalf("source changed snapshot=%v evaluation=%v", bytes.Equal(m08JSON(t, *a.Snapshot), m08JSON(t, *in.Snapshot)), bytes.Equal(m08JSON(t, *a.Evaluation), m08JSON(t, e)))
 			}
-			if len(a.Availability.Packs) != 5 {
-				t.Fatal("missing pack")
-			}
-			for _, pack := range a.Availability.Packs {
-				if len(pack.Facts) != 1 || len(pack.Capabilities) != 1 {
-					t.Fatal("lost pack records")
-				}
-				if !reflect.DeepEqual(pack.Facts[0].Envelope.Candidates[0].Value, in.Snapshot.Facts[indexOfFact(in.Snapshot.Facts, pack.Facts[0].Envelope.Key.FactID)].Candidates[0].Value) {
-					t.Fatal("exact value lost")
-				}
+			if len(a.Snapshot.Facts) != 5 || len(a.Snapshot.Capabilities) != 5 || len(a.Snapshot.Services) != 5 {
+				t.Fatal("lost pack records")
 			}
 			if a.Projection.SnapshotID != in.Snapshot.SnapshotID || a.Projection.Revisions != in.Snapshot.Revisions {
 				t.Fatal("projection identity changed")
@@ -323,15 +315,11 @@ func TestM08Detached(t *testing.T) {
 	a.Assets[0].Snapshot.Facts[0].Candidates[0].Value.Quantity.Number.Coefficient = "88"
 	a.Assets[0].Evaluation.Facts[0].Freshness = semreg.FreshnessUnknown
 	*a.Assets[0].Projection.Dispositions[len(a.Assets[0].Projection.Dispositions)-1].Reason = "reason.changed"
-	a.Assets[0].Availability.Packs[0].Facts[0].Envelope.Candidates[0].Value.Quantity.Number.Coefficient = "77"
 	if !bytes.Equal(baseline, m08JSON(t, b)) {
 		t.Fatal("responses alias")
 	}
-	if b.Assets[0].Availability.Packs[0].Facts[0].Envelope.Candidates[0].Value.Quantity.Number.Coefficient != "0" {
-		t.Fatal("availability aliases response")
-	}
 	if a.Assets[0].Snapshot.Facts[0].Candidates[0].Value.Quantity.Number.Coefficient != "88" {
-		t.Fatal("availability aliases source snapshot")
+		t.Fatal("snapshot aliases its candidate")
 	}
 }
 
@@ -421,20 +409,19 @@ func TestM08OrderingAndUnavailable(t *testing.T) {
 
 func TestM08FactKeyFields(t *testing.T) {
 	for _, tt := range []struct {
-		name              string
-		edit              func(*semreg.FactKey)
-		invalid           bool
-		availabilityFacts int
+		name     string
+		edit     func(*semreg.FactKey)
+		sameItem bool
 	}{
-		{"pack_id", func(k *semreg.FactKey) { k.PackID = "pack.synthetic.other" }, false, 1},
-		{"pack_version", func(k *semreg.FactKey) { k.PackVersion = "9.0.0" }, false, 1},
-		{"fact_id", func(k *semreg.FactKey) { k.FactID = "fact.synthetic.other" }, true, 0},
-		{"dimension_id", func(k *semreg.FactKey) { k.Dimensions[0].ID = "dimension.synthetic.other" }, true, 0},
-		{"dimension_value", func(k *semreg.FactKey) { *k.Dimensions[0].Value.Text = "another" }, false, 2},
+		{"pack_id", func(k *semreg.FactKey) { k.PackID = "pack.synthetic.other" }, true},
+		{"pack_version", func(k *semreg.FactKey) { k.PackVersion = "9.0.0" }, true},
+		{"fact_id", func(k *semreg.FactKey) { k.FactID = "fact.synthetic.other" }, false},
+		{"dimension_id", func(k *semreg.FactKey) { k.Dimensions[0].ID = "dimension.synthetic.other" }, true},
+		{"dimension_value", func(k *semreg.FactKey) { *k.Dimensions[0].Value.Text = "another" }, true},
 		{"dimension_value_kind", func(k *semreg.FactKey) {
 			value := false
 			k.Dimensions[0].Value = semreg.Value{Kind: semreg.ValueBoolean, Boolean: &value}
-		}, true, 0},
+		}, true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			in := m08Input(t)
@@ -459,32 +446,53 @@ func TestM08FactKeyFields(t *testing.T) {
 			e := m08Evaluate(t, *in.Snapshot)
 			in.Evaluation = &e
 			out, err := Build(m08Registry(t), []Input{in})
-			if tt.invalid {
-				if err == nil || !reflect.DeepEqual(out, View{}) {
-					t.Fatal("invalid pack key admitted")
-				}
-				return
-			}
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(out.Assets[0].Availability.Packs[0].Facts) != tt.availabilityFacts {
-				t.Fatal("inexact pack match or collapsed dimensions")
-			}
+			// The retired pack view refused a key outside its field index.
+			// A key the snapshot accepts stays its own source key.
+			seen := map[semreg.DefinitionID]projection.ProjectionDisposition{}
 			for _, d := range out.Assets[0].Projection.Dispositions {
-				if d.Kind == projection.ItemFact && d.ItemID == original.Key.FactID {
-					if len(d.SourceKeys) != 2 {
-						t.Fatal("projection collapsed a full key")
-					}
-					foundOriginal, foundExtra := false, false
-					for _, key := range d.SourceKeys {
-						foundOriginal = foundOriginal || reflect.DeepEqual(key, original.Key)
-						foundExtra = foundExtra || reflect.DeepEqual(key, extra.Key)
-					}
-					if !foundOriginal || !foundExtra {
-						t.Fatal("projection key changed")
-					}
+				if d.Kind == projection.ItemFact {
+					seen[d.ItemID] = d
 				}
+			}
+			originalDisposition, ok := seen[original.Key.FactID]
+			if !ok {
+				t.Fatal("original fact disposition missing")
+			}
+			extraDisposition, ok := seen[extra.Key.FactID]
+			if !ok {
+				t.Fatal("extra fact disposition missing")
+			}
+			keysOf := func(d projection.ProjectionDisposition) (bool, bool) {
+				foundOriginal, foundExtra := false, false
+				for _, key := range d.SourceKeys {
+					foundOriginal = foundOriginal || reflect.DeepEqual(key, original.Key)
+					foundExtra = foundExtra || reflect.DeepEqual(key, extra.Key)
+				}
+				return foundOriginal, foundExtra
+			}
+			if tt.sameItem {
+				if original.Key.FactID != extra.Key.FactID || len(originalDisposition.SourceKeys) != 2 {
+					t.Fatalf("source keys %d", len(originalDisposition.SourceKeys))
+				}
+				foundOriginal, foundExtra := keysOf(originalDisposition)
+				if !foundOriginal || !foundExtra {
+					t.Fatal("projection collapsed a full key")
+				}
+				return
+			}
+			if len(originalDisposition.SourceKeys) != 1 || len(extraDisposition.SourceKeys) != 1 {
+				t.Fatal("projection joined a different fact id")
+			}
+			foundOriginal, foundExtra := keysOf(originalDisposition)
+			if !foundOriginal || foundExtra {
+				t.Fatal("original disposition lost its key")
+			}
+			foundOriginal, foundExtra = keysOf(extraDisposition)
+			if foundOriginal || !foundExtra {
+				t.Fatal("extra disposition lost its key")
 			}
 		})
 	}
@@ -503,8 +511,7 @@ func TestM08PendingNormativeSourceAndExactNumbers(t *testing.T) {
 	e := m08Evaluate(t, *in.Snapshot)
 	in.Evaluation = &e
 	out := m08Build(t, in)
-	for _, p := range out.Assets[0].Availability.Packs {
-		fact := p.Facts[0].Envelope
+	for _, fact := range out.Assets[0].Snapshot.Facts {
 		original := in.Snapshot.Facts[indexOfFact(in.Snapshot.Facts, fact.Key.FactID)]
 		if !reflect.DeepEqual(fact, original) {
 			t.Fatal("decimal, qualification or source evidence changed")
@@ -541,7 +548,7 @@ func TestM08EvaluationContextIdentity(t *testing.T) {
 			}
 			in.Evaluation = &e
 			out := m08Build(t, in)
-			if !reflect.DeepEqual(out.Assets[0].Evaluation.Context, e.Context) || out.Assets[0].Availability.EvaluationDigest == original {
+			if !reflect.DeepEqual(out.Assets[0].Evaluation.Context, e.Context) || out.Assets[0].Evaluation.EvaluationDigest == original {
 				t.Fatal("context identity collapsed")
 			}
 		})

@@ -343,7 +343,7 @@ func TestSemanticPrometheusPVLabelsFollowResourceKindAndSlot(t *testing.T) {
 		want                               rendered
 	}{
 		{"inverter", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "resource:test-inverter", "unit.watt", []semreg.Resource{semanticResourceFixture("resource:test-inverter", "resource.inverter", "")}, rendered{"inverter", true}},
-		{"system", "projection.gateway.pv.inverter.ac.energy_lifetime", "pv.energy.generated", "pv.dimension.system", "resource:test-system", "unit.kilowatt_hour", []semreg.Resource{semanticResourceFixture("resource:test-system", "resource.pv_system", "")}, rendered{"system", true}},
+		{"system", "projection.gateway.pv.inverter.ac.energy_lifetime", "pv.energy.generated", "pv.dimension.system", "resource:test-system", "unit.joule", []semreg.Resource{semanticResourceFixture("resource:test-system", "resource.pv_system", "")}, rendered{"system", true}},
 		{"phase slot", "projection.gateway.pv.inverter.ac.current.phase_b", "pv.ac.current", "pv.dimension.phase", "resource:test-phase", "unit.ampere", []semreg.Resource{semanticResourceFixture("resource:test-phase", "resource.phase", "L2")}, rendered{"phase_l2", true}},
 		{"phase of another slot", "projection.gateway.pv.inverter.ac.current.phase_b", "pv.ac.current", "pv.dimension.phase", "resource:test-phase", "unit.ampere", []semreg.Resource{semanticResourceFixture("resource:test-phase", "resource.phase", "L3")}, rendered{}},
 		{"names no resource", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "resource:test-missing", "unit.watt", []semreg.Resource{semanticResourceFixture("resource:test-inverter", "resource.inverter", "")}, rendered{}},

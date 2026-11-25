@@ -128,7 +128,7 @@ func gatewayPortalPVDescriptor() contributionv1.Manifest {
 }
 
 func gatewayPortalStorageDescriptor() contributionv1.Manifest {
-	return newGatewayPortalDescriptor("storage.primary", "portal.storage", "pack", "storage.state.soc", "storage.service.pack", "storage.capability.read.pack", "unit.percent", catalogv1.FivePacks[2])
+	return newGatewayPortalDescriptor("storage.primary", "portal.storage", "pack", "storage.state.soc", "storage.service.pack", "storage.capability.read.pack", "unit.ratio", catalogv1.FivePacks[2])
 }
 
 func gatewayPortalEVSEDescriptor() contributionv1.Manifest {

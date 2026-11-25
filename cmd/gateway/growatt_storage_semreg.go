@@ -502,14 +502,23 @@ func growattStorageDispositions(status growatt.BMSTypedReadOnlyStatus, asset sem
 		{"storage.capacity.discharge", "native.growatt.bms.rs485.v202.cumulative_discharge_amp_hours", status.CumulativeDischargeAmpHours, "unit.ampere_hour", projection.ProjectionTransformed, projection.LossPolicy, "counter continuity/reset/wrap remains native evidence"},
 		{"storage.pack.current", "native.growatt.bms.rs485.v202.pack_current_amps", status.PackCurrentAmps, "unit.ampere", projection.ProjectionTransformed, projection.LossProvenance, "native current sign reference is retained as provenance"},
 		{"storage.pack.voltage", "", status.PackVoltageVolts, "unit.volt", projection.ProjectionExact, "", ""},
-		{"storage.state.soc", "", float64(status.SOCPercent), "unit.percent", projection.ProjectionExact, "", ""},
-		{"storage.temperature.pack", "", float64(status.TemperatureCelsius), "unit.celsius", projection.ProjectionExact, "", ""},
+		{"storage.state.soc", "", float64(status.SOCPercent), "unit.ratio", projection.ProjectionExact, "", ""},
+		{"storage.temperature.pack", "", float64(status.TemperatureCelsius), "unit.kelvin", projection.ProjectionExact, "", ""},
 	}
 	requested := make([]projection.RequestedItem, 0, 7)
 	out := make([]growattStorageDisposition, 0, 7)
 	for _, f := range fields {
 		requested = append(requested, projection.RequestedItem{Kind: projection.ItemFact, ItemID: f.id})
-		candidate := growattStorageCandidate(asset, pack, binding, source, epoch, generation, ev, wall, mono, f.id, f.value, f.unit)
+		number := growattDecimal(f.value)
+		switch f.id {
+		case "storage.state.soc":
+			// The native reading is a percent. The pack publishes a ratio from 0 to 1.
+			number = ratioFromPercent(status.SOCPercent)
+		case "storage.temperature.pack":
+			// The native reading is degree Celsius. The pack publishes kelvin.
+			number = kelvinFromCelsius(status.TemperatureCelsius)
+		}
+		candidate := growattStorageCandidateNumber(asset, pack, binding, source, epoch, generation, ev, wall, mono, f.id, number, f.unit)
 		out = append(out, growattStorageDisposition{item: projection.ProjectionDisposition{Kind: projection.ItemFact, ItemID: f.id, Outcome: f.outcome, SourceKeys: []semreg.FactKey{candidate.Key}, Loss: growattStorageLoss(f.loss, f.nativeID, f.description)}, candidate: []semreg.FactCandidate{candidate}})
 	}
 	requested = append(requested, projection.RequestedItem{Kind: projection.ItemFact, ItemID: "storage.status.operating"})
@@ -541,11 +550,46 @@ func growattStorageLoss(kind projection.LossKind, nativeID semreg.DefinitionID, 
 	return []projection.LossDetail{{Kind: kind, SourceItems: []semreg.DefinitionID{nativeID}, Description: description}}
 }
 
-func growattStorageCandidate(asset semreg.AssetID, pack semreg.ResourceID, binding semreg.NativeBindingID, source semreg.SourceID, epoch semreg.SourceEpochID, generation semreg.Uint64, ev semreg.EvidenceRef, wall semreg.TimePoint, mono semreg.MonotonicPoint, id semreg.DefinitionID, value float64, unit semreg.DefinitionID) semreg.FactCandidate {
-	number := growattDecimal(value)
+func growattStorageCandidateNumber(asset semreg.AssetID, pack semreg.ResourceID, binding semreg.NativeBindingID, source semreg.SourceID, epoch semreg.SourceEpochID, generation semreg.Uint64, ev semreg.EvidenceRef, wall semreg.TimePoint, mono semreg.MonotonicPoint, id semreg.DefinitionID, number semreg.Decimal, unit semreg.DefinitionID) semreg.FactCandidate {
 	key := growattStorageKey(pack, id)
 	v := semreg.Value{Kind: semreg.ValueQuantity, Quantity: &semreg.Quantity{Number: number, Unit: unit}}
 	return growattStorageFact(asset, binding, source, epoch, generation, ev, wall, mono, id, key, v)
+}
+
+// ratioFromPercent is percent/100 as an exact decimal. 100 is 1 and 0 is 0.
+func ratioFromPercent(percent uint8) semreg.Decimal {
+	if percent == 0 {
+		return semreg.Decimal{Coefficient: "0", Exponent10: 0}
+	}
+	coefficient := strconv.FormatUint(uint64(percent), 10)
+	exponent := int32(-2)
+	for strings.HasSuffix(coefficient, "0") {
+		coefficient = strings.TrimSuffix(coefficient, "0")
+		exponent++
+	}
+	return semreg.Decimal{Coefficient: coefficient, Exponent10: exponent}
+}
+
+// kelvinFromCelsius adds 273.15 to a whole degree Celsius reading.
+func kelvinFromCelsius(celsius int16) semreg.Decimal {
+	hundredths := int64(celsius)*100 + 27315
+	negative := hundredths < 0
+	if negative {
+		hundredths = -hundredths
+	}
+	coefficient := strconv.FormatInt(hundredths, 10)
+	exponent := int32(-2)
+	for strings.HasSuffix(coefficient, "0") && exponent < 18 {
+		coefficient = strings.TrimSuffix(coefficient, "0")
+		exponent++
+	}
+	if coefficient == "0" {
+		return semreg.Decimal{Coefficient: "0", Exponent10: 0}
+	}
+	if negative {
+		coefficient = "-" + coefficient
+	}
+	return semreg.Decimal{Coefficient: coefficient, Exponent10: exponent}
 }
 func growattStorageSymbolCandidate(asset semreg.AssetID, pack semreg.ResourceID, binding semreg.NativeBindingID, source semreg.SourceID, epoch semreg.SourceEpochID, generation semreg.Uint64, ev semreg.EvidenceRef, wall semreg.TimePoint, mono semreg.MonotonicPoint, id semreg.DefinitionID, token string) semreg.FactCandidate {
 	key := growattStorageKey(pack, id)
