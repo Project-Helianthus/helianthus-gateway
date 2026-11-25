@@ -37,7 +37,7 @@ helianthus_semantic_projection_loss{domain="pv",item="projection.gateway.pv.inve
 helianthus_semantic_fact_state{availability="available",dimension="system",domain="pv",fact_id="pv.energy.generated",freshness="fresh",pack="helianthus.pack.pv",promotion="promoted",qualification="qualified",quality="good"} 1
 helianthus_semantic_open_conflicts{dimension="system",domain="pv",fact_id="pv.energy.generated",pack="helianthus.pack.pv"} 0
 helianthus_semantic_evidence_age{dimension="system",domain="pv",fact_id="pv.energy.generated",pack="helianthus.pack.pv",unit="seconds"} 5
-helianthus_semantic_fact_value{dimension="system",domain="pv",fact_id="pv.energy.generated",pack="helianthus.pack.pv",unit="unit.kilowatt_hour"} 0
+helianthus_semantic_fact_value{dimension="system",domain="pv",fact_id="pv.energy.generated",pack="helianthus.pack.pv",unit="unit.joule"} 0
 helianthus_semantic_projection_item{domain="pv",item="projection.gateway.pv.inverter.ac.frequency",outcome="exact"} 1
 helianthus_semantic_fact_state{availability="available",dimension="inverter",domain="pv",fact_id="pv.ac.frequency",freshness="fresh",pack="helianthus.pack.pv",promotion="promoted",qualification="qualified",quality="good"} 1
 helianthus_semantic_open_conflicts{dimension="inverter",domain="pv",fact_id="pv.ac.frequency",pack="helianthus.pack.pv"} 0
@@ -77,7 +77,7 @@ helianthus_semantic_projection_loss{domain="pv",item="projection.gateway.pv.inve
 helianthus_semantic_fact_state{availability="available",dimension="inverter",domain="pv",fact_id="pv.temperature.inverter",freshness="fresh",pack="helianthus.pack.pv",promotion="promoted",qualification="qualified",quality="good"} 1
 helianthus_semantic_open_conflicts{dimension="inverter",domain="pv",fact_id="pv.temperature.inverter",pack="helianthus.pack.pv"} 0
 helianthus_semantic_evidence_age{dimension="inverter",domain="pv",fact_id="pv.temperature.inverter",pack="helianthus.pack.pv",unit="seconds"} 5
-helianthus_semantic_fact_value{dimension="inverter",domain="pv",fact_id="pv.temperature.inverter",pack="helianthus.pack.pv",unit="unit.celsius"} 0
+helianthus_semantic_fact_value{dimension="inverter",domain="pv",fact_id="pv.temperature.inverter",pack="helianthus.pack.pv",unit="unit.kelvin"} 273.15
 helianthus_semantic_projection_available{domain="storage"} 1
 helianthus_semantic_projection_item{domain="storage",item="storage.capacity.charge",outcome="transformed"} 1
 helianthus_semantic_projection_loss{domain="storage",item="storage.capacity.charge",loss_kind="policy"} 1
@@ -106,7 +106,7 @@ helianthus_semantic_projection_item{domain="storage",item="storage.state.soc",ou
 helianthus_semantic_fact_state{availability="available",dimension="pack",domain="storage",fact_id="storage.state.soc",freshness="fresh",pack="helianthus.pack.storage",promotion="promoted",qualification="qualified",quality="good"} 1
 helianthus_semantic_open_conflicts{dimension="pack",domain="storage",fact_id="storage.state.soc",pack="helianthus.pack.storage"} 0
 helianthus_semantic_evidence_age{dimension="pack",domain="storage",fact_id="storage.state.soc",pack="helianthus.pack.storage",unit="seconds"} 9.999999993
-helianthus_semantic_fact_value{dimension="pack",domain="storage",fact_id="storage.state.soc",pack="helianthus.pack.storage",unit="unit.percent"} 75
+helianthus_semantic_fact_value{dimension="pack",domain="storage",fact_id="storage.state.soc",pack="helianthus.pack.storage",unit="unit.ratio"} 0.75
 helianthus_semantic_projection_item{domain="storage",item="storage.status.operating",outcome="transformed"} 1
 helianthus_semantic_projection_loss{domain="storage",item="storage.status.operating",loss_kind="symbol"} 1
 helianthus_semantic_fact_state{availability="available",dimension="pack",domain="storage",fact_id="storage.status.operating",freshness="fresh",pack="helianthus.pack.storage",promotion="promoted",qualification="qualified",quality="good"} 1
@@ -116,7 +116,7 @@ helianthus_semantic_projection_item{domain="storage",item="storage.temperature.p
 helianthus_semantic_fact_state{availability="available",dimension="pack",domain="storage",fact_id="storage.temperature.pack",freshness="fresh",pack="helianthus.pack.storage",promotion="promoted",qualification="qualified",quality="good"} 1
 helianthus_semantic_open_conflicts{dimension="pack",domain="storage",fact_id="storage.temperature.pack",pack="helianthus.pack.storage"} 0
 helianthus_semantic_evidence_age{dimension="pack",domain="storage",fact_id="storage.temperature.pack",pack="helianthus.pack.storage",unit="seconds"} 9.999999993
-helianthus_semantic_fact_value{dimension="pack",domain="storage",fact_id="storage.temperature.pack",pack="helianthus.pack.storage",unit="unit.celsius"} 25
+helianthus_semantic_fact_value{dimension="pack",domain="storage",fact_id="storage.temperature.pack",pack="helianthus.pack.storage",unit="unit.kelvin"} 298.15
 helianthus_semantic_projection_available{domain="evse"} 1
 helianthus_semantic_projection_item{domain="evse",item="evse.limit.allocated_current",outcome="exact"} 1
 helianthus_semantic_fact_state{availability="available",connector="connector_1",dimension="connector",domain="evse",fact_id="evse.limit.allocated_current",freshness="fresh",pack="helianthus.pack.evse",promotion="promoted",qualification="qualified",quality="good"} 1

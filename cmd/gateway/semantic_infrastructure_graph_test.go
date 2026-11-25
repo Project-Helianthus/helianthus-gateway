@@ -141,8 +141,8 @@ func igtGateFacts(t *testing.T, f *oraFixture, p *oraPath) []semreg.FactCandidat
 	return []semreg.FactCandidate{
 		igtFact(t, f, p, connection, "infrastructure.power.import_active", "infrastructure.dimension.grid_connection", igtConnection, igtQuantity("18", 2, "unit.watt")),
 		igtFact(t, f, p, connection, "infrastructure.power.export_active", "infrastructure.dimension.grid_connection", igtConnection, igtQuantity("0", 0, "unit.watt")),
-		igtFact(t, f, p, meter, "infrastructure.energy.import", "infrastructure.dimension.meter", igtMeter, igtQuantity("12345", -1, "unit.kilowatt_hour")),
-		igtFact(t, f, p, meter, "infrastructure.energy.export", "infrastructure.dimension.meter", igtMeter, igtQuantity("678", -1, "unit.kilowatt_hour")),
+		igtFact(t, f, p, meter, "infrastructure.energy.import", "infrastructure.dimension.meter", igtMeter, igtQuantity("12345", -1, "unit.joule")),
+		igtFact(t, f, p, meter, "infrastructure.energy.export", "infrastructure.dimension.meter", igtMeter, igtQuantity("678", -1, "unit.joule")),
 	}
 }
 
@@ -264,8 +264,8 @@ func TestInfrastructureGraphRoleNeverChangesAFactDefinition(t *testing.T) {
 	}{
 		"power under the meter dimension":             {igtFact(t, f, site, igtMeterBinding(t, site), "infrastructure.power.import_active", "infrastructure.dimension.meter", igtMeter, igtQuantity("18", 2, "unit.watt")), semreg.InvalidValue},
 		"power whose subject is the meter":            {igtFact(t, f, site, igtMeterBinding(t, site), "infrastructure.power.export_active", "infrastructure.dimension.grid_connection", igtMeter, igtQuantity("1", 2, "unit.watt")), semreg.IdentityDrift},
-		"energy under the grid connection dimension":  {igtFact(t, f, site, site.binding(t), "infrastructure.energy.import", "infrastructure.dimension.grid_connection", igtConnection, igtQuantity("1", 0, "unit.kilowatt_hour")), semreg.InvalidValue},
-		"energy whose subject is the grid connection": {igtFact(t, f, site, site.binding(t), "infrastructure.energy.export", "infrastructure.dimension.meter", igtConnection, igtQuantity("1", 0, "unit.kilowatt_hour")), semreg.IdentityDrift},
+		"energy under the grid connection dimension":  {igtFact(t, f, site, site.binding(t), "infrastructure.energy.import", "infrastructure.dimension.grid_connection", igtConnection, igtQuantity("1", 0, "unit.joule")), semreg.InvalidValue},
+		"energy whose subject is the grid connection": {igtFact(t, f, site, site.binding(t), "infrastructure.energy.export", "infrastructure.dimension.meter", igtConnection, igtQuantity("1", 0, "unit.joule")), semreg.IdentityDrift},
 	} {
 		err := igtPublishFacts(t, f, site, negative.fact)
 		if got := semreg.ErrorIdentifier(err); err == nil || got != negative.want {

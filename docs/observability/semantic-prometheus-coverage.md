@@ -65,8 +65,8 @@ The frame/error insertion checks use configured budgets and hard-cap thresholds 
 | `infrastructure.ac.power_factor` | `helianthus_infrastructure_ac_power_factor_ratio` | ratio; preserve sign |
 | `infrastructure.ac.reactive_power` | `helianthus_infrastructure_ac_reactive_power_vars` | var; preserve sign |
 | `infrastructure.ac.voltage` | `helianthus_infrastructure_ac_voltage_volts` | volts; identity |
-| `infrastructure.energy.export` | `helianthus_infrastructure_energy_export_joules` | joules; kWh x 3,600,000; gauge |
-| `infrastructure.energy.import` | `helianthus_infrastructure_energy_import_joules` | joules; kWh x 3,600,000; gauge |
+| `infrastructure.energy.export` | `helianthus_infrastructure_energy_export_joules` | joules; registry value; gauge |
+| `infrastructure.energy.import` | `helianthus_infrastructure_energy_import_joules` | joules; registry value; gauge |
 | `infrastructure.power.apparent` | `helianthus_infrastructure_apparent_power_volt_amperes` | VA; identity |
 | `infrastructure.power.export_active` | `helianthus_infrastructure_export_active_power_watts` | watts; nonnegative directional value |
 | `infrastructure.power.export_reactive` | `helianthus_infrastructure_export_reactive_power_vars` | var; nonnegative directional value |

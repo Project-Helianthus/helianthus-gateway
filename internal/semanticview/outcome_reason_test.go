@@ -374,13 +374,13 @@ func TestP12CausalKeyIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			e := semreg.EvaluationView{Facts: []semreg.EvaluatedFact{{CandidateID: c.CandidateID, CandidateRevision: c.Revision, EffectiveAvailability: semreg.AvailabilityUnavailable}, {CandidateID: sibling.CandidateID, CandidateRevision: sibling.Revision, EffectiveAvailability: semreg.AvailabilityAvailable}}}
-			got := causalOutcomeCandidates(reasonPrefix+"fact_unavailable", projection.ItemFact, []semreg.FactCandidate{c, sibling}, e)
+			got := causalOutcomeCandidates(reasonPrefix+"fact_unavailable", projection.ItemFact, []semreg.FactCandidate{c, sibling}, e, nil, "")
 			if !reflect.DeepEqual(got, []semreg.FactCandidate{c}) {
 				t.Fatalf("causal candidates = %+v, want original only", got)
 			}
 			// Positive control: the same complete key has an available candidate.
 			sibling.Key = c.Key
-			if got := causalOutcomeCandidates(reasonPrefix+"fact_unavailable", projection.ItemFact, []semreg.FactCandidate{c, sibling}, e); len(got) != 0 {
+			if got := causalOutcomeCandidates(reasonPrefix+"fact_unavailable", projection.ItemFact, []semreg.FactCandidate{c, sibling}, e, nil, ""); len(got) != 0 {
 				t.Fatal("available candidate on same key did not clear causality")
 			}
 		})
@@ -424,12 +424,12 @@ func TestP12CandidateIdentity(t *testing.T) {
 			wrong.CandidateID = c.CandidateID
 			wrong.CandidateRevision = "9"
 			e.Facts = append(e.Facts, wrong)
-			got := causalOutcomeCandidates(reasonPrefix+"fact_unavailable", projection.ItemFact, []semreg.FactCandidate{c}, e)
+			got := causalOutcomeCandidates(reasonPrefix+"fact_unavailable", projection.ItemFact, []semreg.FactCandidate{c}, e, nil, "")
 			if !reflect.DeepEqual(got, []semreg.FactCandidate{c}) {
 				t.Fatal("causal candidate identity changed or wrong evaluation matched")
 			}
 			e.Facts[0].EffectiveAvailability = semreg.AvailabilityAvailable
-			if got := causalOutcomeCandidates(reasonPrefix+"fact_unavailable", projection.ItemFact, []semreg.FactCandidate{c}, e); len(got) != 0 {
+			if got := causalOutcomeCandidates(reasonPrefix+"fact_unavailable", projection.ItemFact, []semreg.FactCandidate{c}, e, nil, ""); len(got) != 0 {
 				t.Fatal("matching available evaluation did not clear causality")
 			}
 		})
@@ -443,7 +443,7 @@ func TestP12FactValidityReason(t *testing.T) {
 	c.Quality.Validity = semreg.ValidityBad
 	c.Quality.Reasons = []semreg.DefinitionID{"z.causal"}
 	e := semreg.EvaluationView{Facts: []semreg.EvaluatedFact{{CandidateID: c.CandidateID, CandidateRevision: c.Revision, EffectiveAvailability: semreg.AvailabilityAvailable}}}
-	if got := causalOutcomeCandidates(reasonPrefix+"capability_unqualified", projection.ItemFact, []semreg.FactCandidate{c}, e); !reflect.DeepEqual(got, []semreg.FactCandidate{c}) {
+	if got := causalOutcomeCandidates(reasonPrefix+"capability_unqualified", projection.ItemFact, []semreg.FactCandidate{c}, e, nil, ""); !reflect.DeepEqual(got, []semreg.FactCandidate{c}) {
 		t.Fatal("bad validity key was not causal")
 	}
 	got := outcomeReasons(reasonPrefix+"capability_unqualified", projection.ItemFact, []semreg.FactCandidate{c}, nil)
@@ -456,7 +456,7 @@ func TestP12FactValidityReason(t *testing.T) {
 		if got := outcomeReasons(reasonPrefix+"capability_unqualified", projection.ItemFact, []semreg.FactCandidate{good}, nil); len(got) != 0 {
 			t.Fatal("eligible fact explained withholding")
 		}
-		if got := causalOutcomeCandidates(reasonPrefix+"capability_unqualified", projection.ItemFact, []semreg.FactCandidate{good}, e); len(got) != 0 {
+		if got := causalOutcomeCandidates(reasonPrefix+"capability_unqualified", projection.ItemFact, []semreg.FactCandidate{good}, e, nil, ""); len(got) != 0 {
 			t.Fatal("eligible key was causal")
 		}
 	}

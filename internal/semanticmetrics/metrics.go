@@ -50,7 +50,7 @@ type metric struct {
 	field      semreg.DefinitionID
 	name, help string
 	unit       semreg.DefinitionID
-	factor     float64 // Divisor, except kilowatt-hours use a multiplier.
+	factor     float64 // Divisor of the registry quantity. Rows use 1 and export the pack unit unchanged.
 	symbols    []string
 }
 
@@ -77,8 +77,8 @@ var metrics = []metric{
 	{"infrastructure.ac.power_factor", "helianthus_infrastructure_ac_power_factor_ratio", "infrastructure.ac.power_factor (ratio; preserve sign).", "unit.ratio", 1, []string{}},
 	{"infrastructure.ac.reactive_power", "helianthus_infrastructure_ac_reactive_power_vars", "infrastructure.ac.reactive_power (var; preserve sign).", "unit.volt_ampere_reactive", 1, []string{}},
 	{"infrastructure.ac.voltage", "helianthus_infrastructure_ac_voltage_volts", "infrastructure.ac.voltage (volts; identity).", "unit.volt", 1, []string{}},
-	{"infrastructure.energy.export", "helianthus_infrastructure_energy_export_joules", "infrastructure.energy.export (joules; kWh x 3,600,000; gauge).", "unit.kilowatt_hour", 3600000, []string{}},
-	{"infrastructure.energy.import", "helianthus_infrastructure_energy_import_joules", "infrastructure.energy.import (joules; kWh x 3,600,000; gauge).", "unit.kilowatt_hour", 3600000, []string{}},
+	{"infrastructure.energy.export", "helianthus_infrastructure_energy_export_joules", "infrastructure.energy.export (joules; registry value; gauge).", "unit.joule", 1, []string{}},
+	{"infrastructure.energy.import", "helianthus_infrastructure_energy_import_joules", "infrastructure.energy.import (joules; registry value; gauge).", "unit.joule", 1, []string{}},
 	{"infrastructure.power.apparent", "helianthus_infrastructure_apparent_power_volt_amperes", "infrastructure.power.apparent (VA; identity).", "unit.volt_ampere", 1, []string{}},
 	{"infrastructure.power.export_active", "helianthus_infrastructure_export_active_power_watts", "infrastructure.power.export_active (watts; nonnegative directional value).", "unit.watt", 1, []string{}},
 	{"infrastructure.power.export_reactive", "helianthus_infrastructure_export_reactive_power_vars", "infrastructure.power.export_reactive (var; nonnegative directional value).", "unit.volt_ampere_reactive", 1, []string{}},
@@ -333,11 +333,7 @@ func sample(a semanticview.Asset, b Binding, m metric, metadata *semreg.PackMeta
 			return 0, false
 		}
 		number, err := strconv.ParseFloat(q.Number.Coefficient+"e"+strconv.FormatInt(int64(q.Number.Exponent10), 10), 64)
-		if m.unit == "unit.kilowatt_hour" {
-			number *= m.factor
-		} else {
-			number /= m.factor
-		}
+		number /= m.factor
 		return number, err == nil && !math.IsNaN(number) && !math.IsInf(number, 0)
 	}
 	return 0, false

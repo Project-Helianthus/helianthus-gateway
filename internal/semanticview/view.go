@@ -2,10 +2,12 @@
 package semanticview
 
 import (
+	"bytes"
 	"encoding/json"
 	"sort"
 
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/evse"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/infrastructure"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/pv"
@@ -29,19 +31,25 @@ type Input struct {
 	Evaluation        *semreg.EvaluationView
 	Selections        []semreg.Selection
 	UnavailableReason string
+	// Lens is the lens result to read element availability from (TGT-6).
+	// Nil is the per-asset capture, which has no lens result.
+	Lens *graph.LensResult
 }
 
 type View struct {
 	Assets []Asset `json:"assets"`
 }
 type Asset struct {
-	AssetID           semreg.AssetID                   `json:"asset_id"`
-	Snapshot          *semreg.Snapshot                 `json:"snapshot,omitempty"`
-	Evaluation        *semreg.EvaluationView           `json:"evaluation,omitempty"`
-	Projection        *projection.ProjectionReport     `json:"projection,omitempty"`
-	Selections        []semreg.Selection               `json:"selections"`
-	UnavailableReason string                           `json:"unavailable_reason,omitempty"`
-	Availability      *projection.PackAvailabilityView `json:"-"`
+	AssetID           semreg.AssetID               `json:"asset_id"`
+	Snapshot          *semreg.Snapshot             `json:"snapshot,omitempty"`
+	Evaluation        *semreg.EvaluationView       `json:"evaluation,omitempty"`
+	Projection        *projection.ProjectionReport `json:"projection,omitempty"`
+	Selections        []semreg.Selection           `json:"selections"`
+	UnavailableReason string                       `json:"unavailable_reason,omitempty"`
+	// Lens is a detached copy of the lens result this asset was read with.
+	// It is not part of the served snapshot document. Element availability
+	// is read from it (TGT-6).
+	Lens *graph.LensResult `json:"-"`
 }
 
 func failure(id semreg.ErrorID) error { return &semreg.Error{ID: id, Detail: "semantic snapshot read"} }
@@ -97,11 +105,18 @@ func Build(metadata *semreg.PackMetadataRegistry, inputs []Input) (View, error) 
 			return View{}, failure(semreg.RevisionConflict)
 		}
 		evaluatedAt = &evaluation.Context.EvaluatedAt
-		availability, err := projection.DerivePackAvailability(metadata, snapshot, evaluation)
-		if err != nil {
+		if err := evaluationMatches(snapshot, evaluation); err != nil {
 			return View{}, failure(semreg.ErrorIdentifier(err))
 		}
-		report, err := project(metadata, snapshot, evaluation, availability)
+		var lens *graph.LensResult
+		if input.Lens != nil {
+			detached, err := cloneLens(*input.Lens)
+			if err != nil {
+				return View{}, failure(semreg.ErrorIdentifier(err))
+			}
+			lens = &detached
+		}
+		report, err := project(metadata, snapshot, evaluation, lens)
 		if err != nil {
 			return View{}, failure(semreg.ErrorIdentifier(err))
 		}
@@ -125,7 +140,7 @@ func Build(metadata *semreg.PackMetadataRegistry, inputs []Input) (View, error) 
 		asset.Snapshot = &snapshot
 		asset.Evaluation = &evaluation
 		asset.Projection = &report
-		asset.Availability = &availability
+		asset.Lens = lens
 		asset.Selections = selections
 		result.Assets = append(result.Assets, asset)
 	}
@@ -153,7 +168,151 @@ func selectionKey(s semreg.Selection) string {
 	return string(key) + "\x00" + string(s.PolicyID) + "\x00" + string(s.PolicyVersion)
 }
 
-func project(metadata *semreg.PackMetadataRegistry, s semreg.Snapshot, e semreg.EvaluationView, a projection.PackAvailabilityView) (projection.ProjectionReport, error) {
+// evaluationMatches requires the supplied view to be the kernel evaluation of
+// this snapshot. A mismatched view is not served.
+func evaluationMatches(snapshot semreg.Snapshot, supplied semreg.EvaluationView) error {
+	if snapshot.SnapshotID != supplied.SnapshotID || snapshot.Revisions != supplied.Revisions {
+		return &semreg.Error{ID: semreg.RevisionConflict, Detail: "semantic snapshot read"}
+	}
+	expected, err := semreg.EvaluateSnapshot(snapshot, supplied.Context)
+	if err != nil {
+		return err
+	}
+	facts := map[semreg.CandidateID]semreg.EvaluatedFact{}
+	for _, fact := range expected.Facts {
+		facts[fact.CandidateID] = fact
+	}
+	if len(expected.Facts) != len(supplied.Facts) {
+		return &semreg.Error{ID: semreg.DanglingReference, Detail: "semantic snapshot read"}
+	}
+	for _, fact := range supplied.Facts {
+		current, ok := facts[fact.CandidateID]
+		if !ok {
+			return &semreg.Error{ID: semreg.DanglingReference, Detail: "semantic snapshot read"}
+		}
+		if current.CandidateRevision != fact.CandidateRevision {
+			return &semreg.Error{ID: semreg.RevisionConflict, Detail: "semantic snapshot read"}
+		}
+	}
+	a, err := semreg.CanonicalJSON(expected)
+	if err != nil {
+		return err
+	}
+	b, err := semreg.CanonicalJSON(supplied)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(a, b) {
+		return &semreg.Error{ID: semreg.InvalidValue, Detail: "semantic snapshot read"}
+	}
+	return nil
+}
+
+func cloneLens(in graph.LensResult) (graph.LensResult, error) {
+	if err := in.Validate(); err != nil {
+		return graph.LensResult{}, err
+	}
+	raw, err := json.Marshal(in)
+	if err != nil {
+		return graph.LensResult{}, &semreg.Error{ID: semreg.InvalidValue, Detail: "semantic snapshot read"}
+	}
+	var out graph.LensResult
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return graph.LensResult{}, &semreg.Error{ID: semreg.InvalidValue, Detail: "semantic snapshot read"}
+	}
+	if err := out.Validate(); err != nil {
+		return graph.LensResult{}, err
+	}
+	return out, nil
+}
+
+// assetUngraphed reports an asset the lens cut lists as ungraphed (ACT-5).
+// That asset contributes no element, so its lens facts and capabilities are
+// not availability.
+func assetUngraphed(lens *graph.LensResult, asset semreg.AssetID) bool {
+	if lens == nil {
+		return false
+	}
+	for _, row := range lens.Cut.NotIncluded {
+		if row.AssetID == asset && row.Reason == graph.NotIncludedUngraphed {
+			return true
+		}
+	}
+	return false
+}
+
+// candidateEvaluation reads the candidate's availability. A lens fact carries
+// the kernel evaluation (LRS-1); when this lens has a row for the same asset,
+// fact key, candidate and revision, that row is the availability. A row the
+// lens does not carry, and an ungraphed asset (ACT-5), keep the snapshot
+// evaluation. The snapshot projection's fact outcome did not come from the
+// retired pack view.
+func candidateEvaluation(e semreg.EvaluationView, lens *graph.LensResult, asset semreg.AssetID, c semreg.FactCandidate) (semreg.EvaluatedFact, bool) {
+	if lens != nil && !assetUngraphed(lens, asset) {
+		for _, fact := range lens.Facts {
+			if fact.AssetID != asset || !factKeyEqual(fact.Key, c.Key) {
+				continue
+			}
+			for _, evaluated := range fact.Evaluation {
+				if evaluated.CandidateID == c.CandidateID && evaluated.CandidateRevision == c.Revision {
+					return evaluated, true
+				}
+			}
+		}
+	}
+	for _, evaluated := range e.Facts {
+		if evaluated.CandidateID == c.CandidateID && evaluated.CandidateRevision == c.Revision {
+			return evaluated, true
+		}
+	}
+	return semreg.EvaluatedFact{}, false
+}
+
+func factKeyEqual(a, b semreg.FactKey) bool {
+	left, errA := semreg.CanonicalJSON(a)
+	right, errB := semreg.CanonicalJSON(b)
+	return errA == nil && errB == nil && bytes.Equal(left, right)
+}
+
+// capabilityInstances is the availability of capability elements.
+// A lens result is that availability (TGT-6): instances of this asset, and
+// none when the asset is ungraphed (ACT-5). The per-asset capture has no
+// lens result; a capability is then judged from its own instance on the
+// snapshot, which is the record a lens result carries for an element it
+// includes (LRS-1), and only for the five shipped packs the retired helper
+// admitted.
+func capabilityInstances(snapshot semreg.Snapshot, lens *graph.LensResult) []semreg.CapabilityInstance {
+	if lens != nil {
+		if assetUngraphed(lens, snapshot.AssetID) {
+			return []semreg.CapabilityInstance{}
+		}
+		out := []semreg.CapabilityInstance{}
+		for _, capability := range lens.Capabilities {
+			if capability.AssetID == snapshot.AssetID {
+				out = append(out, capability)
+			}
+		}
+		return out
+	}
+	known := shippedPacks()
+	out := []semreg.CapabilityInstance{}
+	for _, capability := range snapshot.Capabilities {
+		if known[capability.Definition.Pack] {
+			out = append(out, capability)
+		}
+	}
+	return out
+}
+
+func shippedPacks() map[semreg.PackRef]bool {
+	packs := map[semreg.PackRef]bool{}
+	for _, provider := range []semreg.PackMetadata{evse.Metadata(), infrastructure.Metadata(), pv.Metadata(), storage.Metadata(), thermal.Metadata()} {
+		packs[provider.Pack] = true
+	}
+	return packs
+}
+
+func project(metadata *semreg.PackMetadataRegistry, s semreg.Snapshot, e semreg.EvaluationView, lens *graph.LensResult) (projection.ProjectionReport, error) {
 	applicable := map[semreg.PackRef]bool{}
 	items := map[projection.RequestedItem]bool{}
 	for _, f := range s.Facts {
@@ -240,15 +399,13 @@ func project(metadata *semreg.PackMetadataRegistry, s semreg.Snapshot, e semreg.
 					anyUnknown = anyUnknown || (c.Value != nil && c.Quality.Qualification == semreg.QualificationUnknown)
 					reasons = append(reasons, c.Quality.Reasons...)
 					candidates = append(candidates, c)
-					for _, v := range e.Facts {
-						if v.CandidateID == c.CandidateID && v.CandidateRevision == c.Revision {
-							ok := v.EffectiveAvailability != semreg.AvailabilityUnavailable && v.EffectiveAvailability != semreg.AvailabilityWithdrawn
-							keyAvailable = keyAvailable || ok
-							// Exact needs a value that is qualified, promoted, valid (good, or
-							// suspect as the kernel allows for promoted state) and available.
-							keyExact = keyExact || (ok && c.Value != nil && c.Quality.Qualification == semreg.QualificationQualified &&
-								c.Quality.Promotion == semreg.PromotionPromoted && (c.Quality.Validity == semreg.ValidityGood || c.Quality.Validity == semreg.ValiditySuspect))
-						}
+					if v, ok := candidateEvaluation(e, lens, s.AssetID, c); ok {
+						available := v.EffectiveAvailability != semreg.AvailabilityUnavailable && v.EffectiveAvailability != semreg.AvailabilityWithdrawn
+						keyAvailable = keyAvailable || available
+						// Exact needs a value that is qualified, promoted, valid (good, or
+						// suspect as the kernel allows for promoted state) and available.
+						keyExact = keyExact || (available && c.Value != nil && c.Quality.Qualification == semreg.QualificationQualified &&
+							c.Quality.Promotion == semreg.PromotionPromoted && (c.Quality.Validity == semreg.ValidityGood || c.Quality.Validity == semreg.ValiditySuspect))
 					}
 				}
 				// Candidates of several sources that disagree carry an open
@@ -287,17 +444,15 @@ func project(metadata *semreg.PackMetadataRegistry, s semreg.Snapshot, e semreg.
 			// Multiple native instances remain intact; a definition is admitted only
 			// when every instance is qualified and available for this read.
 			found, qualified, unsupported, unknown, available := false, true, true, false, true
-			for _, p := range a.Packs {
-				for _, c := range p.Capabilities {
-					if c.Definition.ID != item.ItemID {
-						continue
-					}
-					found = true
-					qualified = qualified && c.Qualification == semreg.QualificationQualified
-					unsupported = unsupported && c.Qualification == semreg.QualificationUnsupported
-					unknown = unknown || c.Qualification == semreg.QualificationUnknown
-					available = available && c.Availability != semreg.AvailabilityUnavailable && c.Availability != semreg.AvailabilityWithdrawn
+			for _, c := range capabilityInstances(s, lens) {
+				if c.Definition.ID != item.ItemID {
+					continue
 				}
+				found = true
+				qualified = qualified && c.Qualification == semreg.QualificationQualified
+				unsupported = unsupported && c.Qualification == semreg.QualificationUnsupported
+				unknown = unknown || c.Qualification == semreg.QualificationUnknown
+				available = available && c.Availability != semreg.AvailabilityUnavailable && c.Availability != semreg.AvailabilityWithdrawn
 			}
 			// Supporting keys are joined through the pack's declared service and
 			// capability ownership, including the complete dimensioned FactKey.
@@ -346,7 +501,7 @@ func project(metadata *semreg.PackMetadataRegistry, s semreg.Snapshot, e semreg.
 			d.Reason = &reason
 		} else if d.Outcome != projection.ProjectionExact {
 			if reason != PendingNormativeSourceReason {
-				reasons = outcomeReasons(reason, item.Kind, causalOutcomeCandidates(reason, item.Kind, candidates, e), reasons)
+				reasons = outcomeReasons(reason, item.Kind, causalOutcomeCandidates(reason, item.Kind, candidates, e, lens, s.AssetID), reasons)
 			}
 			if len(reasons) > 0 && reason != PendingNormativeSourceReason {
 				sort.Slice(reasons, func(i, j int) bool { return reasons[i] < reasons[j] })
@@ -372,7 +527,7 @@ func openConflict(f semreg.FactEnvelope) bool {
 // causalOutcomeCandidates selects whole source keys before native reason
 // intersection. Available or exact siblings cannot explain another key's
 // withholding; every candidate within a selected key still has to explain it.
-func causalOutcomeCandidates(reason semreg.DefinitionID, kind projection.ItemKind, candidates []semreg.FactCandidate, e semreg.EvaluationView) []semreg.FactCandidate {
+func causalOutcomeCandidates(reason semreg.DefinitionID, kind projection.ItemKind, candidates []semreg.FactCandidate, e semreg.EvaluationView, lens *graph.LensResult, asset semreg.AssetID) []semreg.FactCandidate {
 	switch reason {
 	case reasonPrefix + "fact_unavailable", reasonPrefix + "capability_unavailable", reasonPrefix + "capability_unqualified":
 	default:
@@ -391,20 +546,19 @@ func causalOutcomeCandidates(reason semreg.DefinitionID, kind projection.ItemKin
 	for _, key := range order {
 		available, qualified := false, false
 		for _, c := range keys[key] {
-			for _, v := range e.Facts {
-				if v.CandidateID != c.CandidateID || v.CandidateRevision != c.Revision {
-					continue
-				}
-				ok := v.EffectiveAvailability != semreg.AvailabilityUnavailable && v.EffectiveAvailability != semreg.AvailabilityWithdrawn
-				available = available || ok
-				q := c.Quality
-				exact := q.Qualification == semreg.QualificationQualified
-				if kind == projection.ItemFact {
-					exact = exact && ok && c.Value != nil && q.Promotion == semreg.PromotionPromoted &&
-						(q.Validity == semreg.ValidityGood || q.Validity == semreg.ValiditySuspect)
-				}
-				qualified = qualified || exact
+			v, ok := candidateEvaluation(e, lens, asset, c)
+			if !ok {
+				continue
 			}
+			admitted := v.EffectiveAvailability != semreg.AvailabilityUnavailable && v.EffectiveAvailability != semreg.AvailabilityWithdrawn
+			available = available || admitted
+			q := c.Quality
+			exact := q.Qualification == semreg.QualificationQualified
+			if kind == projection.ItemFact {
+				exact = exact && admitted && c.Value != nil && q.Promotion == semreg.PromotionPromoted &&
+					(q.Validity == semreg.ValidityGood || q.Validity == semreg.ValiditySuspect)
+			}
+			qualified = qualified || exact
 		}
 		blocked := !available
 		if reason == reasonPrefix+"capability_unqualified" {

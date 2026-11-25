@@ -515,9 +515,9 @@ func semanticFactSchemaFor(domain, item string) (semanticFactSchema, bool) {
 		case "projection.gateway.pv.inverter.ac.frequency":
 			return pv(item, "pv.ac.frequency", "pv.dimension.inverter", "inverter", "unit.hertz"), true
 		case "projection.gateway.pv.inverter.ac.energy_lifetime":
-			return pv(item, "pv.energy.generated", "pv.dimension.system", "system", "unit.kilowatt_hour"), true
+			return pv(item, "pv.energy.generated", "pv.dimension.system", "system", "unit.joule"), true
 		case "projection.gateway.pv.inverter.temperature.cabinet":
-			return pv(item, "pv.temperature.inverter", "pv.dimension.inverter", "inverter", "unit.celsius"), true
+			return pv(item, "pv.temperature.inverter", "pv.dimension.inverter", "inverter", "unit.kelvin"), true
 		case "projection.gateway.pv.inverter.operating_state":
 			return semanticFactSchema{domain: "pv", item: item, pack: pvPack, version: pvVersion, fact: "pv.status.operating", dimensionID: "pv.dimension.inverter", dimensionValue: "inverter", symbols: map[string]bool{"generating": true}}, true
 		}
@@ -531,9 +531,9 @@ func semanticFactSchemaFor(domain, item string) (semanticFactSchema, bool) {
 		case "storage.pack.voltage":
 			return storage(item, "unit.volt"), true
 		case "storage.state.soc":
-			return storage(item, "unit.percent"), true
+			return storage(item, "unit.ratio"), true
 		case "storage.temperature.pack":
-			return storage(item, "unit.celsius"), true
+			return storage(item, "unit.kelvin"), true
 		case "storage.status.operating":
 			return semanticFactSchema{domain: "storage", item: item, pack: storagePack, version: storageVersion, fact: item, dimensionID: "storage.dimension.pack", dimensionValue: "pack", symbols: map[string]bool{"active": true, "standby": true}}, true
 		}
@@ -580,7 +580,7 @@ func semanticNumeric(value *semreg.Value) (float64, string, bool) {
 
 func validSemanticUnit(unit string) bool {
 	switch unit {
-	case "unit.watt", "unit.ampere", "unit.volt", "unit.hertz", "unit.kilowatt_hour", "unit.ampere_hour", "unit.percent", "unit.celsius":
+	case "unit.watt", "unit.ampere", "unit.volt", "unit.hertz", "unit.joule", "unit.kelvin", "unit.ratio", "unit.ampere_hour":
 		return true
 	}
 	return false

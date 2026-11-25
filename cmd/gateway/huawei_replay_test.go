@@ -484,10 +484,10 @@ func TestH10MappingValuesAndWithheldFacts(t *testing.T) {
 				}
 			}
 			wantVoltage := semreg.Decimal{Coefficient: "6128", Exponent10: -1}
-			wantEnergy := semreg.Decimal{Coefficient: "42", Exponent10: 3}
+			wantEnergy := semreg.Decimal{Coefficient: "1512", Exponent10: 8}
 			if name == "sdongle" {
 				wantVoltage = semreg.Decimal{Coefficient: "655"}
-				wantEnergy = semreg.Decimal{Coefficient: "15", Exponent10: 3}
+				wantEnergy = semreg.Decimal{Coefficient: "54", Exponent10: 9}
 			}
 			if got := quantities["pv.dc.voltage"]["resource.dc_input:1"]; got != wantVoltage {
 				t.Fatalf("voltage=%+v", got)
