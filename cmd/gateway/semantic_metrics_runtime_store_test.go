@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticmetrics"
 )
@@ -96,7 +95,7 @@ func assertStoreReason(t *testing.T, directory string) semanticmetrics.Registry 
 
 func gatewayMetricStoreDir(t *testing.T) string {
 	t.Helper()
-	directory := filepath.Join("/Volumes/Helianthus Work/Helianthus Project/work/wave1-20261014/gateway-1745/.tmp", "gg05-"+strings.ReplaceAll(t.Name(), "/", "-")+"-"+itoa(int(time.Now().UnixNano())))
+	directory := filepath.Join(t.TempDir(), "store")
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatal(err)
 	}
