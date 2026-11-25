@@ -245,7 +245,7 @@ func TestO21UncertainAndCorrupt(t *testing.T) {
 		t.Fatal("restart lost reservation or trusted validation")
 	}
 	for name, raw := range map[string][]byte{
-		"empty": {}, "syntax": []byte("{"), "oversize": make([]byte, o21MaxBytes+1), "unknown": []byte(`{"Version":1,"Target":"o21-target","Validated":true}`), "trailing": append(append([]byte(nil), p.raw...), []byte(` {}`)...),
+		"empty": {}, "syntax": []byte("{"), "unknown": []byte(`{"Version":1,"Target":"o21-target","Validated":true}`), "trailing": append(append([]byte(nil), p.raw...), []byte(` {}`)...),
 	} {
 		t.Run(name, func(t *testing.T) {
 			bad := &o21Memory{raw: raw}

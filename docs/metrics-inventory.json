@@ -1392,13 +1392,11 @@
         "unit"
       ],
       "name": "helianthus_semantic_fact_value",
-      "omission": "Metadata always with provider; values require exact/transformed disposition, one conflict-free qualified/promoted/good, available/fresh candidate and valid numeric conversion. Otherwise omit, never fabricate zero.",
+      "omission": "Metadata always with provider; values require one conflict-free qualified/promoted/good, available/fresh candidate and valid numeric conversion. Otherwise omit, never fabricate zero.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Provider installed when Modbus TCP, storage RS485 or EVSE Prometheus is enabled; individual domains follow their configuration.",
       "source": "semantic_prometheus.go",
-      "source_guards": [
-        "ok"
-      ],
+      "source_guards": [],
       "type": "gauge"
     },
     {
@@ -1458,7 +1456,9 @@
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Provider installed when Modbus TCP, storage RS485 or EVSE Prometheus is enabled; individual domains follow their configuration.",
       "source": "semantic_prometheus.go",
-      "source_guards": [],
+      "source_guards": [
+        "projectionOK"
+      ],
       "type": "gauge"
     },
     {
@@ -1474,6 +1474,7 @@
       "production": "Provider installed when Modbus TCP, storage RS485 or EVSE Prometheus is enabled; individual domains follow their configuration.",
       "source": "semantic_prometheus.go",
       "source_guards": [
+        "projectionOK",
         "validLoss(string(loss.Kind))"
       ],
       "type": "gauge"
@@ -1482,7 +1483,7 @@
       "enablement": "Detached semantic domain provider is non-nil.",
       "labels": [],
       "name": "helianthus_semantic_render_overflow",
-      "omission": "Metadata always with provider; sample only when invalid input, duplicates or the fixed 192-series budget cause overflow; no sample for zero.",
+      "omission": "Metadata always with provider; sample only when invalid input or a duplicate series is withheld; no sample for zero.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Provider installed when Modbus TCP, storage RS485 or EVSE Prometheus is enabled; individual domains follow their configuration.",
       "source": "semantic_prometheus.go",
@@ -1803,11 +1804,11 @@
     "cmd/gateway/semantic_metrics_runtime.go:newGatewayMetricsHandler": [
       "huaweiWireCounters.text",
       "io.WriteString",
-      "semantic.text",
+      "semantic.sections",
       "store.MetricsHandler",
       "transport.ServeHTTP"
     ],
-    "cmd/gateway/semantic_metrics_runtime.go:text": [
+    "cmd/gateway/semantic_metrics_runtime.go:sections": [
       "semanticmetrics.Render"
     ],
     "internal/semanticmetrics/metrics.go:Render": [

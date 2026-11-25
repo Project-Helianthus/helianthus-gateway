@@ -14,12 +14,10 @@ import (
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/projection"
 )
 
-const semanticMetricsSeriesBudget = 192
-
 // SemanticMetricsDomain is one coherent detached snapshot/evaluation/
-// projection tuple. Name is a fixed vocabulary value: pv or storage. Owner is
-// the source of the asset's owning driver; it ranks first when a fact key
-// carries candidates of several sources, and an empty Owner names none.
+// projection tuple. Name is the publication's domain. Owner is the source of
+// the asset's owning driver; it ranks first when a fact key carries candidates
+// of several sources, and an empty Owner names none.
 type SemanticMetricsDomain struct {
 	Name       string
 	Snapshot   semreg.Snapshot
@@ -44,10 +42,10 @@ func writeSemanticMetrics(w *prometheusWriter, domains []SemanticMetricsDomain, 
 	w.writeType("helianthus_semantic_open_conflicts", "gauge")
 	w.writeHelp("helianthus_semantic_projection_loss", "Loss kinds declared by the detached SemReg projection.")
 	w.writeType("helianthus_semantic_projection_loss", "gauge")
-	w.writeHelp("helianthus_semantic_render_overflow", "Semantic metrics omitted because the fixed renderer series budget was reached or input was invalid.")
+	w.writeHelp("helianthus_semantic_render_overflow", "Semantic metrics omitted because input was invalid or a duplicate series was withheld.")
 	w.writeType("helianthus_semantic_render_overflow", "gauge")
 
-	used, overflow := 0, 0
+	overflow := 0
 	seen := make(map[string]struct{})
 	emit := func(name string, value float64, labels map[string]string) bool {
 		key := name
@@ -64,58 +62,62 @@ func writeSemanticMetrics(w *prometheusWriter, domains []SemanticMetricsDomain, 
 			return false
 		}
 		seen[key] = struct{}{}
-		if used >= semanticMetricsSeriesBudget {
-			overflow++
-			return false
-		}
-		used++
 		w.writeGaugeSample(name, value, labels)
 		return true
 	}
-	validDomain := map[string]bool{"pv": true, "storage": true, "evse": true}
 	for _, d := range domains {
-		if !validDomain[d.Name] {
-			overflow++
-			continue
-		}
 		if !d.Available {
 			emit("helianthus_semantic_projection_available", 0, labelMap("domain", d.Name))
 			continue
 		}
-		if d.Snapshot.SnapshotID == "" || d.Evaluation.SnapshotID != d.Snapshot.SnapshotID || d.Projection.SnapshotID != d.Snapshot.SnapshotID || d.Evaluation.Revisions != d.Snapshot.Revisions || d.Projection.Revisions != d.Snapshot.Revisions || d.Evaluation.EvaluationDigest == "" {
+		snapshotOK := d.Snapshot.SnapshotID != "" && d.Evaluation.SnapshotID == d.Snapshot.SnapshotID && d.Evaluation.Revisions == d.Snapshot.Revisions && d.Evaluation.EvaluationDigest != ""
+		projectionOK := snapshotOK && d.Projection.SnapshotID == d.Snapshot.SnapshotID && d.Projection.Revisions == d.Snapshot.Revisions
+		if !snapshotOK || (d.Projection.SnapshotID != "" && !projectionOK) {
 			emit("helianthus_semantic_projection_available", 0, labelMap("domain", d.Name))
 			overflow++
 			continue
 		}
-		emit("helianthus_semantic_projection_available", 1, labelMap("domain", d.Name))
 		facts := factIndex(d.Snapshot)
 		resources := semanticResourceIndex(d.Snapshot)
 		evaluated := evaluatedIndex(d.Evaluation)
+		covered := map[string]struct{}{}
+		if projectionOK {
+			emit("helianthus_semantic_projection_available", 1, labelMap("domain", d.Name))
+		}
 		dispositions := append([]projection.ProjectionDisposition(nil), d.Projection.Dispositions...)
 		sort.Slice(dispositions, func(i, j int) bool { return dispositions[i].ItemID < dispositions[j].ItemID })
-		for _, disposition := range dispositions {
-			outcome := string(disposition.Outcome)
-			if !validOutcome(outcome) || !validSemanticItem(d.Name, string(disposition.ItemID)) {
-				overflow++
-				continue
-			}
-			emit("helianthus_semantic_projection_item", 1, labelMap("domain", d.Name, "item", string(disposition.ItemID), "outcome", outcome))
-			for _, loss := range disposition.Loss {
-				if validLoss(string(loss.Kind)) {
-					emit("helianthus_semantic_projection_loss", 1, labelMap("domain", d.Name, "item", string(disposition.ItemID), "loss_kind", string(loss.Kind)))
-				} else {
+		if projectionOK {
+			for _, disposition := range dispositions {
+				outcome := string(disposition.Outcome)
+				if !validOutcome(outcome) || !validSemanticItem(d.Name, string(disposition.ItemID)) {
 					overflow++
+					continue
 				}
-			}
-			if disposition.Outcome != projection.ProjectionExact && disposition.Outcome != projection.ProjectionTransformed {
-				continue
-			}
-			for _, key := range disposition.SourceKeys {
-				if renderSemanticFact(emit, d.Name, string(disposition.ItemID), key, facts, evaluated, resources, d.Owner, now) {
-					overflow++
+				emit("helianthus_semantic_projection_item", 1, labelMap("domain", d.Name, "item", string(disposition.ItemID), "outcome", outcome))
+				for _, loss := range disposition.Loss {
+					if validLoss(string(loss.Kind)) {
+						emit("helianthus_semantic_projection_loss", 1, labelMap("domain", d.Name, "item", string(disposition.ItemID), "loss_kind", string(loss.Kind)))
+					} else {
+						overflow++
+					}
+				}
+				if disposition.Outcome != projection.ProjectionExact && disposition.Outcome != projection.ProjectionTransformed {
+					continue
+				}
+				_, schemaOK := semanticFactSchemaFor(d.Name, string(disposition.ItemID))
+				for _, key := range disposition.SourceKeys {
+					if schemaOK {
+						if canon, ok := semanticFactKey(key); ok {
+							covered[canon] = struct{}{}
+						}
+					}
+					if renderSemanticFact(emit, d.Name, string(disposition.ItemID), key, facts, evaluated, resources, d.Owner, now) {
+						overflow++
+					}
 				}
 			}
 		}
+		overflow += renderUncoveredFacts(emit, d.Snapshot, evaluated, resources, d.Owner, covered, !projectionOK, now)
 	}
 	if overflow != 0 {
 		w.writeGaugeSample("helianthus_semantic_render_overflow", float64(overflow), nil)
@@ -146,22 +148,34 @@ func semanticResourceIndex(snapshot semreg.Snapshot) map[semreg.ResourceID]semre
 	return out
 }
 
-// semanticResourceDimensionText is the qualifier text a schema compares. In a
+// semanticResourceDimensionText is the qualifier role a schema compares. In a
 // snapshot with resources the dimension value is the subject's resource
-// identifier, and the text comes from that resource's kind and, for a phase,
-// its exact anchor slot. A snapshot without resources accepts only an exact
-// catalog token. A prefixed value is not split.
+// identifier, and the role comes from that resource's kind and, for a phase,
+// its exact anchor slot. A snapshot without resources takes the role from the
+// dimension identifier. The published text stays the subject; it is not split.
 func semanticResourceDimensionText(dimension semreg.Dimension, resources map[semreg.ResourceID]semreg.Resource) (string, bool) {
 	if dimension.Value.Kind != semreg.ValueText || dimension.Value.Text == nil || *dimension.Value.Text == "" {
 		return "", false
 	}
 	text := *dimension.Value.Text
 	if resources == nil {
-		switch text {
-		case "inverter", "system", "phase:L1", "phase:L2", "phase:L3":
-			return text, dimension.ID != "storage.dimension.pack"
-		default:
+		if dimension.ID == "storage.dimension.pack" {
 			return "", false
+		}
+		switch dimension.ID {
+		case "pv.dimension.inverter":
+			return "inverter", true
+		case "pv.dimension.system":
+			return "system", true
+		case "pv.dimension.phase":
+			switch text {
+			case "phase:L1", "phase:L2", "phase:L3":
+				return text, true
+			default:
+				return "", false
+			}
+		default:
+			return text, true
 		}
 	}
 	resource, ok := resources[semreg.ResourceID(text)]
@@ -361,7 +375,7 @@ func semanticSubject(domain, item string, key semreg.FactKey, resources map[semr
 		if resources != nil {
 			return semanticFactSubject{}, false
 		}
-		return semanticFactSubject{resourceKind: "resource.connector", dimension: "connector", connector: text}, true
+		return semanticFactSubject{resource: text, resourceKind: "resource.connector", dimension: "connector", connector: text}, true
 	}
 	if domain == "evse" {
 		if item != "evse.limit.configured_current" || dimension.ID != "evse.dimension.evse" {
@@ -374,7 +388,7 @@ func semanticSubject(domain, item string, key semreg.FactKey, resources map[semr
 		if resources != nil {
 			return semanticFactSubject{}, false
 		}
-		return semanticFactSubject{resourceKind: "resource.evse", dimension: "evse"}, true
+		return semanticFactSubject{resource: text, resourceKind: "resource.evse", dimension: "evse"}, true
 	}
 	value, ok := semanticResourceDimensionText(dimension, resources)
 	if !ok {
@@ -395,6 +409,7 @@ func semanticSubject(domain, item string, key semreg.FactKey, resources map[semr
 	}
 	if !found {
 		kind = semanticUngraphedKind(value)
+		resource = text
 	}
 	return semanticFactSubject{resource: resource, resourceKind: kind, dimension: label}, kind != "" && label != ""
 }
@@ -422,6 +437,116 @@ func semanticUngraphedKind(value string) string {
 		return "resource.battery_pack"
 	default:
 		return ""
+	}
+}
+
+// renderUncoveredFacts exports eligible values of an accepted publication
+// that no schema item owns. A schema rejection stays withheld.
+func renderUncoveredFacts(emit func(string, float64, map[string]string) bool, snapshot semreg.Snapshot, evaluated map[semreg.CandidateID]semreg.EvaluatedFact, resources map[semreg.ResourceID]semreg.Resource, owner semreg.SourceID, covered map[string]struct{}, includeSchema bool, now time.Time) int {
+	type row struct {
+		canon string
+		env   semreg.FactEnvelope
+	}
+	rows := make([]row, 0, len(snapshot.Facts))
+	overflow := 0
+	for _, env := range snapshot.Facts {
+		key := env.Key
+		if !includeSchema && semanticFactCovered(string(key.PackID), string(key.FactID)) {
+			continue
+		}
+		canon, ok := semanticFactKey(key)
+		if !ok {
+			overflow++
+			continue
+		}
+		if _, ok := covered[canon]; ok {
+			continue
+		}
+		rows = append(rows, row{canon: canon, env: env})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].canon < rows[j].canon })
+	for _, row := range rows {
+		if renderPublishedFact(emit, row.env, evaluated, resources, owner, now) {
+			overflow++
+		}
+	}
+	return overflow
+}
+
+func renderPublishedFact(emit func(string, float64, map[string]string) bool, envelope semreg.FactEnvelope, evaluated map[semreg.CandidateID]semreg.EvaluatedFact, resources map[semreg.ResourceID]semreg.Resource, owner semreg.SourceID, now time.Time) bool {
+	key := envelope.Key
+	if _, ok := semanticFactKey(key); !ok {
+		return true
+	}
+	candidate, presented, invalid := semanticPresented(envelope, evaluated, owner)
+	if invalid {
+		return true
+	}
+	subject, dimensionsOK := semanticGenericSubject(key, resources)
+	if !dimensionsOK {
+		return true
+	}
+	if !presented {
+		emit("helianthus_semantic_open_conflicts", float64(len(envelope.Conflicts)), semanticFactLabels(key, subject))
+		return false
+	}
+	e, ok := evaluated[candidate.CandidateID]
+	if !ok || !validSemanticState(candidate.Quality.Qualification, candidate.Quality.Promotion, candidate.Quality.Validity, e.EffectiveAvailability, e.Freshness) {
+		return true
+	}
+	labels := semanticFactLabels(key, subject, "qualification", string(candidate.Quality.Qualification), "promotion", string(candidate.Quality.Promotion), "quality", string(candidate.Quality.Validity), "availability", string(e.EffectiveAvailability), "freshness", string(e.Freshness))
+	emit("helianthus_semantic_fact_state", 1, labels)
+	emit("helianthus_semantic_open_conflicts", float64(len(envelope.Conflicts)), semanticFactLabels(key, subject))
+	if age, ok := semanticAge(candidate.Times.ReceivedAt, now); ok {
+		emit("helianthus_semantic_evidence_age", age, semanticFactLabels(key, subject, "unit", "seconds"))
+	}
+	if len(envelope.Conflicts) != 0 || candidate.Quality.Qualification != semreg.QualificationQualified || candidate.Quality.Promotion != semreg.PromotionPromoted || candidate.Quality.Validity != semreg.ValidityGood || e.EffectiveAvailability != semreg.AvailabilityAvailable || e.Freshness != semreg.FreshnessFresh {
+		return false
+	}
+	value, unit, ok := semanticNumeric(candidate.Value)
+	if !ok {
+		return false
+	}
+	if unit == "unit.percent" {
+		value, unit = value/100, "ratio"
+	}
+	emit("helianthus_semantic_fact_value", value, semanticFactLabels(key, subject, "unit", unit))
+	return false
+}
+
+// semanticGenericSubject is the value key of a publication no schema item
+// owns. The published qualifier text is the resource when the snapshot has
+// no current resource for it. The dimension label is the qualifier's catalog
+// identifier.
+func semanticGenericSubject(key semreg.FactKey, resources map[semreg.ResourceID]semreg.Resource) (semanticFactSubject, bool) {
+	if len(key.Dimensions) != 1 {
+		return semanticFactSubject{}, false
+	}
+	dimension := key.Dimensions[0]
+	if dimension.Value.Kind != semreg.ValueText || dimension.Value.Text == nil || *dimension.Value.Text == "" {
+		return semanticFactSubject{}, false
+	}
+	text := *dimension.Value.Text
+	if resources != nil {
+		resource, kind, ok := semanticCurrentResource(text, resources)
+		if !ok {
+			return semanticFactSubject{}, false
+		}
+		return semanticFactSubject{resource: resource, resourceKind: kind, dimension: string(dimension.ID)}, true
+	}
+	return semanticFactSubject{resource: text, dimension: string(dimension.ID)}, true
+}
+
+func semanticFactCovered(pack, fact string) bool {
+	switch fact {
+	case "pv.ac.current", "pv.ac.voltage", "pv.ac.aggregate_active_power", "pv.ac.frequency", "pv.energy.generated", "pv.temperature.inverter", "pv.status.operating":
+		return pack == "helianthus.pack.pv"
+	case "storage.capacity.charge", "storage.capacity.discharge", "storage.pack.current", "storage.pack.voltage", "storage.state.soc", "storage.temperature.pack", "storage.status.operating":
+		return pack == "helianthus.pack.storage"
+	case "evse.limit.configured_current", "evse.limit.allocated_current":
+		return pack == "helianthus.pack.evse"
+	default:
+		return false
 	}
 }
 

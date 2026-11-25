@@ -42,11 +42,30 @@ type Binding struct {
 // missing or corrupt registry sets Validated false; the renderer never
 // allocates or reuses slots. Configured availability remains zero until
 // revalidation. StoreError is the reason a store object could not be read.
-// It is not part of the stored document.
+// StoreDirectory is the caller-supplied location and is not part of the
+// stored document.
 type Registry struct {
-	Validated  bool
-	Bindings   []Binding
-	StoreError string `json:"-"`
+	Validated      bool
+	Bindings       []Binding
+	StoreError     string `json:"-"`
+	StoreDirectory string `json:"-"`
+}
+
+// MetricDomain is the renderer domain of a declared field. A fact the
+// renderer does not declare is not a slot.
+func MetricDomain(fact semreg.DefinitionID) (string, bool) {
+	for _, row := range metrics {
+		if row.field != fact {
+			continue
+		}
+		switch {
+		case len(fact) >= len("thermal.") && string(fact[:len("thermal.")]) == "thermal.":
+			return "thermal", true
+		case len(fact) >= len("infrastructure.") && string(fact[:len("infrastructure.")]) == "infrastructure.":
+			return "infrastructure", true
+		}
+	}
+	return "", false
 }
 
 // metric is one exported row. A thermal quantity row exports the registry

@@ -8,10 +8,11 @@ import (
 )
 
 // composeGatewaySemanticStore creates a missing store and reopens an existing
-// one. members, when set, are assigned before the registry is returned. The
-// caller closes nothing: the file lock is released before return, and a scrape
-// does not open the store again.
-func composeGatewaySemanticStore(directory string, members []semanticmetrics.CutMember) (semanticmetrics.Registry, error) {
+// one. With assign set, members are assigned and the slots of every identity
+// they omit are retired before the registry is returned. The caller closes
+// nothing: the file lock is released before return, and a scrape does not open
+// the store again.
+func composeGatewaySemanticStore(directory string, members []semanticmetrics.CutMember, assign bool) (semanticmetrics.Registry, error) {
 	persistence, err := semanticmetrics.NewSlotFileStore(directory, gatewaySemanticMetricTarget)
 	if err != nil {
 		return semanticmetrics.Registry{}, err
@@ -28,15 +29,23 @@ func composeGatewaySemanticStore(directory string, members []semanticmetrics.Cut
 	if err != nil {
 		return semanticmetrics.Registry{}, err
 	}
-	if len(members) == 0 {
-		return store.Export(), nil
+	if !assign {
+		// A reopened store does not carry its validation. The stored
+		// assignments are attested as they are, so a restart keeps them.
+		if err = store.Revalidate(gatewaySemanticMetricTarget, store.Export().Bindings); err != nil {
+			return semanticmetrics.Registry{}, err
+		}
+		registry := store.Export()
+		registry.StoreDirectory = directory
+		return registry, nil
 	}
-	registry, err := store.Sync(gatewaySemanticMetricTarget, members)
-	if err != nil {
+	if _, err = store.Sync(gatewaySemanticMetricTarget, members); err != nil {
 		return semanticmetrics.Registry{}, err
 	}
-	if err = store.Revalidate(gatewaySemanticMetricTarget, registry.Bindings); err != nil {
+	if err = store.Revalidate(gatewaySemanticMetricTarget, store.Export().Bindings); err != nil {
 		return semanticmetrics.Registry{}, err
 	}
-	return store.Export(), nil
+	registry := store.Export()
+	registry.StoreDirectory = directory
+	return registry, nil
 }

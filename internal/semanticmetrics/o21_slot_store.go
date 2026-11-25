@@ -13,8 +13,6 @@ import (
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
 )
 
-const o21MaxBytes = 256 * 1024
-
 // O21Persistence is an injected, exclusive per-target durable object adapter.
 // Load must return fs.ErrNotExist only for a definitely absent object. Commit
 // must atomically replace the entire object and acknowledge durable completion;
@@ -58,7 +56,7 @@ func o21Check(d o21Document, target string) error {
 	return err
 }
 
-// O21Open loads a bounded document without trusting prior owner validation.
+// O21Open loads a document without trusting prior owner validation.
 // Missing, malformed and cross-target objects fail closed.
 func O21Open(p O21Persistence, target string) (*O21SlotStore, error) {
 	if p == nil {
@@ -67,9 +65,6 @@ func O21Open(p O21Persistence, target string) (*O21SlotStore, error) {
 	raw, err := p.Load(target)
 	if err != nil {
 		return nil, err
-	}
-	if len(raw) > o21MaxBytes {
-		return nil, fmt.Errorf("slot store too large")
 	}
 	var d o21Document
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -168,8 +163,8 @@ func (s *O21SlotStore) o21Update(target string, binding Binding, retire bool) (R
 		return Registry{}, err
 	}
 	raw, err := json.Marshal(d)
-	if err != nil || len(raw) > o21MaxBytes {
-		return Registry{}, fmt.Errorf("slot store too large or invalid")
+	if err != nil {
+		return Registry{}, fmt.Errorf("slot store invalid")
 	}
 	s.mu.Lock()
 	s.validated = false

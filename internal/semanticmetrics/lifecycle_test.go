@@ -107,6 +107,55 @@ func TestThirtyThirdAssignmentExports(t *testing.T) {
 	}
 }
 
+// TestSlotStoreHoldsMoreThanTheFormerByteCeiling: the store document grows past
+// 256 KiB, reopens, and still takes the next assignment, with retired
+// reservations counted among the stored assignments. The former byte ceiling
+// rejected the reopen and the next commit.
+func TestSlotStoreHoldsMoreThanTheFormerByteCeiling(t *testing.T) {
+	const formerCeiling = 256 * 1024
+	persistence := &o21Memory{}
+	store, err := O21Create(persistence, "lifecycle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, registry := m36Fixture(t, "infrastructure.ac.voltage", m36Quantity("230", "unit.volt"))
+	base := registry.Bindings[0]
+	padding := strings.Repeat("x", 230)
+	var members []CutMember
+	for i := 0; len(members) < 330; i++ {
+		members = append(members, cutMember(base, semreg.ResourceID("resource:"+padding+itoa(i)), true))
+	}
+	if _, err = store.Sync("lifecycle", members); err != nil {
+		t.Fatal(err)
+	}
+	if len(persistence.raw) <= formerCeiling {
+		t.Fatalf("document is %d bytes; the fixture must pass the former ceiling", len(persistence.raw))
+	}
+	restarted, err := O21Open(persistence, "lifecycle")
+	if err != nil {
+		t.Fatalf("reopen of a large document: %v", err)
+	}
+	retired := members[0]
+	retired.Current = false
+	next := cutMember(base, "resource:"+semreg.ResourceID(padding)+"next", true)
+	if _, err = restarted.Sync("lifecycle", append([]CutMember{retired, next}, members[1:]...)); err != nil {
+		t.Fatalf("assignment past the former ceiling: %v", err)
+	}
+	stored := restarted.Export().Bindings
+	if len(stored) != 331 {
+		t.Fatalf("stored %d assignments; want 330 active and retired plus one new", len(stored))
+	}
+	reservedRetired := 0
+	for _, binding := range stored {
+		if binding.Retired {
+			reservedRetired++
+		}
+	}
+	if reservedRetired != 1 {
+		t.Fatalf("retired reservations = %d; want 1", reservedRetired)
+	}
+}
+
 func TestO21OldKeyIsNotRead(t *testing.T) {
 	store, persistence, binding := o21Fixture(t)
 	o21Assign(t, store, binding)

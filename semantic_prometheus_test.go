@@ -208,7 +208,7 @@ func TestSemanticPrometheusEVSEWithheldAllocationDoesNotSuppressConfiguredCurren
 	var out bytes.Buffer
 	writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
 	metrics := out.String()
-	if !strings.Contains(metrics, `helianthus_semantic_fact_value{dimension="evse",fact="evse.limit.configured_current",pack="helianthus.pack.evse",resource_kind="resource.evse",unit="unit.ampere"} 42`) || !strings.Contains(metrics, `item="evse.limit.allocated_current",loss_kind="policy"`) {
+	if !strings.Contains(metrics, `helianthus_semantic_fact_value{dimension="evse",fact="evse.limit.configured_current",pack="helianthus.pack.evse",resource="resource:evse.synthetic",resource_kind="resource.evse",unit="unit.ampere"} 42`) || !strings.Contains(metrics, `item="evse.limit.allocated_current",loss_kind="policy"`) {
 		t.Fatalf("withheld allocation changed configured current:\n%s", metrics)
 	}
 }
@@ -357,8 +357,8 @@ func TestSemanticPrometheusPVLabelsFollowResourceKindAndSlot(t *testing.T) {
 		{"names no resource", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "resource:test-missing", "unit.watt", []semreg.Resource{semanticResourceFixture("resource:test-inverter", "resource.inverter", "")}, rendered{}},
 		{"resource of another kind", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "resource:test-input", "unit.watt", []semreg.Resource{semanticResourceFixture("resource:test-input", "resource.dc_input", "1")}, rendered{}},
 		{"ungraphed literal text", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter", "unit.watt", nil, rendered{"inverter", true}},
-		{"ungraphed role text", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter:asset:private", "unit.watt", nil, rendered{}},
-		{"ungraphed role of another dimension", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "system:asset:private", "unit.watt", nil, rendered{}},
+		{"ungraphed role text", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter:subject.private", "unit.watt", nil, rendered{"inverter", true}},
+		{"ungraphed published subject", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "system:subject.private", "unit.watt", nil, rendered{"inverter", true}},
 		{"graphed role text", "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter:asset:private", "unit.watt", []semreg.Resource{semanticResourceFixture("resource:test-inverter", "resource.inverter", "")}, rendered{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -368,17 +368,24 @@ func TestSemanticPrometheusPVLabelsFollowResourceKindAndSlot(t *testing.T) {
 			var out bytes.Buffer
 			writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
 			metrics := out.String()
-			if strings.Contains(metrics, "asset:") {
+			if len(tc.resources) > 0 && strings.Contains(metrics, "asset:") {
 				t.Fatalf("an asset identifier leaked into a label:\n%s", metrics)
 			}
 			if !tc.want.ok && strings.Contains(metrics, tc.value) {
 				t.Fatalf("an unresolved subject was labeled:\n%s", metrics)
 			}
-			kind := semanticUngraphedKind(tc.value)
+			kind := ""
 			resource := ""
-			if len(tc.resources) > 0 && tc.want.ok {
-				kind = string(tc.resources[0].Kind)
+			if tc.want.ok {
 				resource = `,resource="` + tc.value + `"`
+				if len(tc.resources) > 0 {
+					kind = string(tc.resources[0].Kind)
+				} else {
+					kind = semanticUngraphedKind(tc.want.label)
+					if tc.want.label == "phase_l1" || tc.want.label == "phase_l2" || tc.want.label == "phase_l3" {
+						kind = "resource.phase"
+					}
+				}
 			}
 			tail := ""
 			if tc.want.ok {
@@ -667,5 +674,70 @@ func TestSemanticPrometheusRekeyKeepsProjectionSeries(t *testing.T) {
 				t.Fatal(line)
 			}
 		}
+	}
+}
+
+// TestSemanticPrometheusUngraphedPublishedSubjectsStayDistinct: two assets of
+// one fact keep both values, distinguished by the published subject.
+func TestSemanticPrometheusUngraphedPublishedSubjectsStayDistinct(t *testing.T) {
+	first := semanticMetricsFixture("pv", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
+	second := semanticMetricsFixture("pv", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
+	first.Snapshot.Resources, second.Snapshot.Resources = nil, nil
+	semanticPVFixtureAs(&first, "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter:subject-a", "unit.watt")
+	semanticPVFixtureAs(&second, "projection.gateway.pv.inverter.ac.power.active", "pv.ac.aggregate_active_power", "pv.dimension.inverter", "inverter:subject-b", "unit.watt")
+	first.Snapshot.Facts[0].Candidates[0].Value.Quantity.Number.Coefficient = "11"
+	second.Snapshot.Facts[0].Candidates[0].Value.Quantity.Number.Coefficient = "22"
+	var out bytes.Buffer
+	writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{first, second}, time.Unix(101, 0))
+	metrics := out.String()
+	for _, line := range []string{
+		`helianthus_semantic_fact_value{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="inverter:subject-a",resource_kind="resource.inverter",unit="unit.watt"} 11`,
+		`helianthus_semantic_fact_value{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="inverter:subject-b",resource_kind="resource.inverter",unit="unit.watt"} 22`,
+		`helianthus_semantic_projection_item{domain="pv",item="projection.gateway.pv.inverter.ac.power.active",outcome="exact"} 1`,
+	} {
+		if !strings.Contains(metrics, line) {
+			t.Fatalf("missing %s\n%s", line, metrics)
+		}
+	}
+	if strings.Count(metrics, "\nhelianthus_semantic_fact_value{") != 2 {
+		t.Fatalf("subjects collapsed:\n%s", metrics)
+	}
+}
+
+// TestSemanticPrometheusExportsEveryAcceptedPublication: a publication outside
+// the former domain list is exported, and a series past the former ceiling is
+// exported with it.
+func TestSemanticPrometheusExportsEveryAcceptedPublication(t *testing.T) {
+	domain := semanticMetricsFixture("pv", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
+	text := "loop-a"
+	key := domain.Snapshot.Facts[0].Key
+	key.PackID = "helianthus.pack.hydraulic"
+	key.FactID = "hydraulic.energy.delivered"
+	key.Dimensions = []semreg.Dimension{{ID: "hydraulic.dimension.loop", Value: semreg.Value{Kind: semreg.ValueText, Text: &text}}}
+	domain.Name = "hydraulic"
+	domain.Snapshot.Resources = nil
+	domain.Snapshot.Facts[0].Key = key
+	domain.Snapshot.Facts[0].Candidates[0].Key = key
+	domain.Snapshot.Facts[0].Candidates[0].Value.Quantity.Unit = "unit.joule"
+	domain.Projection = projection.ProjectionReport{}
+	domains := []SemanticMetricsDomain{domain}
+	for i := 0; i < 193; i++ {
+		domains = append(domains, SemanticMetricsDomain{Name: "plant-" + strconv.Itoa(i)})
+	}
+	var out bytes.Buffer
+	writeSemanticMetrics(newPrometheusWriter(&out), domains, time.Unix(101, 0))
+	metrics := out.String()
+	const value = `helianthus_semantic_fact_value{dimension="hydraulic.dimension.loop",fact="hydraulic.energy.delivered",pack="helianthus.pack.hydraulic",resource="loop-a",unit="unit.joule"} 42`
+	if !strings.Contains(metrics, value) {
+		t.Fatalf("hydraulic value withheld:\n%s", metrics)
+	}
+	if strings.Count(metrics, "helianthus_semantic_projection_available{") != 193 {
+		t.Fatalf("projection series = %d\n%s", strings.Count(metrics, "helianthus_semantic_projection_available{"), metrics)
+	}
+	if strings.Contains(metrics, "\nhelianthus_semantic_render_overflow ") || strings.Contains(metrics, `domain="hydraulic"`) {
+		t.Fatalf("a series was withheld or a missing projection was marked available:\n%s", metrics)
+	}
+	if !strings.Contains(metrics, `helianthus_semantic_projection_available{domain="plant-192"} 0`) {
+		t.Fatalf("domain withheld:\n%s", metrics)
 	}
 }

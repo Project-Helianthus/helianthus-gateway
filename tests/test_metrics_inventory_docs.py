@@ -327,11 +327,11 @@ def test_dynamic_writer_fails_closed(analysis):
 
 # Restrict the graph to metrics composition and output operations. Data
 # preparation, validation, sorting and unrelated HTTP routes are not exposition.
-OUTPUT_ROOTS = {"RenderPrometheus", "writeTransportRuntimeMetrics", "writeBaudObservationMetrics", "writeSemanticMetrics", "renderSemanticFact", "Render", "text", "writeSample", "writeGaugeSample", "writeCounterSample", "writeType", "writeHelp", "newGatewayMetricsHandler", "MetricsHandler", "startHTTPServer", "newHTTPControlPlaneProviders", "registerHTTPControlPlaneCoreRoutes", "RenderSemanticPrometheus"}
+OUTPUT_ROOTS = {"RenderPrometheus", "writeTransportRuntimeMetrics", "writeBaudObservationMetrics", "writeSemanticMetrics", "renderSemanticFact", "Render", "text", "writeSample", "writeGaugeSample", "writeCounterSample", "writeType", "writeHelp", "newGatewayMetricsHandler", "MetricsHandler", "startHTTPServer", "newHTTPControlPlaneProviders", "registerHTTPControlPlaneCoreRoutes", "RenderSemanticPrometheus", "sections"}
 COMPOSITION_CALLS = {
     "newHTTPControlPlaneProviders", "newGatewayMetricsHandler", "newGatewaySemanticMetrics", "gatewaySemanticMetricRegistry",
     "store.MetricsHandler", "store.RenderPrometheus", "transport.ServeHTTP",
-    "semantic.text", "huaweiWireCounters.text", "semanticmetrics.Render",
+    "semantic.text", "semantic.sections", "huaweiWireCounters.text", "semanticmetrics.Render",
     "newPrometheusWriter", "writeSemanticMetrics", "renderSemanticFact",
     "writeTransportRuntimeMetrics", "writeBaudObservationMetrics", "emit",
 }
@@ -391,7 +391,7 @@ def test_finite_format_renderers_and_route_composition(analysis):
             "sharedSemanticProvider: sharedSemanticProvider,",
             "semanticMetrics:        semanticMetrics,",
         ],
-        "cmd/gateway/semantic_metrics_runtime.go": ["transport := store.MetricsHandler()", "transport.ServeHTTP(w, r)", "semanticmetrics.Render(view, m.registry)", "io.WriteString(w, semantic.text(r.Context()))", "io.WriteString(w, huaweiWireCounters.text())", "return semanticmetrics.Registry{}"],
+        "cmd/gateway/semantic_metrics_runtime.go": ["transport := store.MetricsHandler()", "transport.ServeHTTP(w, r)", "semanticmetrics.Render(view, registry)", "semantic.sections(r.Context())", "huaweiWireCounters.text()", "return semanticmetrics.Registry{}"],
         "cmd/gateway/gateway_http_control_plane.go": ['mux.Handle("/debug/vars", expvar.Handler())', "mux.Handle(plan.metricsPath, metricsHandler)", "if hasBusObservability {"],
         "runtime_transport_metrics.go": ["writeBaudObservationMetrics(writer, ebusConfigured)"],
         "baud_observation_metrics.go": ["if !ebusConfigured {\n\t\treturn"],

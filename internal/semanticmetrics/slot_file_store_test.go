@@ -124,7 +124,7 @@ func TestSlotFileStoreTargets(t *testing.T) {
 }
 
 func TestSlotFileStoreInvalidData(t *testing.T) {
-	for _, kind := range []string{"corrupt", "directory", "symlink", "dangling", "fifo", "oversized"} {
+	for _, kind := range []string{"corrupt", "directory", "symlink", "dangling", "fifo"} {
 		t.Run(kind, func(t *testing.T) {
 			p := slotFileFixture(t, t.TempDir(), "target")
 			path := filepath.Join(p.directory, p.name+".json")
@@ -144,8 +144,6 @@ func TestSlotFileStoreInvalidData(t *testing.T) {
 				err = os.Symlink(destination, path)
 			case "fifo":
 				err = syscall.Mkfifo(path, 0600)
-			case "oversized":
-				err = os.WriteFile(path, make([]byte, o21MaxBytes+1), 0600)
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -164,9 +162,6 @@ func TestSlotFileStoreInvalidData(t *testing.T) {
 		})
 	}
 	p := slotFileFixture(t, t.TempDir(), "target")
-	if err := p.Commit("target", make([]byte, o21MaxBytes+1)); err == nil {
-		t.Fatal("oversize write")
-	}
 	if err := p.Commit("target", []byte("small")); err != nil {
 		t.Fatal(err)
 	}
