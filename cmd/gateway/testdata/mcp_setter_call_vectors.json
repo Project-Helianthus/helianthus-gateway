@@ -1,0 +1,9 @@
+{
+  "namespace": "synthetic",
+  "instance": "unit",
+  "calls": [
+    {"name": "first", "local": "method_a", "input": "dmFsdWUtYQ==", "result": "cmVzdWx0LWE="},
+    {"name": "second", "local": "method_b", "input": "AQID", "result": "cmVzdWx0LWI="},
+    {"name": "third", "local": "method_c", "input": "MTIuNQ==", "result": "cmVzdWx0LWM="}
+  ]
+}
