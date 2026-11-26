@@ -1,0 +1,32 @@
+{
+  "compound": {
+    "compound_execution": {
+      "partial": true,
+      "steps": [
+        {
+          "acknowledgement": "accepted",
+          "attempted": true,
+          "delivery": "sent",
+          "point": "point.first",
+          "readback_relation": "confirms"
+        },
+        {
+          "attempted": true,
+          "delivery": "unknown",
+          "point": "point.second",
+          "reason": "delivery ambiguous"
+        },
+        {
+          "attempted": false,
+          "point": "point.third"
+        }
+      ]
+    },
+    "kernel_outcome": "indeterminate",
+    "status": "unknown"
+  },
+  "single_step": {
+    "delivery": "sent",
+    "status": "accepted"
+  }
+}
