@@ -709,12 +709,12 @@ func TestSemanticPrometheusUngraphedPublishedSubjectsStayDistinct(t *testing.T) 
 // exported with it.
 func TestSemanticPrometheusExportsEveryAcceptedPublication(t *testing.T) {
 	domain := semanticMetricsFixture("pv", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
-	text := "loop-a"
+	text := "meter-a"
 	key := domain.Snapshot.Facts[0].Key
-	key.PackID = "helianthus.pack.hydraulic"
-	key.FactID = "hydraulic.energy.delivered"
-	key.Dimensions = []semreg.Dimension{{ID: "hydraulic.dimension.loop", Value: semreg.Value{Kind: semreg.ValueText, Text: &text}}}
-	domain.Name = "hydraulic"
+	key.PackID = "helianthus.pack.infrastructure"
+	key.FactID = "infrastructure.energy.import"
+	key.Dimensions = []semreg.Dimension{{ID: "infrastructure.dimension.meter", Value: semreg.Value{Kind: semreg.ValueText, Text: &text}}}
+	domain.Name = "infrastructure"
 	domain.Snapshot.Resources = nil
 	domain.Snapshot.Facts[0].Key = key
 	domain.Snapshot.Facts[0].Candidates[0].Key = key
@@ -727,17 +727,247 @@ func TestSemanticPrometheusExportsEveryAcceptedPublication(t *testing.T) {
 	var out bytes.Buffer
 	writeSemanticMetrics(newPrometheusWriter(&out), domains, time.Unix(101, 0))
 	metrics := out.String()
-	const value = `helianthus_semantic_fact_value{dimension="hydraulic.dimension.loop",fact="hydraulic.energy.delivered",pack="helianthus.pack.hydraulic",resource="loop-a",unit="unit.joule"} 42`
+	const value = `helianthus_semantic_fact_value{dimension="infrastructure.dimension.meter",fact="infrastructure.energy.import",pack="helianthus.pack.infrastructure",resource="meter-a",unit="unit.joule"} 42`
 	if !strings.Contains(metrics, value) {
-		t.Fatalf("hydraulic value withheld:\n%s", metrics)
+		t.Fatalf("infrastructure value withheld:\n%s", metrics)
 	}
 	if strings.Count(metrics, "helianthus_semantic_projection_available{") != 193 {
 		t.Fatalf("projection series = %d\n%s", strings.Count(metrics, "helianthus_semantic_projection_available{"), metrics)
 	}
-	if strings.Contains(metrics, "\nhelianthus_semantic_render_overflow ") || strings.Contains(metrics, `domain="hydraulic"`) {
+	if strings.Contains(metrics, "\nhelianthus_semantic_render_overflow ") || strings.Contains(metrics, `domain="infrastructure"`) {
 		t.Fatalf("a series was withheld or a missing projection was marked available:\n%s", metrics)
 	}
 	if !strings.Contains(metrics, `helianthus_semantic_projection_available{domain="plant-192"} 0`) {
 		t.Fatalf("domain withheld:\n%s", metrics)
 	}
+}
+
+func semanticPublishedFixture() SemanticMetricsDomain {
+	domain := semanticMetricsFixture("cut", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
+	domain.Snapshot.Facts, domain.Evaluation.Facts = nil, nil
+	domain.Projection = projection.ProjectionReport{}
+	return domain
+}
+
+func semanticTextQualifier(id semreg.DefinitionID, text string) semreg.Dimension {
+	return semreg.Dimension{ID: id, Value: semreg.Value{Kind: semreg.ValueText, Text: &text}}
+}
+
+func addSemanticPublishedQuantity(domain *SemanticMetricsDomain, pack, fact, unit semreg.DefinitionID, number semreg.Decimal, dimensions ...semreg.Dimension) {
+	key := semreg.FactKey{PackID: pack, PackVersion: "1.0.0", FactID: fact, Dimensions: dimensions}
+	id := semreg.CandidateID("candidate:synthetic-" + strconv.Itoa(len(domain.Snapshot.Facts)))
+	candidate := semreg.FactCandidate{
+		CandidateID: id, Key: key,
+		Value:   &semreg.Value{Kind: semreg.ValueQuantity, Quantity: &semreg.Quantity{Number: number, Unit: unit}},
+		Quality: semreg.Quality{Qualification: semreg.QualificationQualified, Promotion: semreg.PromotionPromoted, Validity: semreg.ValidityGood},
+		Times:   semreg.Times{ReceivedAt: semreg.TimePoint{UnixNanoseconds: "100000000000", ClockID: "clock.utc"}},
+	}
+	domain.Snapshot.Facts = append(domain.Snapshot.Facts, semreg.FactEnvelope{Key: key, Candidates: []semreg.FactCandidate{candidate}})
+	domain.Evaluation.Facts = append(domain.Evaluation.Facts, semreg.EvaluatedFact{CandidateID: id, Freshness: semreg.FreshnessFresh, EffectiveAvailability: semreg.AvailabilityAvailable})
+}
+
+func TestSemanticPrometheusRegistryFlowRate(t *testing.T) {
+	domain := semanticPublishedFixture()
+	domain.Snapshot.Resources = []semreg.Resource{semanticResourceFixture("resource:circuit.synthetic", "resource.thermal_circuit", "")}
+	addSemanticPublishedQuantity(&domain, "helianthus.pack.thermal", "thermal.measurement.flow_rate", "unit.cubic_metre_per_second", semreg.Decimal{Coefficient: "25", Exponent10: -4}, semanticTextQualifier("thermal.dimension.circuit", "resource:circuit.synthetic"))
+	got := RenderSemanticPrometheus([]SemanticMetricsDomain{domain}, time.Unix(101, 0))
+	want := `helianthus_semantic_fact_state{availability="available",dimension="thermal.dimension.circuit",fact="thermal.measurement.flow_rate",freshness="fresh",pack="helianthus.pack.thermal",promotion="promoted",qualification="qualified",quality="good",resource="resource:circuit.synthetic",resource_kind="resource.thermal_circuit"} 1
+helianthus_semantic_open_conflicts{dimension="thermal.dimension.circuit",fact="thermal.measurement.flow_rate",pack="helianthus.pack.thermal",resource="resource:circuit.synthetic",resource_kind="resource.thermal_circuit"} 0
+helianthus_semantic_evidence_age{dimension="thermal.dimension.circuit",fact="thermal.measurement.flow_rate",pack="helianthus.pack.thermal",resource="resource:circuit.synthetic",resource_kind="resource.thermal_circuit",unit="seconds"} 1
+helianthus_semantic_fact_value{dimension="thermal.dimension.circuit",fact="thermal.measurement.flow_rate",pack="helianthus.pack.thermal",resource="resource:circuit.synthetic",resource_kind="resource.thermal_circuit",unit="unit.cubic_metre_per_second"} 0.0025
+`
+	if got != semanticPrometheusFixtureMetadata+want {
+		t.Fatalf("flow rate exposition:\n%s\nwant samples:\n%s", got, want)
+	}
+}
+
+func TestSemanticPrometheusRegistryPowerUnits(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		fact, unit  semreg.DefinitionID
+		coefficient string
+		pack        semreg.DefinitionID
+		version     semreg.SemanticVersion
+		want        bool
+	}{
+		{"apparent", "infrastructure.ac.apparent_power", "unit.volt_ampere", "120", "helianthus.pack.infrastructure", "1.0.0", true},
+		{"reactive", "infrastructure.ac.reactive_power", "unit.volt_ampere_reactive", "-35", "helianthus.pack.infrastructure", "1.0.0", true},
+		{"wrong unit", "infrastructure.ac.apparent_power", "unit.watt", "120", "helianthus.pack.infrastructure", "1.0.0", false},
+		{"percent on non-ratio fact", "infrastructure.ac.apparent_power", "unit.percent", "75", "helianthus.pack.infrastructure", "1.0.0", false},
+		{"wrong pack", "infrastructure.ac.apparent_power", "unit.volt_ampere", "120", "helianthus.pack.thermal", "1.0.0", false},
+		{"wrong version", "infrastructure.ac.apparent_power", "unit.volt_ampere", "120", "helianthus.pack.infrastructure", "2.0.0", false},
+		{"unknown fact", "infrastructure.ac.synthetic", "unit.watt", "120", "helianthus.pack.infrastructure", "1.0.0", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			domain := semanticPublishedFixture()
+			domain.Snapshot.Resources = []semreg.Resource{semanticResourceFixture("resource:phase.synthetic", "resource.phase", "L1")}
+			addSemanticPublishedQuantity(&domain, tc.pack, tc.fact, tc.unit, semreg.Decimal{Coefficient: tc.coefficient}, semanticTextQualifier("infrastructure.dimension.phase", "resource:phase.synthetic"))
+			env := &domain.Snapshot.Facts[0]
+			env.Key.PackVersion = tc.version
+			env.Candidates[0].Key = env.Key
+			got := RenderSemanticPrometheus([]SemanticMetricsDomain{domain}, time.Unix(101, 0))
+			for _, family := range []string{"fact_state", "open_conflicts", "evidence_age"} {
+				if strings.Count(got, "\nhelianthus_semantic_"+family+"{") != 1 {
+					t.Fatalf("missing %s:\n%s", family, got)
+				}
+			}
+			const value = "\nhelianthus_semantic_fact_value{"
+			if !tc.want {
+				if strings.Contains(got, value) {
+					t.Fatalf("noncanonical value emitted:\n%s", got)
+				}
+				return
+			}
+			want := value + `dimension="infrastructure.dimension.phase",fact="` + string(tc.fact) + `",pack="helianthus.pack.infrastructure",resource="resource:phase.synthetic",resource_kind="resource.phase",unit="` + string(tc.unit) + `"} ` + tc.coefficient + "\n"
+			if strings.Count(got, value) != 1 || !strings.Contains(got, want) {
+				t.Fatalf("power exposition:\n%s\nmissing %s", got, want)
+			}
+		})
+	}
+}
+
+const semanticPrometheusFixtureMetadata = `# HELP helianthus_semantic_projection_available Detached SemReg projection availability for this Prometheus target.
+# TYPE helianthus_semantic_projection_available gauge
+# HELP helianthus_semantic_projection_item Current requested SemReg projection outcome.
+# TYPE helianthus_semantic_projection_item gauge
+# HELP helianthus_semantic_fact_state Current SemReg fact quality, effective availability, and freshness state.
+# TYPE helianthus_semantic_fact_state gauge
+# HELP helianthus_semantic_fact_value Current fresh qualified numeric or boolean SemReg fact value.
+# TYPE helianthus_semantic_fact_value gauge
+# HELP helianthus_semantic_evidence_age Age of selected SemReg evidence when wall clocks are comparable.
+# TYPE helianthus_semantic_evidence_age gauge
+# HELP helianthus_semantic_open_conflicts Open conflicts on the detached SemReg fact envelope.
+# TYPE helianthus_semantic_open_conflicts gauge
+# HELP helianthus_semantic_projection_loss Loss kinds declared by the detached SemReg projection.
+# TYPE helianthus_semantic_projection_loss gauge
+# HELP helianthus_semantic_render_overflow Semantic metrics omitted because input was invalid or a duplicate series was withheld.
+# TYPE helianthus_semantic_render_overflow gauge
+`
+
+func TestSemanticPrometheusCompleteQualifierExposition(t *testing.T) {
+	domain := semanticMetricsFixture("pv", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
+	domain.Projection.Dispositions[0].Outcome = projection.ProjectionTransformed
+	domain.Projection.Dispositions[0].Loss = []projection.LossDetail{{Kind: projection.LossPrecision}}
+	domain.Snapshot.Resources = append(domain.Snapshot.Resources, semanticResourceFixture("resource:meter.synthetic", "resource.meter", ""))
+	meter := semanticTextQualifier("infrastructure.dimension.meter", "resource:meter.synthetic")
+	addSemanticPublishedQuantity(&domain, "helianthus.pack.infrastructure", "infrastructure.energy.import", "unit.joule", semreg.Decimal{Coefficient: "10"}, meter)
+	addSemanticPublishedQuantity(&domain, "helianthus.pack.infrastructure", "infrastructure.energy.import", "unit.joule", semreg.Decimal{Coefficient: "11"}, meter, semanticTextQualifier("synthetic.dimension.tariff", "day"))
+	addSemanticPublishedQuantity(&domain, "helianthus.pack.infrastructure", "infrastructure.energy.import", "unit.joule", semreg.Decimal{Coefficient: "12"}, meter, semanticTextQualifier("synthetic.dimension.tariff", "night"))
+
+	// Complete old exposition, declared independently of the writer.
+	const projected = semanticPrometheusFixtureMetadata +
+		`helianthus_semantic_projection_available{domain="pv"} 1
+helianthus_semantic_projection_item{domain="pv",item="projection.gateway.pv.inverter.ac.power.active",outcome="transformed"} 1
+helianthus_semantic_projection_loss{domain="pv",item="projection.gateway.pv.inverter.ac.power.active",loss_kind="precision"} 1
+helianthus_semantic_fact_state{availability="available",dimension="inverter",fact="pv.ac.aggregate_active_power",freshness="fresh",pack="helianthus.pack.pv",promotion="promoted",qualification="qualified",quality="good",resource="resource:inverter.synthetic",resource_kind="resource.inverter"} 1
+helianthus_semantic_open_conflicts{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="resource:inverter.synthetic",resource_kind="resource.inverter"} 0
+helianthus_semantic_evidence_age{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="resource:inverter.synthetic",resource_kind="resource.inverter",unit="seconds"} 1
+helianthus_semantic_fact_value{dimension="inverter",fact="pv.ac.aggregate_active_power",pack="helianthus.pack.pv",resource="resource:inverter.synthetic",resource_kind="resource.inverter",unit="unit.watt"} 42
+`
+	const single = `helianthus_semantic_fact_state{availability="available",dimension="infrastructure.dimension.meter",fact="infrastructure.energy.import",freshness="fresh",pack="helianthus.pack.infrastructure",promotion="promoted",qualification="qualified",quality="good",resource="resource:meter.synthetic",resource_kind="resource.meter"} 1
+helianthus_semantic_open_conflicts{dimension="infrastructure.dimension.meter",fact="infrastructure.energy.import",pack="helianthus.pack.infrastructure",resource="resource:meter.synthetic",resource_kind="resource.meter"} 0
+helianthus_semantic_evidence_age{dimension="infrastructure.dimension.meter",fact="infrastructure.energy.import",pack="helianthus.pack.infrastructure",resource="resource:meter.synthetic",resource_kind="resource.meter",unit="seconds"} 1
+helianthus_semantic_fact_value{dimension="infrastructure.dimension.meter",fact="infrastructure.energy.import",pack="helianthus.pack.infrastructure",resource="resource:meter.synthetic",resource_kind="resource.meter",unit="unit.joule"} 10
+`
+	const before = projected + single + "helianthus_semantic_render_overflow 2\n"
+	const day = `dimension="[{\"id\":\"infrastructure.dimension.meter\",\"value\":{\"kind\":\"text\",\"text\":\"resource:meter.synthetic\"}},{\"id\":\"synthetic.dimension.tariff\",\"value\":{\"kind\":\"text\",\"text\":\"day\"}}]",`
+	const night = `dimension="[{\"id\":\"infrastructure.dimension.meter\",\"value\":{\"kind\":\"text\",\"text\":\"resource:meter.synthetic\"}},{\"id\":\"synthetic.dimension.tariff\",\"value\":{\"kind\":\"text\",\"text\":\"night\"}}]",`
+	const state = `fact="infrastructure.energy.import",freshness="fresh",pack="helianthus.pack.infrastructure",promotion="promoted",qualification="qualified",quality="good",resource="resource:meter.synthetic",resource_kind="resource.meter"} 1`
+	const common = `fact="infrastructure.energy.import",pack="helianthus.pack.infrastructure",resource="resource:meter.synthetic",resource_kind="resource.meter"`
+
+	// Old sample -> new sample. Blank means absent. Everything else is
+	// identical, including metadata, domain projections and single qualifiers.
+	changes := [][2]string{
+		{"helianthus_semantic_render_overflow 2", ""},
+		{"", `helianthus_semantic_fact_state{availability="available",` + day + state},
+		{"", `helianthus_semantic_open_conflicts{` + day + common + `} 0`},
+		{"", `helianthus_semantic_evidence_age{` + day + common + `,unit="seconds"} 1`},
+		{"", `helianthus_semantic_fact_value{` + day + common + `,unit="unit.joule"} 11`},
+		{"", `helianthus_semantic_fact_state{availability="available",` + night + state},
+		{"", `helianthus_semantic_open_conflicts{` + night + common + `} 0`},
+		{"", `helianthus_semantic_evidence_age{` + night + common + `,unit="seconds"} 1`},
+		{"", `helianthus_semantic_fact_value{` + night + common + `,unit="unit.joule"} 12`},
+	}
+	want, additions := before, ""
+	for _, change := range changes {
+		if old := change[0]; old != "" {
+			if strings.Count(want, old+"\n") != 1 {
+				t.Fatalf("invalid history map entry: %q", old)
+			}
+			want = strings.Replace(want, old+"\n", "", 1)
+		}
+		if change[1] != "" {
+			additions += change[1] + "\n"
+		}
+	}
+	// In canonical key order the two multikeys precede the single key.
+	want = strings.Replace(want, single, additions+single, 1)
+	if got := RenderSemanticPrometheus([]SemanticMetricsDomain{domain}, time.Unix(101, 0)); got != want {
+		t.Fatalf("complete exposition:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestSemanticPrometheusQualifierKeyFields(t *testing.T) {
+	const (
+		measurement = semreg.DefinitionID("infrastructure.dimension.measurement_type")
+		meter       = semreg.DefinitionID("infrastructure.dimension.meter")
+		primary     = "resource:meter.synthetic"
+		other       = "resource:meter.other"
+		ratioFact   = semreg.DefinitionID("infrastructure.accuracy.ratio_maximum")
+		measured    = semreg.DefinitionID("infrastructure.accuracy.measured")
+	)
+	// The registry declares the symbol qualifier before the meter in key order.
+	// Change each member without relying on candidate IDs to distinguish samples.
+	for _, tc := range []struct {
+		name          string
+		fact          semreg.DefinitionID
+		qualifier     semreg.DefinitionID
+		value         semreg.Value
+		subjectID     semreg.DefinitionID
+		resource      string
+		qualifierJSON string
+		wantValue     string
+	}{
+		{"base", ratioFact, measurement, semanticSymbolQualifier(measurement, "active_power", true), meter, primary, `{"kind":"symbol","symbol":{"namespace":"infrastructure.dimension.measurement_type","token":"active_power","known":true}}`, `,unit="unit.ratio"} 0.01`},
+		{"symbol token", ratioFact, measurement, semanticSymbolQualifier(measurement, "rms_voltage", true), meter, primary, `{"kind":"symbol","symbol":{"namespace":"infrastructure.dimension.measurement_type","token":"rms_voltage","known":true}}`, `,unit="unit.ratio"} 0.01`},
+		{"symbol namespace", ratioFact, measurement, semanticSymbolQualifier("synthetic.dimension.type", "active_power", true), meter, primary, `{"kind":"symbol","symbol":{"namespace":"synthetic.dimension.type","token":"active_power","known":true}}`, `,unit="unit.ratio"} 0.01`},
+		{"unknown symbol", ratioFact, measurement, semanticSymbolQualifier("native.synthetic", "active_power", false), meter, primary, `{"kind":"symbol","symbol":{"namespace":"native.synthetic","token":"active_power","known":false}}`, `,unit="unit.ratio"} 0.01`},
+		{"text kind and decoy resource", ratioFact, measurement, semanticTextQualifier(measurement, other).Value, meter, primary, `{"kind":"text","text":"resource:meter.other"}`, `,unit="unit.ratio"} 0.01`},
+		{"qualifier ID", ratioFact, "infrastructure.dimension.measurement_other", semanticSymbolQualifier(measurement, "active_power", true), meter, primary, `{"kind":"symbol","symbol":{"namespace":"infrastructure.dimension.measurement_type","token":"active_power","known":true}}`, `,unit="unit.ratio"} 0.01`},
+		{"resource ID", ratioFact, measurement, semanticSymbolQualifier(measurement, "active_power", true), meter, other, `{"kind":"symbol","symbol":{"namespace":"infrastructure.dimension.measurement_type","token":"active_power","known":true}}`, `,unit="unit.ratio"} 0.01`},
+		{"fact ID", measured, measurement, semanticSymbolQualifier(measurement, "active_power", true), meter, primary, `{"kind":"symbol","symbol":{"namespace":"infrastructure.dimension.measurement_type","token":"active_power","known":true}}`, `,unit="boolean"} 1`},
+		{"missing catalog subject", ratioFact, measurement, semanticSymbolQualifier(measurement, "active_power", true), "infrastructure.dimension.site", primary, "", ""},
+		{"missing current resource", ratioFact, measurement, semanticSymbolQualifier(measurement, "active_power", true), meter, "resource:meter.missing", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			domain := semanticPublishedFixture()
+			domain.Snapshot.Resources = []semreg.Resource{
+				semanticResourceFixture(primary, "resource.meter", ""),
+				semanticResourceFixture(other, "resource.meter", ""),
+			}
+			addSemanticPublishedQuantity(&domain, "helianthus.pack.infrastructure", tc.fact, "unit.ratio", semreg.Decimal{Coefficient: "1", Exponent10: -2},
+				semreg.Dimension{ID: tc.qualifier, Value: tc.value}, semanticTextQualifier(tc.subjectID, tc.resource))
+			if tc.fact == measured {
+				bit := true
+				domain.Snapshot.Facts[0].Candidates[0].Value = &semreg.Value{Kind: semreg.ValueBoolean, Boolean: &bit}
+			}
+			got := RenderSemanticPrometheus([]SemanticMetricsDomain{domain}, time.Unix(101, 0))
+			const value = "\nhelianthus_semantic_fact_value{"
+			if tc.wantValue == "" {
+				if got != semanticPrometheusFixtureMetadata+"helianthus_semantic_render_overflow 1\n" {
+					t.Fatalf("missing subject admitted:\n%s", got)
+				}
+				return
+			}
+			label := `[{"id":"` + string(tc.qualifier) + `","value":` + tc.qualifierJSON + `},{"id":"infrastructure.dimension.meter","value":{"kind":"text","text":"` + tc.resource + `"}}]`
+			want := value + `dimension=` + strconv.Quote(label) + `,fact="` + string(tc.fact) + `",pack="helianthus.pack.infrastructure",resource="` + tc.resource + `",resource_kind="resource.meter"` + tc.wantValue + "\n"
+			if strings.Count(got, value) != 1 || !strings.Contains(got, want) {
+				t.Fatalf("qualifier exposition:\n%s\nmissing %s", got, want)
+			}
+		})
+	}
+}
+
+func semanticSymbolQualifier(namespace semreg.DefinitionID, token string, known bool) semreg.Value {
+	return semreg.Value{Kind: semreg.ValueSymbol, Symbol: &semreg.Symbol{Namespace: namespace, Token: token, Known: known}}
 }

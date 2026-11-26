@@ -4,13 +4,17 @@ package ebusgateway
 // output. It is an observation surface, never a semantic authority.
 
 import (
+	"encoding/json"
 	"math/big"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semselect"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/projection"
 )
 
@@ -313,10 +317,7 @@ func renderSemanticFact(emit func(string, float64, map[string]string) bool, doma
 	if len(envelope.Conflicts) != 0 || candidate.Quality.Qualification != semreg.QualificationQualified || candidate.Quality.Promotion != semreg.PromotionPromoted || candidate.Quality.Validity != semreg.ValidityGood || e.EffectiveAvailability != semreg.AvailabilityAvailable || e.Freshness != semreg.FreshnessFresh {
 		return false
 	}
-	value, unit, ok := semanticNumeric(candidate.Value)
-	if ok && unit == "unit.percent" {
-		value, unit = value/100, "ratio"
-	}
+	value, unit, ok := semanticNumeric(key, candidate.Value)
 	if ok {
 		emit("helianthus_semantic_fact_value", value, semanticFactLabels(key, subject, "unit", unit))
 	}
@@ -503,26 +504,45 @@ func renderPublishedFact(emit func(string, float64, map[string]string) bool, env
 	if len(envelope.Conflicts) != 0 || candidate.Quality.Qualification != semreg.QualificationQualified || candidate.Quality.Promotion != semreg.PromotionPromoted || candidate.Quality.Validity != semreg.ValidityGood || e.EffectiveAvailability != semreg.AvailabilityAvailable || e.Freshness != semreg.FreshnessFresh {
 		return false
 	}
-	value, unit, ok := semanticNumeric(candidate.Value)
-	if !ok {
-		return false
+	value, unit, ok := semanticNumeric(key, candidate.Value)
+	if ok {
+		emit("helianthus_semantic_fact_value", value, semanticFactLabels(key, subject, "unit", unit))
 	}
-	if unit == "unit.percent" {
-		value, unit = value/100, "ratio"
-	}
-	emit("helianthus_semantic_fact_value", value, semanticFactLabels(key, subject, "unit", unit))
 	return false
 }
 
-// semanticGenericSubject is the value key of a publication no schema item
-// owns. The published qualifier text is the resource when the snapshot has
-// no current resource for it. The dimension label is the qualifier's catalog
-// identifier.
+// semanticGenericSubject preserves the single-qualifier label and uses the
+// catalog subject to find the resource when the key has multiple qualifiers.
 func semanticGenericSubject(key semreg.FactKey, resources map[semreg.ResourceID]semreg.Resource) (semanticFactSubject, bool) {
-	if len(key.Dimensions) != 1 {
+	if len(key.Dimensions) == 0 {
 		return semanticFactSubject{}, false
 	}
 	dimension := key.Dimensions[0]
+	label := string(dimension.ID)
+	if len(key.Dimensions) > 1 {
+		catalog, err := graph.Embedded()
+		if err != nil {
+			return semanticFactSubject{}, false
+		}
+		subject, ok := catalog.FactSubject(semreg.PackRef{ID: key.PackID, Version: key.PackVersion}, key.FactID)
+		if !ok || !subject.Resolved {
+			return semanticFactSubject{}, false
+		}
+		dimension = semreg.Dimension{}
+		for _, qualifier := range key.Dimensions {
+			if qualifier.ID == subject.Dimension {
+				dimension = qualifier
+				break
+			}
+		}
+		// FactKey validation has already checked the canonical dimension order.
+		// The JSON array preserves that order and keeps typed values unambiguous.
+		encoded, err := json.Marshal(key.Dimensions)
+		if err != nil {
+			return semanticFactSubject{}, false
+		}
+		label = string(encoded)
+	}
 	if dimension.Value.Kind != semreg.ValueText || dimension.Value.Text == nil || *dimension.Value.Text == "" {
 		return semanticFactSubject{}, false
 	}
@@ -532,9 +552,9 @@ func semanticGenericSubject(key semreg.FactKey, resources map[semreg.ResourceID]
 		if !ok {
 			return semanticFactSubject{}, false
 		}
-		return semanticFactSubject{resource: resource, resourceKind: kind, dimension: string(dimension.ID)}, true
+		return semanticFactSubject{resource: resource, resourceKind: kind, dimension: label}, true
 	}
-	return semanticFactSubject{resource: text, dimension: string(dimension.ID)}, true
+	return semanticFactSubject{resource: text, dimension: label}, true
 }
 
 func semanticFactCovered(pack, fact string) bool {
@@ -667,7 +687,12 @@ func semanticFactSchemaFor(domain, item string) (semanticFactSchema, bool) {
 	return semanticFactSchema{}, false
 }
 
-func semanticNumeric(value *semreg.Value) (float64, string, bool) {
+var semanticPrometheusMetadata = sync.OnceValue(func() *semreg.PackMetadataRegistry {
+	metadata, _ := packs.NewMetadataRegistry()
+	return metadata // A missing registry admits no quantities.
+})
+
+func semanticNumeric(key semreg.FactKey, value *semreg.Value) (float64, string, bool) {
 	if value == nil {
 		return 0, "", false
 	}
@@ -680,7 +705,11 @@ func semanticNumeric(value *semreg.Value) (float64, string, bool) {
 	if value.Kind != semreg.ValueQuantity || value.Quantity == nil {
 		return 0, "", false
 	}
-	if !validSemanticUnit(string(value.Quantity.Unit)) {
+	unit := value.Quantity.Unit
+	field := semreg.DefinitionRef{Pack: semreg.PackRef{ID: key.PackID, Version: key.PackVersion}, ID: key.FactID, Version: key.PackVersion}
+	canonical, ok := semanticPrometheusMetadata().CanonicalUnit(field)
+	percent := unit == "unit.percent" && canonical.ID == "unit.ratio"
+	if !ok || (unit != canonical.ID && !percent) {
 		return 0, "", false
 	}
 	r, ok := new(big.Rat).SetString(string(value.Quantity.Number.Coefficient))
@@ -693,16 +722,12 @@ func semanticNumeric(value *semreg.Value) (float64, string, bool) {
 		r.Quo(r, new(big.Rat).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(-value.Quantity.Number.Exponent10)), nil)))
 	}
 	f, _ := r.Float64()
-	return f, string(value.Quantity.Unit), true
+	if percent {
+		return f / 100, "ratio", true
+	}
+	return f, string(unit), true
 }
 
-func validSemanticUnit(unit string) bool {
-	switch unit {
-	case "unit.watt", "unit.ampere", "unit.volt", "unit.hertz", "unit.joule", "unit.kelvin", "unit.ratio", "unit.percent", "unit.ampere_hour":
-		return true
-	}
-	return false
-}
 func semanticAge(point semreg.TimePoint, now time.Time) (float64, bool) {
 	if point.ClockID != "clock.utc" && point.ClockID != "wall.utc" {
 		return 0, false
