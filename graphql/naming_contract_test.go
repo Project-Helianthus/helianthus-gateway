@@ -3,11 +3,13 @@ package graphql
 import (
 	"context"
 	"encoding/json"
-	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
-	graphqlgo "github.com/graphql-go/graphql"
 	"os"
 	"regexp"
 	"testing"
+
+	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/tree"
+	graphqlgo "github.com/graphql-go/graphql"
 )
 
 func TestNamingContractSchema(t *testing.T) {
@@ -76,6 +78,49 @@ func TestNamingContractCircuitIdentity(t *testing.T) {
 		if _, err := resolveConfigFieldSpec("circuit", old, circuitConfigFieldSpecs); err == nil {
 			t.Errorf("accepted %s", old)
 		}
+	}
+}
+
+func TestSemanticGraphNamingContract(t *testing.T) {
+	schema, err := NewQuerySchema(NewBuilder(nil, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := schema.QueryType().Fields()
+	valid := regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+	for _, read := range tree.SemanticReads {
+		field := fields[read.GraphQL]
+		if field == nil || !valid.MatchString(read.GraphQL) {
+			t.Errorf("missing or invalid namespace plan field %q", read.GraphQL)
+			continue
+		}
+		for _, arg := range field.Args {
+			if !valid.MatchString(arg.Name()) {
+				t.Errorf("invalid argument %s.%s", read.GraphQL, arg.Name())
+			}
+		}
+	}
+	for _, name := range []string{"semantic_graph_entry_input", "semantic_graph_definition_ref_input", "semantic_graph_pack_ref_input"} {
+		input, ok := schema.Type(name).(*graphqlgo.InputObject)
+		if !ok {
+			t.Errorf("missing graph input type %q", name)
+			continue
+		}
+		for field := range input.Fields() {
+			if !valid.MatchString(field) {
+				t.Errorf("invalid input field %s.%s", name, field)
+			}
+		}
+	}
+	// API-1: the native planes field stays, but neither plane nor projection
+	// names introduce semantic fields. Plane selectors are arguments only.
+	for _, name := range []string{"plane", "planes", "projection", "projections"} {
+		if fields["semantic_"+name] != nil || (name != "planes" && fields[name] != nil) {
+			t.Errorf("unexpected semantic field for %q", name)
+		}
+	}
+	if fields["planes"] == nil {
+		t.Error("missing native planes field")
 	}
 }
 

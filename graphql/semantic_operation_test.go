@@ -767,7 +767,8 @@ func TestM56GraphQLNonSemanticRequestsMatchMainHandler(t *testing.T) {
 		{"truncated JSON", http.MethodPost, "/graphql", "application/json", "", `{"query":`},
 		{"invalid UTF-8", http.MethodPost, "/graphql", "application/json", "", "{\"query\":\"{ __typename } # semantic_operation \xff\"}"},
 		{"syntax error", http.MethodPost, "/graphql", "application/json", "", `{"query":"{ __typename "}`},
-		{"unknown field", http.MethodPost, "/graphql", "application/json", "", `{"query":"{ semanticOperationX }"}`},
+		// Use a typo with one suggestion so the byte comparison does not depend on map iteration.
+		{"unknown field", http.MethodPost, "/graphql", "application/json", "", `{"query":"{ systemm } # semantic_operation"}`},
 		{"empty body", http.MethodPost, "/graphql", "application/json", "", ""},
 		{"text/plain body", http.MethodPost, "/graphql", "text/plain", "", `{"query":"{ __typename } # semantic_operation"}`},
 		{"latin1 charset", http.MethodPost, "/graphql", "application/json; charset=latin1", "", `{"query":"{ __typename }"}`},
