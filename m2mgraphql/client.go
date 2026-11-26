@@ -82,13 +82,91 @@ func (client *Client) EVSECurrent(ctx context.Context) (Response, error) {
 }
 
 func (client *Client) current(ctx context.Context, operation, query, contract string) (Response, error) {
+	return client.post(ctx, operation, query, map[string]any{"request": map[string]string{"contract_id": contract, "asset_ref": client.asset}})
+}
+
+// GraphEntry names the resource or lens a traversal or lens read starts from.
+type GraphEntry struct {
+	Kind     string `json:"kind"`
+	Resource string `json:"resource,omitempty"`
+	Lens     string `json:"lens,omitempty"`
+}
+
+type GraphPackRef struct {
+	ID      string `json:"id"`
+	Version string `json:"version"`
+}
+
+type GraphDefinitionRef struct {
+	ID      string       `json:"id"`
+	Version string       `json:"version"`
+	Pack    GraphPackRef `json:"pack"`
+}
+
+// GraphPage carries the cut pin and paging arguments shared by the reads.
+type GraphPage struct {
+	CutID     string `json:"cut_id,omitempty"`
+	PageSize  int    `json:"page_size"`
+	PageToken string `json:"page_token,omitempty"`
+}
+
+type SemanticResourcesRequest struct {
+	GraphPage
+	Kind  string `json:"kind,omitempty"`
+	Plane string `json:"plane,omitempty"`
+}
+
+type SemanticTraversalRequest struct {
+	GraphPage
+	Entry       GraphEntry           `json:"entry"`
+	Direction   string               `json:"direction"`
+	Depth       int                  `json:"depth"`
+	Lens        string               `json:"lens,omitempty"`
+	Planes      []string             `json:"planes,omitempty"`
+	Definitions []GraphDefinitionRef `json:"definitions,omitempty"`
+}
+
+type SemanticLensRequest struct {
+	GraphPage
+	Entry     GraphEntry `json:"entry"`
+	Direction string     `json:"direction"`
+	Depth     int        `json:"depth"`
+	Lens      string     `json:"lens"`
+}
+
+func (client *Client) SemanticResources(ctx context.Context, request SemanticResourcesRequest) (Response, error) {
+	return client.graph(ctx, "SemanticResources", semanticResourcesFixedQuery, request)
+}
+
+func (client *Client) SemanticTraversal(ctx context.Context, request SemanticTraversalRequest) (Response, error) {
+	return client.graph(ctx, "SemanticTraversal", semanticTraversalFixedQuery, request)
+}
+
+func (client *Client) SemanticLens(ctx context.Context, request SemanticLensRequest) (Response, error) {
+	return client.graph(ctx, "SemanticLens", semanticLensFixedQuery, request)
+}
+
+func (client *Client) SemanticElementCatalog(ctx context.Context) (Response, error) {
+	return client.graph(ctx, "SemanticElementCatalog", semanticElementCatalogFixedQuery, struct{}{})
+}
+
+func (client *Client) graph(ctx context.Context, operation, query string, request any) (Response, error) {
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		return Response{}, errors.New("M2M GraphQL request is invalid")
+	}
+	var variables map[string]any
+	if err := json.Unmarshal(encoded, &variables); err != nil {
+		return Response{}, errors.New("M2M GraphQL request is invalid")
+	}
+	return client.post(ctx, operation, query, variables)
+}
+
+func (client *Client) post(ctx context.Context, operation, query string, variables map[string]any) (Response, error) {
 	if client == nil || client.http == nil {
 		return Response{}, errors.New("M2M GraphQL client unavailable")
 	}
-	body, err := json.Marshal(map[string]any{
-		"operationName": operation, "query": query,
-		"variables": map[string]any{"request": map[string]string{"contract_id": contract, "asset_ref": client.asset}},
-	})
+	body, err := json.Marshal(map[string]any{"operationName": operation, "query": query, "variables": variables})
 	if err != nil {
 		return Response{}, err
 	}

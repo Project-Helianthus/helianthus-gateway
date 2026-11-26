@@ -56,6 +56,22 @@ const (
 	rateLimitRefillMillis  = 1000
 )
 
+const semanticResourcesFixedQuery = `query SemanticResources($cut_id: String, $page_size: Int!, $page_token: String, $kind: String, $plane: String) {
+  semantic_resources(cut_id: $cut_id, page_size: $page_size, page_token: $page_token, kind: $kind, plane: $plane)
+}`
+
+const semanticTraversalFixedQuery = `query SemanticTraversal($entry: semantic_graph_entry_input!, $direction: String!, $depth: Int!, $cut_id: String, $page_size: Int!, $page_token: String, $lens: String, $planes: [String!], $definitions: [semantic_graph_definition_ref_input!]) {
+  semantic_traversal(entry: $entry, direction: $direction, depth: $depth, cut_id: $cut_id, page_size: $page_size, page_token: $page_token, lens: $lens, planes: $planes, definitions: $definitions)
+}`
+
+const semanticLensFixedQuery = `query SemanticLens($entry: semantic_graph_entry_input!, $direction: String!, $depth: Int!, $cut_id: String, $page_size: Int!, $page_token: String, $lens: String!) {
+  semantic_lens(entry: $entry, direction: $direction, depth: $depth, cut_id: $cut_id, page_size: $page_size, page_token: $page_token, lens: $lens)
+}`
+
+const semanticElementCatalogFixedQuery = `query SemanticElementCatalog {
+  semantic_element_catalog
+}`
+
 const semanticPVFixedQuery = `query SemanticPVCurrent($request: m2m_current_snapshot_request!) {
   semantic_pv_current(request: $request) { snapshot evaluation selections projection }
 }`
@@ -76,6 +92,39 @@ type Config struct {
 	SemanticPVCurrent      func(context.Context, string) (json.RawMessage, bool)
 	SemanticStorageCurrent func(context.Context, string) (json.RawMessage, bool)
 	SemanticEVSECurrent    func(context.Context, string) (json.RawMessage, bool)
+
+	// The four graph reads. Each provider receives the document's variables
+	// and returns the canonical record the local schema returns for the same
+	// request. An error carrying an Extensions() map with a "code" entry is
+	// answered with that stable code; any other error is SOURCE_UNAVAILABLE.
+	SemanticResources      GraphRead
+	SemanticTraversal      GraphRead
+	SemanticLens           GraphRead
+	SemanticElementCatalog GraphRead
+}
+
+// GraphRead serves one graph read from its variables.
+type GraphRead func(context.Context, map[string]any) (json.RawMessage, error)
+
+type graphDocument struct {
+	root     string
+	query    string
+	required []string
+	optional []string
+	kinds    map[string]string
+}
+
+var graphDocuments = map[string]graphDocument{
+	"SemanticResources": {root: "semantic_resources", query: semanticResourcesFixedQuery,
+		required: []string{"page_size"}, optional: []string{"cut_id", "page_token", "kind", "plane"},
+		kinds: map[string]string{"cut_id": "string", "page_token": "string", "kind": "string", "plane": "string", "page_size": "int"}},
+	"SemanticTraversal": {root: "semantic_traversal", query: semanticTraversalFixedQuery,
+		required: []string{"entry", "direction", "depth", "page_size"}, optional: []string{"cut_id", "page_token", "lens", "planes", "definitions"},
+		kinds: map[string]string{"entry": "entry", "direction": "string", "depth": "int", "page_size": "int", "cut_id": "string", "page_token": "string", "lens": "string", "planes": "strings", "definitions": "definitions"}},
+	"SemanticLens": {root: "semantic_lens", query: semanticLensFixedQuery,
+		required: []string{"entry", "direction", "depth", "page_size", "lens"}, optional: []string{"cut_id", "page_token"},
+		kinds: map[string]string{"entry": "entry", "direction": "string", "depth": "int", "page_size": "int", "cut_id": "string", "page_token": "string", "lens": "string"}},
+	"SemanticElementCatalog": {root: "semantic_element_catalog", query: semanticElementCatalogFixedQuery},
 }
 
 type handler struct {
@@ -83,6 +132,7 @@ type handler struct {
 	queryShape        string
 	storageQueryShape string
 	evseQueryShape    string
+	graphShapes       map[string]string
 	mu                sync.Mutex
 	limits            map[string]*list.Element // value: *requestLimit
 	lru               *list.List               // front = most recently used
@@ -128,7 +178,8 @@ func requestRateLimitKey(r *http.Request) string {
 }
 
 func NewHandler(cfg Config) (http.Handler, error) {
-	if cfg.SemanticPVCurrent == nil && cfg.SemanticStorageCurrent == nil && cfg.SemanticEVSECurrent == nil {
+	if cfg.SemanticPVCurrent == nil && cfg.SemanticStorageCurrent == nil && cfg.SemanticEVSECurrent == nil &&
+		cfg.SemanticResources == nil && cfg.SemanticTraversal == nil && cfg.SemanticLens == nil && cfg.SemanticElementCatalog == nil {
 		return nil, errors.New("an authoritative SemReg projection provider is required")
 	}
 	if cfg.AllowedAssets == nil {
@@ -150,7 +201,15 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	if err != nil {
 		return nil, errors.New("invalid embedded SemReg EVSE query")
 	}
-	return &handler{cfg: cfg, queryShape: shape, storageQueryShape: storageShape, evseQueryShape: evseShape, limits: make(map[string]*list.Element), lru: list.New(), limitCapacity: rateLimitTableCapacity}, nil
+	graphShapes := map[string]string{}
+	for name, document := range graphDocuments {
+		documentShape, _, _, err := queryDocumentShape(document.query)
+		if err != nil {
+			return nil, errors.New("invalid embedded SemReg graph query")
+		}
+		graphShapes[name] = documentShape
+	}
+	return &handler{cfg: cfg, queryShape: shape, storageQueryShape: storageShape, evseQueryShape: evseShape, graphShapes: graphShapes, limits: make(map[string]*list.Element), lru: list.New(), limitCapacity: rateLimitTableCapacity}, nil
 }
 
 // ServeHTTP spends the remote host's request budget before any other work, so
@@ -222,6 +281,10 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "", "REQUEST_INVALID")
 		return
 	}
+	if name, ok := graphOperationName(body); ok {
+		h.serveGraph(w, r, body, name)
+		return
+	}
 	request, err := decodeClosedRequest(body)
 	if err != nil {
 		writeError(w, "", "REQUEST_INVALID")
@@ -280,6 +343,207 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(encoded)
+}
+
+// graphOperationName reports the operation name of a request that names one of
+// the four graph reads.
+func graphOperationName(body []byte) (string, bool) {
+	var envelope map[string]json.RawMessage
+	if json.Unmarshal(body, &envelope) != nil {
+		return "", false
+	}
+	var name string
+	if json.Unmarshal(envelope["operationName"], &name) != nil {
+		return "", false
+	}
+	_, ok := graphDocuments[name]
+	return name, ok
+}
+
+func (h *handler) graphProvider(name string) GraphRead {
+	switch name {
+	case "SemanticResources":
+		return h.cfg.SemanticResources
+	case "SemanticTraversal":
+		return h.cfg.SemanticTraversal
+	case "SemanticLens":
+		return h.cfg.SemanticLens
+	default:
+		return h.cfg.SemanticElementCatalog
+	}
+}
+
+func (h *handler) serveGraph(w http.ResponseWriter, r *http.Request, body []byte, name string) {
+	document := graphDocuments[name]
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(body, &envelope); err != nil || !hasExactKeys(envelope, "operationName", "query", "variables") {
+		writeError(w, "", "REQUEST_INVALID")
+		return
+	}
+	var query string
+	if err := json.Unmarshal(envelope["query"], &query); err != nil || query == "" {
+		writeError(w, "", "REQUEST_INVALID")
+		return
+	}
+	shape, depth, fields, err := queryDocumentShape(query)
+	if depth > maxQueryDepth || fields > maxSelectedFields {
+		writeError(w, "", "REQUEST_LIMIT_EXCEEDED")
+		return
+	}
+	provider := h.graphProvider(name)
+	if err != nil || shape != h.graphShapes[name] || provider == nil {
+		writeError(w, document.root, "QUERY_REJECTED")
+		return
+	}
+	variables, ok := decodeGraphVariables(envelope["variables"], document)
+	if !ok {
+		writeError(w, document.root, "REQUEST_INVALID")
+		return
+	}
+	data, err := provider(r.Context(), variables)
+	if err != nil {
+		var coded interface{ Extensions() map[string]any }
+		if errors.As(err, &coded) {
+			if code, ok := coded.Extensions()["code"].(string); ok && code != "" {
+				writeError(w, document.root, code)
+				return
+			}
+		}
+		writeError(w, document.root, "SOURCE_UNAVAILABLE")
+		return
+	}
+	if !json.Valid(data) {
+		writeError(w, document.root, "SOURCE_UNAVAILABLE")
+		return
+	}
+	encoded, err := json.Marshal(map[string]any{"data": map[string]any{document.root: string(data)}})
+	if err != nil || len(encoded) > maxResponseBytes {
+		writeError(w, document.root, "REQUEST_LIMIT_EXCEEDED")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(encoded)
+}
+
+// decodeGraphVariables accepts only the variables the fixed document declares,
+// with the declared types; a null optional variable is absent.
+func decodeGraphVariables(raw json.RawMessage, document graphDocument) (map[string]any, bool) {
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.UseNumber()
+	var input map[string]any
+	if err := decoder.Decode(&input); err != nil || input == nil {
+		return nil, false
+	}
+	out := map[string]any{}
+	for key, value := range input {
+		kind, declared := document.kinds[key]
+		if !declared {
+			return nil, false
+		}
+		if value == nil {
+			continue
+		}
+		converted, ok := convertGraphVariable(kind, value)
+		if !ok {
+			return nil, false
+		}
+		out[key] = converted
+	}
+	for _, key := range document.required {
+		if _, ok := out[key]; !ok {
+			return nil, false
+		}
+	}
+	return out, true
+}
+
+func convertGraphVariable(kind string, value any) (any, bool) {
+	switch kind {
+	case "string":
+		text, ok := value.(string)
+		return text, ok
+	case "int":
+		number, ok := value.(json.Number)
+		if !ok {
+			return nil, false
+		}
+		n, err := number.Int64()
+		if err != nil || n < -1<<31 || n > 1<<31-1 {
+			return nil, false
+		}
+		return int(n), true
+	case "strings":
+		list, ok := value.([]any)
+		if !ok {
+			return nil, false
+		}
+		out := make([]any, 0, len(list))
+		for _, item := range list {
+			if _, ok := item.(string); !ok {
+				return nil, false
+			}
+			out = append(out, item)
+		}
+		return out, true
+	case "entry":
+		return convertGraphObject(value, map[string]bool{"kind": true}, "kind", "resource", "lens")
+	case "definitions":
+		list, ok := value.([]any)
+		if !ok {
+			return nil, false
+		}
+		out := make([]any, 0, len(list))
+		for _, item := range list {
+			converted, ok := convertGraphObject(item, map[string]bool{"id": true, "version": true, "pack": true}, "id", "version", "pack")
+			if !ok {
+				return nil, false
+			}
+			pack, ok := convertGraphObject(converted.(map[string]any)["pack"], map[string]bool{"id": true, "version": true}, "id", "version")
+			if !ok {
+				return nil, false
+			}
+			converted.(map[string]any)["pack"] = pack
+			out = append(out, converted)
+		}
+		return out, true
+	}
+	return nil, false
+}
+
+// convertGraphObject accepts an object limited to the named members; required
+// members must be present. Members other than "pack" are strings.
+func convertGraphObject(value any, required map[string]bool, members ...string) (any, bool) {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	allowed := map[string]bool{}
+	for _, member := range members {
+		allowed[member] = true
+	}
+	out := map[string]any{}
+	for key, item := range object {
+		if !allowed[key] {
+			return nil, false
+		}
+		if key == "pack" {
+			out[key] = item
+			continue
+		}
+		if item == nil {
+			continue
+		}
+		if _, ok := item.(string); !ok {
+			return nil, false
+		}
+		out[key] = item
+	}
+	for key := range required {
+		if _, ok := out[key]; !ok {
+			return nil, false
+		}
+	}
+	return out, true
 }
 
 // admit returns the admitted budget entry, or nil when the key's budget is
