@@ -507,8 +507,9 @@ func TestSemanticPrometheusTwoCandidatesExportSelected(t *testing.T) {
 		{name: "owner second", owner: "source:second", coefficient: "42", freshness: semreg.FreshnessFresh, value: "42", age: "10", conflicts: "0"},
 		// An owner that observed neither candidate selects nothing.
 		{name: "owner absent", owner: "source:third", coefficient: "42", freshness: semreg.FreshnessFresh, conflicts: "0"},
-		// The owner's candidate is stale: the other one is the single qualified.
-		{name: "owner stale", owner: "source:second", coefficient: "42", freshness: semreg.FreshnessStale, value: "42", age: "1", conflicts: "0"},
+		// The owner's candidate is stale: its state and age stand for the key,
+		// no value is exported and the fresh contributor never replaces it.
+		{name: "owner stale", owner: "source:second", coefficient: "42", freshness: semreg.FreshnessStale, age: "10", conflicts: "0"},
 		// A conflict keeps the owner's state and age but never a value.
 		{name: "owner under conflict", owner: "source:second", coefficient: "43", freshness: semreg.FreshnessFresh, age: "10", conflicts: "1"},
 	} {
@@ -534,6 +535,61 @@ func TestSemanticPrometheusTwoCandidatesExportSelected(t *testing.T) {
 				if strings.Contains(metrics, "\nhelianthus_semantic_render_overflow ") {
 					t.Fatalf("two candidates overflowed:\n%s", metrics)
 				}
+			}
+		})
+	}
+}
+
+// TestSemanticPrometheusOwnerStateIsNeverReplaced varies the state of the
+// owner's candidate and of the contributor's on a conflict-free key. The owner
+// is source:second (received at 91 s, age 10) and the contributor is
+// source:first (age 1). Production mutations caught per case:
+//   - owner fresh, contributor fresh: dropping the owner preference leaves no
+//     selection and loses the owner's value.
+//   - owner stale, contributor fresh: reverting to the qualified-only selection
+//     presents the contributor's value and age 1.
+//   - owner unavailable, contributor fresh: the same revert, or presenting the
+//     owner only when available, shows the contributor's reading.
+//   - owner fresh, contributor stale/unavailable: ignoring the owner and
+//     showing the first candidate would show age 1 instead of the owner's.
+func TestSemanticPrometheusOwnerStateIsNeverReplaced(t *testing.T) {
+	for _, tc := range []struct {
+		name                        string
+		ownerFresh, contribFresh    semreg.Freshness
+		ownerAvail, contribAvail    semreg.Availability
+		wantValue                   bool
+		wantAvailability, wantFresh string
+	}{
+		{"owner fresh contributor fresh", semreg.FreshnessFresh, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.AvailabilityAvailable, true, "available", "fresh"},
+		{"owner stale contributor fresh", semreg.FreshnessStale, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.AvailabilityAvailable, false, "available", "stale"},
+		{"owner unavailable contributor fresh", semreg.FreshnessFresh, semreg.FreshnessFresh, semreg.AvailabilityUnavailable, semreg.AvailabilityAvailable, false, "unavailable", "fresh"},
+		{"owner fresh contributor stale", semreg.FreshnessFresh, semreg.FreshnessStale, semreg.AvailabilityAvailable, semreg.AvailabilityAvailable, true, "available", "fresh"},
+		{"owner fresh contributor unavailable", semreg.FreshnessFresh, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.AvailabilityUnavailable, true, "available", "fresh"},
+		{"owner stale contributor stale", semreg.FreshnessStale, semreg.FreshnessStale, semreg.AvailabilityAvailable, semreg.AvailabilityAvailable, false, "available", "stale"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			domain := semanticMetricsFixture("pv", true, semreg.FreshnessFresh, semreg.AvailabilityAvailable, semreg.ValidityGood, 0)
+			addSemanticSourceCandidate(&domain, "source:first", "source:second", "42", 91, tc.ownerFresh)
+			for i := range domain.Evaluation.Facts {
+				f := &domain.Evaluation.Facts[i]
+				if f.CandidateID == "candidate:test-second" {
+					f.Freshness, f.EffectiveAvailability = tc.ownerFresh, tc.ownerAvail
+				} else {
+					f.Freshness, f.EffectiveAvailability = tc.contribFresh, tc.contribAvail
+				}
+			}
+			domain.Owner = "source:second"
+			var out bytes.Buffer
+			writeSemanticMetrics(newPrometheusWriter(&out), []SemanticMetricsDomain{domain}, time.Unix(101, 0))
+			metrics := out.String()
+			if !strings.Contains(metrics, `availability="`+tc.wantAvailability+`"`) || !strings.Contains(metrics, `freshness="`+tc.wantFresh+`"`) {
+				t.Fatalf("state is not the owner's:\n%s", metrics)
+			}
+			if !strings.Contains(metrics, `unit="seconds"} 10`+"\n") || strings.Contains(metrics, `unit="seconds"} 1`+"\n") {
+				t.Fatalf("age is not the owner's:\n%s", metrics)
+			}
+			if has := strings.Contains(metrics, "\nhelianthus_semantic_fact_value{"); has != tc.wantValue {
+				t.Fatalf("value exported=%v want %v:\n%s", has, tc.wantValue, metrics)
 			}
 		})
 	}

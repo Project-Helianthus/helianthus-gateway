@@ -221,6 +221,20 @@ func semanticPresented(envelope semreg.FactEnvelope, evaluated map[semreg.Candid
 	if len(envelope.Candidates) == 1 {
 		return envelope.Candidates[0], true, false
 	}
+	// The owning source's candidate stands for the key whatever its state, so a
+	// stale or unavailable owner is shown as such and never replaced by another
+	// source. It applies when the owner has exactly one native observation.
+	if owner != "" {
+		var owned []semreg.FactCandidate
+		for _, c := range envelope.Candidates {
+			if c.Origin.Kind == semreg.OriginNativeObservation && c.Origin.SourceID != nil && *c.Origin.SourceID == owner {
+				owned = append(owned, c)
+			}
+		}
+		if len(owned) == 1 {
+			return owned[0], true, false
+		}
+	}
 	facts := make([]semreg.EvaluatedFact, 0, len(envelope.Candidates))
 	for _, c := range envelope.Candidates {
 		e, ok := evaluated[c.CandidateID]
