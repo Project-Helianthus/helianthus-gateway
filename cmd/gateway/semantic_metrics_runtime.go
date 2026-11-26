@@ -8,7 +8,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -266,14 +268,16 @@ func mergeServedCut(body, cut string) (string, string) {
 	}
 	have := map[string]struct{}{}
 	for _, line := range strings.Split(body, "\n") {
-		have[line] = struct{}{}
+		if key := prometheusSeriesKey(line); key != "" {
+			have[key] = struct{}{}
+		}
 	}
 	var novel []string
 	for _, line := range strings.Split(cut, "\n") {
 		if line == "" || strings.HasPrefix(line, "# ") {
 			continue
 		}
-		if _, ok := have[line]; ok {
+		if _, ok := have[prometheusSeriesKey(line)]; ok {
 			continue
 		}
 		novel = append(novel, line)
@@ -282,6 +286,48 @@ func mergeServedCut(body, cut string) (string, string) {
 		return body, ""
 	}
 	return insertSemanticSamples(body, novel), ""
+}
+
+var (
+	prometheusSampleLabel    = regexp.MustCompile(`^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=[ \t]*"((?:[^"\\]|\\["\\n])*)"[ \t]*`)
+	prometheusLabelUnescaper = strings.NewReplacer(`\\`, `\`, `\"`, `"`, `\n`, "\n")
+)
+
+// prometheusSeriesKey reads only the identity prefix of a Prometheus text
+// sample. The value and any timestamp are not part of the series identity.
+func prometheusSeriesKey(line string) string {
+	line = strings.TrimLeft(line, " \t")
+	end := strings.IndexAny(line, "{ \t")
+	if end <= 0 || line[0] == '#' {
+		return ""
+	}
+	name := line[:end]
+	line = strings.TrimLeft(line[end:], " \t")
+	if !strings.HasPrefix(line, "{") {
+		return name
+	}
+	var labels []string
+	for rest := strings.TrimLeft(line[1:], " \t"); !strings.HasPrefix(rest, "}"); rest = strings.TrimLeft(rest[1:], " \t") {
+		label := prometheusSampleLabel.FindStringSubmatch(rest)
+		if label == nil {
+			return ""
+		}
+		// Quote the decoded value in the key so its contents cannot be
+		// mistaken for label separators.
+		labels = append(labels, label[1]+"="+strconv.Quote(prometheusLabelUnescaper.Replace(label[2])))
+		rest = rest[len(label[0]):]
+		if strings.HasPrefix(rest, "}") {
+			break
+		}
+		if !strings.HasPrefix(rest, ",") {
+			return ""
+		}
+	}
+	if len(labels) == 0 {
+		return name
+	}
+	sort.Strings(labels)
+	return name + "{" + strings.Join(labels, ",") + "}"
 }
 
 func insertSemanticSamples(body string, samples []string) string {
