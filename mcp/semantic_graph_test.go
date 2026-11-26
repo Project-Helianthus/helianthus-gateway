@@ -87,6 +87,11 @@ func graphFixtureSnapshot(t *testing.T, asset semreg.AssetID, resources []semreg
 
 func newSemanticGraphFixture(t *testing.T) (*tree.Tree, *graphFixtureCuts) {
 	t.Helper()
+	return newSemanticGraphFixtureWithPorts(t, graphFixtureLifecycle{}, struct{ tree.OperationPort }{})
+}
+
+func newSemanticGraphFixtureWithPorts(t *testing.T, lifecycle tree.LifecycleSource, operations tree.OperationPort) (*tree.Tree, *graphFixtureCuts) {
+	t.Helper()
 	catalog, err := graph.Embedded()
 	inventoryMust(t, err)
 	store := graph.NewCutStore(func() time.Time { return time.Unix(0, 0) })
@@ -115,10 +120,9 @@ func newSemanticGraphFixture(t *testing.T) (*tree.Tree, *graphFixtureCuts) {
 	older := stage([]semreg.Snapshot{second}, "asset:a")
 	newest := stage([]semreg.Snapshot{second, first}, "asset:omitted")
 	cuts := &graphFixtureCuts{newest: newest, views: map[semreg.Digest]tree.CutView{older.Ref.CutID: older, newest.Ref.CutID: newest}}
-	// None of these reads may touch CALL or the native lifecycle port.
 	runtime, err := tree.New(tree.Config{
-		Registry: tree.RegistryConfig{Installation: "synthetic", Bridge: "bridge.synthetic", Incarnation: "synthetic", Lifecycle: graphFixtureLifecycle{}},
-		Cuts:     cuts, Operations: struct{ tree.OperationPort }{},
+		Registry: tree.RegistryConfig{Installation: "synthetic", Bridge: "bridge.synthetic", Incarnation: "synthetic", Lifecycle: lifecycle},
+		Cuts:     cuts, Operations: operations,
 	})
 	inventoryMust(t, err)
 	t.Cleanup(runtime.Registry.Close)
@@ -348,6 +352,26 @@ func TestSemanticGraphCatalog(t *testing.T) {
 	callSemanticGraph(t, s, SemanticCatalogGetTool, `null`, "invalid_value")
 }
 
+func TestSemanticGraphDescriptionsCiteContract(t *testing.T) {
+	runtime, _ := newSemanticGraphFixture(t)
+	server := graphFixtureServer(t, runtime)
+	want := map[string]string{
+		SemanticResourcesListTool: "ENT-2", SemanticTraverseTool: "TRV-1",
+		SemanticLensGetTool: "API-2", SemanticCatalogGetTool: "API-1",
+	}
+	for _, tool := range inventoryTools(t, server, inventoryProfile{}) {
+		if rule, ok := want[tool.Name]; ok {
+			if !strings.Contains(tool.Description, rule) {
+				t.Errorf("%s description does not cite %s", tool.Name, rule)
+			}
+			delete(want, tool.Name)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("unlisted graph tools: %v", want)
+	}
+}
+
 func TestSemanticGraphNamingAndToolInventoryDelta(t *testing.T) {
 	runtime, _ := newSemanticGraphFixture(t)
 	s, err := NewServer(&testRegistry{}, &testInvoker{})
@@ -365,11 +389,11 @@ func TestSemanticGraphNamingAndToolInventoryDelta(t *testing.T) {
 	}
 	inventoryMust(t, RegisterSemanticGraphTools(s, runtime))
 	after := inventoryTools(t, s, inventoryProfile{})
-	if len(after) != len(before)+4 || !reflect.DeepEqual(before, after[:len(before)]) {
+	if len(after) != len(before)+6 || !reflect.DeepEqual(before, after[:len(before)]) {
 		t.Fatal("existing tools/list prefix changed or the add count is wrong")
 	}
-	// API-1 and API-4: exact allowlist of the new protocol-neutral names.
-	want := []string{"semantic_v1_resources_list", "semantic_v1_traverse", "semantic_v1_lens_get", "semantic_v1_catalog_get"}
+	// API-1 and API-4: only graph reads join the protocol-neutral namespace.
+	want := []string{"semantic_v1_resources_list", "semantic_v1_traverse", "semantic_v1_lens_get", "semantic_v1_catalog_get", "driver_member_get", "driver_method_call"}
 	for i, tool := range after[len(before):] {
 		if tool.Name != want[i] {
 			t.Errorf("new tool %d = %q, want %q", i, tool.Name, want[i])

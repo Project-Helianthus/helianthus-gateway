@@ -243,6 +243,8 @@ func inventorySource(name string, p inventoryProfile, base map[string]string) st
 		}
 	}
 	switch name {
+	case driverMemberGetTool, driverMethodCallTool:
+		return "mcp/driver_members.go"
 	case SemanticResourcesListTool, SemanticTraverseTool, SemanticLensGetTool, SemanticCatalogGetTool:
 		return "mcp/semantic_graph.go"
 	case ModbusV1RawReadTool, ModbusV1ProfileObservationGetTool, SemanticV1PVCurrentGetTool:
@@ -384,7 +386,7 @@ func TestMCPToolInventory(t *testing.T) {
 					condition = "always: NewServer"
 				}
 				source := inventorySource(tool.Name, p, base)
-				if source == "mcp/semantic_graph.go" {
+				if source == "mcp/semantic_graph.go" || source == "mcp/driver_members.go" {
 					condition = "shared runtime tree present"
 				}
 				doc.Rows = append(doc.Rows, inventoryRow{tool.Name, surface, p.name, condition, source})

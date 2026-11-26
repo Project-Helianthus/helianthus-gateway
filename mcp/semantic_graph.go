@@ -30,6 +30,7 @@ func RegisterSemanticGraphTools(s *Server, runtime *tree.Tree) error {
 	}
 	s.semanticGraph = runtime
 	s.tools = append(s.tools, semanticGraphTools()...)
+	s.tools = append(s.tools, driverMemberTools()...)
 	return nil
 }
 
@@ -67,10 +68,10 @@ func semanticGraphTools() []Tool {
 		"id": text, "version": text, "pack": object(map[string]any{"id": text, "version": text}, "id", "version"),
 	}, "id", "version", "pack")}
 	return []Tool{
-		{Name: SemanticResourcesListTool, Description: "List current SemReg resources in the served cut.", InputSchema: object(list, "page_size")},
-		{Name: SemanticTraverseTool, Description: "Traverse coherent SemReg relations in the served cut.", InputSchema: object(traverse, "entry", "direction", "depth", "page_size")},
-		{Name: SemanticLensGetTool, Description: "Retrieve a SemReg lens result in the served cut.", InputSchema: object(walk(), "entry", "lens", "direction", "depth", "page_size")},
-		{Name: SemanticCatalogGetTool, Description: "Read the SemReg element catalog.", InputSchema: object(map[string]any{})},
+		{Name: SemanticResourcesListTool, Description: "List current SemReg resources in the served cut (ENT-2, API-5).", InputSchema: object(list, "page_size")},
+		{Name: SemanticTraverseTool, Description: "Traverse coherent SemReg relations in the served cut (TRV-1, API-5).", InputSchema: object(traverse, "entry", "direction", "depth", "page_size")},
+		{Name: SemanticLensGetTool, Description: "Retrieve a SemReg lens result in the served cut (API-2, API-5).", InputSchema: object(walk(), "entry", "lens", "direction", "depth", "page_size")},
+		{Name: SemanticCatalogGetTool, Description: "Read the SemReg element catalog (API-1, API-3).", InputSchema: object(map[string]any{})},
 	}
 }
 
@@ -105,7 +106,7 @@ type semanticLensArguments struct {
 	PageToken string                   `json:"page_token"`
 }
 
-func decodeSemanticGraphArguments(raw json.RawMessage, duplicate bool, dst any) error {
+func decodeTreeArguments(raw json.RawMessage, duplicate bool, dst any) error {
 	if len(raw) == 0 {
 		raw = json.RawMessage(`{}`)
 	}
@@ -115,7 +116,7 @@ func decodeSemanticGraphArguments(raw json.RawMessage, duplicate bool, dst any) 
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(dst); err != nil {
-		return &semreg.Error{ID: semreg.InvalidValue, Detail: "invalid graph arguments"}
+		return &semreg.Error{ID: semreg.InvalidValue, Detail: "invalid tree arguments"}
 	}
 	return nil
 }
@@ -124,7 +125,7 @@ func (s *Server) readSemanticGraph(ctx context.Context, name string, raw json.Ra
 	switch name {
 	case SemanticResourcesListTool:
 		var request graph.ListRequest
-		if err := decodeSemanticGraphArguments(raw, duplicate, &request); err != nil {
+		if err := decodeTreeArguments(raw, duplicate, &request); err != nil {
 			return nil, err
 		}
 		result, err := s.semanticGraph.ListResources(ctx, request)
@@ -134,7 +135,7 @@ func (s *Server) readSemanticGraph(ctx context.Context, name string, raw json.Ra
 			graph.TraversalRequest
 			Depth *int `json:"depth"`
 		}
-		if err := decodeSemanticGraphArguments(raw, duplicate, &request); err != nil {
+		if err := decodeTreeArguments(raw, duplicate, &request); err != nil {
 			return nil, err
 		}
 		if request.Depth == nil {
@@ -145,7 +146,7 @@ func (s *Server) readSemanticGraph(ctx context.Context, name string, raw json.Ra
 		return semanticTraversal{result.Page, result.NotIncluded}, err
 	case SemanticLensGetTool:
 		var request semanticLensArguments
-		if err := decodeSemanticGraphArguments(raw, duplicate, &request); err != nil {
+		if err := decodeTreeArguments(raw, duplicate, &request); err != nil {
 			return nil, err
 		}
 		if request.Depth == nil {
@@ -156,7 +157,7 @@ func (s *Server) readSemanticGraph(ctx context.Context, name string, raw json.Ra
 			Depth: *request.Depth, PageSize: request.PageSize, PageToken: request.PageToken,
 		})
 	case SemanticCatalogGetTool:
-		if err := decodeSemanticGraphArguments(raw, duplicate, &struct{}{}); err != nil {
+		if err := decodeTreeArguments(raw, duplicate, &struct{}{}); err != nil {
 			return nil, err
 		}
 		result, err := s.semanticGraph.Catalog(ctx)
@@ -168,6 +169,10 @@ func (s *Server) readSemanticGraph(ctx context.Context, name string, raw json.Ra
 
 func (s *Server) handleSemanticGraph(ctx context.Context, call rawCallToolParams, duplicate bool) map[string]any {
 	data, err := s.readSemanticGraph(ctx, call.Name, call.Arguments, duplicate)
+	return treeToolResult(data, err)
+}
+
+func treeToolResult(data semreg.Record, err error) map[string]any {
 	var canonical []byte
 	if err == nil {
 		canonical, err = semreg.CanonicalJSON(data)

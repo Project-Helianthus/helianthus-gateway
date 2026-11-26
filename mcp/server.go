@@ -1171,6 +1171,10 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (a
 		return s.handleSharedSemanticSnapshot(ctx, rawCall.Arguments, hasDuplicateKeys), nil
 	case SemanticResourcesListTool, SemanticTraverseTool, SemanticLensGetTool, SemanticCatalogGetTool:
 		return s.handleSemanticGraph(ctx, rawCall, hasDuplicateKeys), nil
+	case driverMemberGetTool:
+		return treeToolResult(s.readDriverMember(ctx, rawCall, hasDuplicateKeys)), nil
+	case driverMethodCallTool:
+		return treeToolResult(s.callDriverMethod(ctx, rawCall, hasDuplicateKeys)), nil
 	}
 	if isRuntimeControlTool(rawCall.Name) {
 		// Lifecycle tools refuse duplicate, missing, additional and
