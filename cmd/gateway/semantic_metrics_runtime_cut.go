@@ -4,67 +4,51 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"time"
 
 	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticmetrics"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 
-// semanticCutDeclarer is the capability of a captured hub that names the
-// assets of the served cut. A capture source without it serves no cut: the
-// caller attaches its own domains.
-type semanticCutDeclarer interface {
-	AssetIDs() []semreg.AssetID
+type semanticServedCapture interface {
+	CaptureServed(context.Context, func() time.Time) (semhub.CoherentCapture, error)
 }
 
-// servedAssets is the declared asset set of the served cut and whether the
-// capture source serves one.
-func (p *hubSemanticSnapshotProvider) servedAssets() ([]semreg.AssetID, bool) {
-	if p == nil || p.hub == nil {
-		return nil, false
+// captureServed distinguishes an unsupported read from a failed read. Once
+// supported, neither caller substitutes an explicit selection for it.
+func (p *hubSemanticSnapshotProvider) captureServed(ctx context.Context) (semhub.CoherentCapture, bool, error) {
+	if p == nil {
+		return semhub.CoherentCapture{}, false, nil
 	}
-	declarer, ok := p.hub.(semanticCutDeclarer)
+	hub, ok := p.hub.(semanticServedCapture)
 	if !ok {
-		return nil, false
+		return semhub.CoherentCapture{}, false, nil
 	}
-	return declarer.AssetIDs(), true
+	capture, err := hub.CaptureServed(ctx, p.now)
+	return capture, true, err
 }
 
-// captureIDs is the one selection of a scrape: the configured assets and every
-// asset of the served cut, in bytewise order, read by one capture.
-func (p *hubSemanticSnapshotProvider) captureIDs(configured []semreg.AssetID) []semreg.AssetID {
-	served, ok := p.servedAssets()
-	if !ok {
-		return configured
+func metricInputs(assets []semhub.CapturedAsset) []semanticview.Input {
+	inputs := make([]semanticview.Input, 0, len(assets))
+	for _, asset := range assets {
+		inputs = append(inputs, semanticview.Input{AssetID: asset.AssetID, Snapshot: asset.Snapshot, Evaluation: asset.Evaluation, UnavailableReason: asset.UnavailableReason})
 	}
-	seen := make(map[semreg.AssetID]bool, len(configured)+len(served))
-	ids := make([]semreg.AssetID, 0, len(configured)+len(served))
-	for _, id := range append(append([]semreg.AssetID(nil), configured...), served...) {
-		if !seen[id] {
-			seen[id] = true
-			ids = append(ids, id)
-		}
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	return ids
+	return inputs
 }
 
-// servedDomains is every accepted publication of the capture as one domain. A
-// publication the capture withheld has no snapshot and is not exported. The
-// projection stays empty: every eligible value is exported without an item
-// list or a domain list.
-func (p *hubSemanticSnapshotProvider) servedDomains(inputs []semanticview.Input) []ebusgateway.SemanticMetricsDomain {
-	if _, ok := p.servedAssets(); !ok {
-		return nil
-	}
+// servedDomains is every accepted publication of the capture as one domain.
+// Withheld publications have no snapshot. An empty projection lets the
+// renderer export every eligible value without a projection item list.
+func servedDomains(assets []semhub.CapturedAsset) []ebusgateway.SemanticMetricsDomain {
 	var domains []ebusgateway.SemanticMetricsDomain
-	for _, input := range inputs {
-		if input.Snapshot == nil || input.Evaluation == nil {
+	for _, asset := range assets {
+		if asset.Snapshot == nil || asset.Evaluation == nil {
 			continue
 		}
-		domains = append(domains, ebusgateway.SemanticMetricsDomain{Name: "cut", Snapshot: *input.Snapshot, Evaluation: *input.Evaluation, Available: true})
+		domains = append(domains, ebusgateway.SemanticMetricsDomain{Name: "cut", Owner: asset.Owner, Snapshot: *asset.Snapshot, Evaluation: *asset.Evaluation, Available: true})
 	}
 	return domains
 }
@@ -75,30 +59,42 @@ func (p *hubSemanticSnapshotProvider) servedDomains(inputs []semanticview.Input)
 // slot. A cut that cannot be read whole changes nothing, because a publication
 // that is only unavailable must not retire its slots. A scrape never calls it.
 func (m *gatewaySemanticMetrics) Reconcile(ctx context.Context) error {
-	registry, _ := m.configured()
+	registry, ids := m.configured()
 	if registry.StoreDirectory == "" || registry.StoreError != "" {
 		return nil
 	}
-	ids, serves := m.provider.servedAssets()
-	if !serves {
-		return nil
+	capture, serves, err := m.provider.captureServed(ctx)
+	var inputs []semanticview.Input
+	if serves {
+		inputs = metricInputs(capture.Assets)
+	} else {
+		// A legacy declaration list configures the reconciliation selection.
+		// With neither a declaration nor configured slots there is no cut to sync.
+		var declared bool
+		if m.provider != nil {
+			if hub, ok := m.provider.hub.(interface{ AssetIDs() []semreg.AssetID }); ok {
+				ids, declared = hub.AssetIDs(), true
+			}
+		}
+		if len(ids) > 0 {
+			_, inputs, err = m.provider.Capture(ctx, ids)
+		} else if !declared {
+			return nil
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("cut capture: %w", err)
 	}
 	var members []semanticmetrics.CutMember
 	current := map[semreg.ResourceID]bool{}
-	if len(ids) > 0 {
-		_, inputs, err := m.provider.Capture(ctx, ids)
-		if err != nil {
-			return fmt.Errorf("cut capture: %w", err)
+	for _, input := range inputs {
+		if input.Snapshot == nil {
+			return fmt.Errorf("cut is not whole: asset %s is unavailable", input.AssetID)
 		}
-		for _, input := range inputs {
-			if input.Snapshot == nil {
-				return fmt.Errorf("cut is not whole: asset %s is unavailable", input.AssetID)
-			}
-			members = append(members, cutMembersOf(*input.Snapshot)...)
-			for _, resource := range input.Snapshot.Resources {
-				if resource.State == semreg.ResourceCurrent {
-					current[resource.ResourceID] = true
-				}
+		members = append(members, cutMembersOf(*input.Snapshot)...)
+		for _, resource := range input.Snapshot.Resources {
+			if resource.State == semreg.ResourceCurrent {
+				current[resource.ResourceID] = true
 			}
 		}
 	}
