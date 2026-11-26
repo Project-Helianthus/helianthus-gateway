@@ -84,6 +84,7 @@ func (m *gatewaySemanticMetrics) Reconcile(ctx context.Context) error {
 		return nil
 	}
 	var members []semanticmetrics.CutMember
+	current := map[semreg.ResourceID]bool{}
 	if len(ids) > 0 {
 		_, inputs, err := m.provider.Capture(ctx, ids)
 		if err != nil {
@@ -94,6 +95,21 @@ func (m *gatewaySemanticMetrics) Reconcile(ctx context.Context) error {
 				return fmt.Errorf("cut is not whole: asset %s is unavailable", input.AssetID)
 			}
 			members = append(members, cutMembersOf(*input.Snapshot)...)
+			for _, resource := range input.Snapshot.Resources {
+				if resource.State == semreg.ResourceCurrent {
+					current[resource.ResourceID] = true
+				}
+			}
+		}
+	}
+	// A missing binding can remove the fact along with its provenance. The
+	// explicit current resource still holds its existing fact identities.
+	for _, binding := range registry.Bindings {
+		if !binding.Retired && current[binding.ResourceID] && len(binding.Fields) == 1 {
+			members = append(members, semanticmetrics.CutMember{
+				Domain: binding.Domain, ResourceID: binding.ResourceID, FactID: binding.Fields[0],
+				Dimensions: binding.Dimensions, Current: true, Held: true,
+			})
 		}
 	}
 	next, err := composeGatewaySemanticStore(registry.StoreDirectory, members, true)
@@ -110,10 +126,9 @@ func (m *gatewaySemanticMetrics) Reconcile(ctx context.Context) error {
 }
 
 // cutMembersOf lists the facts of one publication that the slot renderer
-// declares, keyed by the resource the qualifier names. A member whose
-// provenance the publication does not state is not listed: an assignment is
-// never invented. A resource the publication no longer carries as current is
-// not listed, so its slot retires.
+// declares, keyed by the resource the qualifier names. Without provenance,
+// only an explicitly current resource can hold a member, and a held member
+// cannot create a slot. A noncurrent resource is not listed, so its slot retires.
 func cutMembersOf(snapshot semreg.Snapshot) []semanticmetrics.CutMember {
 	current := map[semreg.ResourceID]bool{}
 	for _, resource := range snapshot.Resources {
@@ -134,9 +149,10 @@ func cutMembersOf(snapshot semreg.Snapshot) []semanticmetrics.CutMember {
 			continue
 		}
 		member, ok := cutMemberProvenance(snapshot, envelope, domain)
-		if !ok {
+		if !ok && !current[resource] {
 			continue
 		}
+		member.Domain, member.Held = domain, !ok
 		member.ResourceID, member.FactID, member.Dimensions, member.Current = resource, envelope.Key.FactID, envelope.Key.Dimensions, true
 		members = append(members, member)
 	}
