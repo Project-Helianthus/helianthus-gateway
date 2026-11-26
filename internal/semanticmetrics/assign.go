@@ -11,6 +11,7 @@ import (
 // CutMember is one fact of one current or withdrawn resource of the served cut.
 // Provenance fields are recorded on a new assignment and are not its identity.
 // Current false retires the slot of that resource, fact and qualifiers.
+// Held keeps an existing assignment for a current member without provenance.
 type CutMember struct {
 	ResourceID       semreg.ResourceID
 	FactID           semreg.DefinitionID
@@ -23,13 +24,14 @@ type CutMember struct {
 	DriverGeneration semreg.Uint64
 	ServiceInstance  semreg.ServiceInstanceID
 	Current          bool
+	Held             bool
 }
 
 // SyncAssignments assigns one slot per current member that does not already
 // have one, in resource, fact, qualifier order, and retires a slot whose
 // member is no longer current. An existing assignment is kept, including
-// across a new source epoch. A retired identity stays reserved. No assignment
-// is created for a member that omits its resource, fact or provenance.
+// across a new source epoch or while held. A held member cannot create an
+// assignment, and a retired identity stays reserved.
 func SyncAssignments(existing []Binding, members []CutMember) ([]Binding, error) {
 	next := append([]Binding(nil), existing...)
 	sorted := append([]CutMember(nil), members...)
@@ -57,10 +59,16 @@ func SyncAssignments(existing []Binding, members []CutMember) ([]Binding, error)
 		if err != nil {
 			return nil, err
 		}
-		if binding.ResourceID.Validate() != nil || member.FactID.Validate() != nil || len(binding.Dimensions) != 1 || binding.AssetID.Validate() != nil || binding.SourceID.Validate() != nil || binding.SourceEpochID.Validate() != nil || binding.BindingID.Validate() != nil || binding.DriverGeneration.Validate() != nil || binding.ServiceInstance.Validate() != nil {
-			return nil, fmt.Errorf("cut member missing resource, fact or provenance")
+		if binding.ResourceID.Validate() != nil || member.FactID.Validate() != nil || len(binding.Dimensions) != 1 {
+			return nil, fmt.Errorf("cut member missing resource, fact or qualifiers")
 		}
 		wanted[key] = true
+		if member.Held {
+			continue
+		}
+		if binding.AssetID.Validate() != nil || binding.SourceID.Validate() != nil || binding.SourceEpochID.Validate() != nil || binding.BindingID.Validate() != nil || binding.DriverGeneration.Validate() != nil || binding.ServiceInstance.Validate() != nil {
+			return nil, fmt.Errorf("cut member missing provenance")
+		}
 		if bindingIndex(next, key) >= 0 {
 			continue
 		}

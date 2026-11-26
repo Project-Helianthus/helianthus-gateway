@@ -2,6 +2,7 @@ package semanticmetrics
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -65,6 +66,68 @@ func TestSlotLifecyclesCompareExactly(t *testing.T) {
 	}
 	if slots["resource:zone.c"] == slots["resource:zone.a"] {
 		t.Fatal("retired slot was reused")
+	}
+}
+
+func TestSyncAssignmentsHoldsSlotsWithoutProvenance(t *testing.T) {
+	_, registry := m36Fixture(t, "infrastructure.ac.voltage", m36Quantity("230", "unit.volt"))
+	base := registry.Bindings[0]
+	active := cutMember(base, "resource:zone.a", true)
+	retired := active
+	retired.ResourceID = "resource:zone.retired"
+	assigned, err := SyncAssignments(nil, []CutMember{active, retired})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assigned, err = SyncAssignments(assigned, []CutMember{active})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(assigned) != 2 || assigned[0].Retired || !assigned[1].Retired {
+		t.Fatalf("fixture must have one active and one retired slot: %+v", assigned)
+	}
+
+	hold := func(member CutMember) CutMember {
+		return CutMember{Domain: member.Domain, ResourceID: member.ResourceID, FactID: member.FactID,
+			Dimensions: member.Dimensions, Current: true, Held: true}
+	}
+	variations := []struct {
+		name   string
+		mutate func(*CutMember)
+	}{
+		// Each near miss would hold the active slot if production dropped that
+		// one field from the lookup key (leaving the other two unchanged).
+		{"resource", func(m *CutMember) { m.ResourceID = "resource:zone.new" }},
+		{"fact definition", func(m *CutMember) { m.FactID = "infrastructure.ac.current" }},
+		{"qualifier value", func(m *CutMember) {
+			text := "resource:phase.other"
+			m.Dimensions = append([]semreg.Dimension(nil), m.Dimensions...)
+			m.Dimensions[0].Value.Text = &text
+		}},
+	}
+	for _, v := range variations {
+		t.Run(v.name, func(t *testing.T) {
+			unassigned := hold(active)
+			v.mutate(&unassigned)
+			got, err := SyncAssignments(assigned, []CutMember{hold(active), hold(retired), unassigned})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, assigned) {
+				t.Fatalf("held members changed stored rows: got %+v, want %+v", got, assigned)
+			}
+
+			// The near miss cannot prevent retirement of the omitted active key.
+			want := append([]Binding(nil), assigned...)
+			want[0].Retired = true
+			got, err = SyncAssignments(assigned, []CutMember{hold(retired), unassigned})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("near miss held an unrelated slot or created a slot: got %+v, want %+v", got, want)
+			}
+		})
 	}
 }
 
