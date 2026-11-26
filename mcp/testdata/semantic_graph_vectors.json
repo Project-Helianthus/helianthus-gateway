@@ -1,0 +1,85 @@
+{
+  "catalog": {
+    "module": "github.com/Project-Helianthus/helianthus-semreg",
+    "document": "fixtures/v1/element-catalog-v1.json",
+    "entry_count": 402
+  },
+  "reads": [
+    {
+      "tool": "semantic_v1_resources_list",
+      "graphql_field": "semantic_resources",
+      "arguments": {"kind": "resource.equipment", "plane": "physical", "page_size": 4},
+      "data": {
+        "catalog": "$catalog",
+        "completeness": "partial",
+        "cut_id": "$cut",
+        "members": [
+          {"asset_id": "asset:a", "snapshot_id": "$snapshot_a"},
+          {"asset_id": "asset:b", "snapshot_id": "$snapshot_b"}
+        ],
+        "not_included": [{"asset_id": "asset:omitted", "reason": "source_unavailable"}],
+        "resources": [
+          {"asset_id": "asset:a", "kind": "resource.equipment", "planes": ["physical"], "resource_id": "resource:equipment:a"},
+          {"asset_id": "asset:b", "kind": "resource.equipment", "planes": ["physical"], "resource_id": "resource:equipment:b"}
+        ]
+      }
+    },
+    {
+      "tool": "semantic_v1_traverse",
+      "graphql_field": "semantic_traversal",
+      "arguments": {
+        "entry": {"kind": "resource", "resource": "resource:site"},
+        "planes": ["energy"],
+        "definitions": [
+          {"id": "infrastructure.relation.site_grid_connection", "pack": {"id": "helianthus.pack.infrastructure", "version": "1.0.0"}, "version": "1.0.0"}
+        ],
+        "direction": "outgoing",
+        "depth": 1,
+        "page_size": 2
+      },
+      "data": {
+        "catalog": "$catalog",
+        "completeness": "partial",
+        "cut_id": "$cut",
+        "entry": {"kind": "resource", "resource": "resource:site"},
+        "members": [
+          {"asset_id": "asset:a", "snapshot_id": "$snapshot_a"},
+          {"asset_id": "asset:b", "snapshot_id": "$snapshot_b"}
+        ],
+        "not_included": [{"asset_id": "asset:omitted", "reason": "source_unavailable"}],
+        "relations": [
+          {
+            "asset_id": "asset:a",
+            "coherence": "coherent",
+            "definition": {"id": "infrastructure.relation.site_grid_connection", "pack": {"id": "helianthus.pack.infrastructure", "version": "1.0.0"}, "version": "1.0.0"},
+            "from": "resource:site",
+            "state": "qualified",
+            "to": "resource:grid"
+          }
+        ],
+        "resources": [
+          {"asset_id": "asset:a", "depth": 0, "kind": "resource.site", "planes": ["physical", "energy", "diagnostic"], "resource_id": "resource:site"},
+          {"asset_id": "asset:a", "depth": 1, "kind": "resource.grid_connection", "planes": ["physical", "energy", "diagnostic"], "resource_id": "resource:grid"}
+        ]
+      }
+    },
+    {
+      "tool": "semantic_v1_lens_get",
+      "graphql_field": "semantic_lens",
+      "arguments": {"entry": {"kind": "lens_roots"}, "lens": "lens.equipment_composition", "direction": "both", "depth": 2, "page_size": 4},
+      "data_file": "semantic_lens.golden.json"
+    },
+    {
+      "tool": "semantic_v1_catalog_get",
+      "graphql_field": "semantic_element_catalog",
+      "arguments": {},
+      "data": {
+        "digest": "$catalog",
+        "entries": "$catalog_entries",
+        "lenses": "$catalog_lenses",
+        "planes": "$catalog_planes",
+        "status": "accepted"
+      }
+    }
+  ]
+}
