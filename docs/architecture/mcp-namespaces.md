@@ -42,6 +42,11 @@ reads and the protocol-neutral `semantic_v1_*` tools. The family-keyed reads
 move with the retrieval work of #1540; until then they keep their names. The
 `ebus_v1_semantic_*` writes stay in the eBUS namespace.
 
+When a shared SemReg runtime tree is attached, the MCP graph reads serve
+resource listings, traversal, lens results and the element catalog. They use
+SemReg graph rules ENT-2, TRV-1 through TRV-7 and API-1 through API-5; native
+registry data is not part of these graph reads.
+
 ## Registered tools
 
 The target name equals the current name unless the row says otherwise.
@@ -127,7 +132,11 @@ The target name equals the current name unless the row says otherwise.
 | `modbus_v1_tesla_gen3_evse_current_limit_get` | `modbus_v1_` | `modbus_v1_tesla_gen3_evse_current_limit_get` |
 | `modbus_v1_tesla_hsc_status_get` | `modbus_v1_` | `modbus_v1_tesla_hsc_status_get` |
 | `modbus_v1_tesla_wcapi_get_vitals_replay_get` | `modbus_v1_` | `modbus_v1_tesla_wcapi_get_vitals_replay_get` |
+| `semantic_v1_catalog_get` | `semantic_v1_` | `semantic_v1_catalog_get` |
 | `semantic_v1_evse_current_get` | `semantic_v1_` | `semantic_v1_evse_current_get` |
+| `semantic_v1_lens_get` | `semantic_v1_` | `semantic_v1_lens_get` |
 | `semantic_v1_pv_current_get` | `semantic_v1_` | `semantic_v1_pv_current_get` |
+| `semantic_v1_resources_list` | `semantic_v1_` | `semantic_v1_resources_list` |
 | `semantic_v1_snapshot_get` | `semantic_v1_` | `semantic_v1_snapshot_get` |
 | `semantic_v1_storage_growatt_current_get` | `semantic_v1_` | `semantic_v1_storage_growatt_current_get` |
+| `semantic_v1_traverse` | `semantic_v1_` | `semantic_v1_traverse` |

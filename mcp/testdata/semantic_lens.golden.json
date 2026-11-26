@@ -1,0 +1,115 @@
+{
+  "catalog": "$catalog",
+  "contract": "helianthus.semantic.lens-result/v1",
+  "cut": {
+    "completeness": "partial",
+    "cut_id": "$cut",
+    "members": [
+      {
+        "asset_id": "asset:a",
+        "snapshot_id": "$snapshot_a"
+      },
+      {
+        "asset_id": "asset:b",
+        "snapshot_id": "$snapshot_b"
+      }
+    ],
+    "not_included": [
+      {
+        "asset_id": "asset:omitted",
+        "reason": "source_unavailable"
+      }
+    ]
+  },
+  "entry": {
+    "kind": "lens_roots",
+    "lens": "lens.equipment_composition"
+  },
+  "lens": "lens.equipment_composition",
+  "resources": [
+    {
+      "asset_id": "asset:a",
+      "depth": 0,
+      "planes": [
+        "physical"
+      ],
+      "resource": {
+        "anchor": {
+          "basis": "operator_slot",
+          "class": "equipment",
+          "evidence": [
+            {
+              "access": "public",
+              "contract": "synthetic/v1",
+              "digest": "$evidence",
+              "kind": "evidence.synthetic",
+              "owner": "owner.synthetic",
+              "redaction": "none"
+            }
+          ],
+          "slot": "slot-resource:equipment:a"
+        },
+        "kind": "resource.equipment",
+        "origin": {
+          "evidence": [
+            {
+              "access": "public",
+              "contract": "synthetic/v1",
+              "digest": "$evidence",
+              "kind": "evidence.synthetic",
+              "owner": "owner.synthetic",
+              "redaction": "none"
+            }
+          ],
+          "kind": "operator",
+          "origin_id": "origin:resource:equipment:a"
+        },
+        "resource_id": "resource:equipment:a",
+        "revision": "1",
+        "state": "current"
+      }
+    },
+    {
+      "asset_id": "asset:b",
+      "depth": 0,
+      "planes": [
+        "physical"
+      ],
+      "resource": {
+        "anchor": {
+          "basis": "operator_slot",
+          "class": "equipment",
+          "evidence": [
+            {
+              "access": "public",
+              "contract": "synthetic/v1",
+              "digest": "$evidence",
+              "kind": "evidence.synthetic",
+              "owner": "owner.synthetic",
+              "redaction": "none"
+            }
+          ],
+          "slot": "slot-resource:equipment:b"
+        },
+        "kind": "resource.equipment",
+        "origin": {
+          "evidence": [
+            {
+              "access": "public",
+              "contract": "synthetic/v1",
+              "digest": "$evidence",
+              "kind": "evidence.synthetic",
+              "owner": "owner.synthetic",
+              "redaction": "none"
+            }
+          ],
+          "kind": "operator",
+          "origin_id": "origin:resource:equipment:b"
+        },
+        "resource_id": "resource:equipment:b",
+        "revision": "1",
+        "state": "current"
+      }
+    }
+  ]
+}

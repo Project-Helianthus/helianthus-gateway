@@ -94,8 +94,8 @@ func inventoryProfiles() []inventoryProfile {
 			inventoryMust(t, s.RegisterSynchronizedEvidenceCapture(&issue764CaptureProvider{}))
 		}},
 		{name: "operator_eebus_only", condition: "eeBUS provider present; command and capture providers absent", operator: true, setup: func(t *testing.T, s *Server) { inventoryMust(t, s.RegisterEEBusV1Provider(&msp06Provider{})) }},
-		{name: "ordinary_composed", condition: "all composed ordinary optional providers present", setup: inventoryComposed},
-		{name: "operator_composed", condition: "all composed ordinary and operator providers present", operator: true, setup: inventoryComposed},
+		{name: "ordinary_composed", condition: "all composed ordinary optional providers present", setup: inventoryComposedGraph},
+		{name: "operator_composed", condition: "all composed ordinary and operator providers present", operator: true, setup: inventoryComposedGraph},
 		{name: "semantic_enabled", condition: "shared semantic provider present", source: "mcp/semantic_snapshot.go", setup: func(t *testing.T, s *Server) { inventoryMust(t, RegisterSemanticSnapshotTool(s, &inventorySemantic{})) }},
 		{name: "constructor", condition: "NewServer; optional providers absent"},
 		{name: "runtime_disabled", condition: "runtime service absent; eeBUS absent", source: "mcp/runtime_control.go", setup: func(t *testing.T, s *Server) { inventoryMust(t, RegisterRuntimeControlTools(s, nil)) }},
@@ -168,6 +168,12 @@ func inventoryComposed(t *testing.T, s *Server) {
 	inventoryOperator(t, s)
 }
 
+func inventoryComposedGraph(t *testing.T, s *Server) {
+	inventoryComposed(t, s)
+	runtime, _ := newSemanticGraphFixture(t)
+	inventoryMust(t, RegisterSemanticGraphTools(s, runtime))
+}
+
 func inventoryOperator(t *testing.T, s *Server) {
 	inventoryMust(t, s.RegisterEEBusV1Provider(&msp06Provider{}))
 	inventoryMust(t, s.RegisterEEBusV1CommandRouter(&issue749CommandRuntime{}))
@@ -237,6 +243,8 @@ func inventorySource(name string, p inventoryProfile, base map[string]string) st
 		}
 	}
 	switch name {
+	case SemanticResourcesListTool, SemanticTraverseTool, SemanticLensGetTool, SemanticCatalogGetTool:
+		return "mcp/semantic_graph.go"
 	case ModbusV1RawReadTool, ModbusV1ProfileObservationGetTool, SemanticV1PVCurrentGetTool:
 		return "mcp/modbus_v1.go"
 	case TeslaHSCV1StatusGetTool:
@@ -375,7 +383,11 @@ func TestMCPToolInventory(t *testing.T) {
 				if base[tool.Name] != "" {
 					condition = "always: NewServer"
 				}
-				doc.Rows = append(doc.Rows, inventoryRow{tool.Name, surface, p.name, condition, inventorySource(tool.Name, p, base)})
+				source := inventorySource(tool.Name, p, base)
+				if source == "mcp/semantic_graph.go" {
+					condition = "shared runtime tree present"
+				}
+				doc.Rows = append(doc.Rows, inventoryRow{tool.Name, surface, p.name, condition, source})
 			}
 		})
 	}

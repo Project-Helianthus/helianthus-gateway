@@ -20,6 +20,7 @@ import (
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	"github.com/Project-Helianthus/helianthus-ebusreg/router"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/rpcsource"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/tree"
 )
 
 type Registry interface {
@@ -510,6 +511,7 @@ type Server struct {
 	identificationEvidence      IdentificationEvidenceProvider
 	watch                       WatchSummaryProvider
 	semantic                    SemanticProvider
+	semanticGraph               *tree.Tree
 	semanticSnapshotTimeout     func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 	scheduleWriter              ScheduleWriter
 	configWriter                ConfigWriter
@@ -1164,8 +1166,11 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (a
 	if !s.hasToolNamed(rawCall.Name) {
 		return nil, rpcErrorInvalidParams(fmt.Sprintf("unknown tool %q", rawCall.Name))
 	}
-	if rawCall.Name == SemanticSnapshotTool {
+	switch rawCall.Name {
+	case SemanticSnapshotTool:
 		return s.handleSharedSemanticSnapshot(ctx, rawCall.Arguments, hasDuplicateKeys), nil
+	case SemanticResourcesListTool, SemanticTraverseTool, SemanticLensGetTool, SemanticCatalogGetTool:
+		return s.handleSemanticGraph(ctx, rawCall, hasDuplicateKeys), nil
 	}
 	if isRuntimeControlTool(rawCall.Name) {
 		// Lifecycle tools refuse duplicate, missing, additional and
