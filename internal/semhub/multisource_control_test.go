@@ -674,19 +674,29 @@ func TestMultiSourceControlConcurrentContributorCycles(t *testing.T) {
 			}
 		}
 	}()
+	// Both sources evaluate against the one shared asset, so their stamps come
+	// from one clock; the stamp is taken and used under one lock so that a
+	// later stamp is never applied before an earlier one.
+	var clockMu sync.Mutex
+	clock := int64(10)
 	run := func(handle *Handle, src semreg.SourceID, epoch semreg.SourceEpochID, family string, errs chan<- error) {
-		at := int64(10)
 		for cycle := 0; cycle < cycles; cycle++ {
 			for n := 0; n < 3; n++ {
-				at++
+				clockMu.Lock()
+				clock++
+				at := clock
 				outcome, err := publish(t, f.hub, handle, sharedAsset, family, at, at)
+				clockMu.Unlock()
 				if err != nil || outcome != Accepted {
 					errs <- fmt.Errorf("%s publish: %v/%v", src, outcome, err)
 					return
 				}
 			}
-			at++
-			if _, err := f.hub.Fence(testFence(src, epoch, handle.Generation(), at)); err != nil {
+			clockMu.Lock()
+			clock++
+			_, err := f.hub.Fence(testFence(src, epoch, handle.Generation(), clock))
+			clockMu.Unlock()
+			if err != nil {
 				errs <- fmt.Errorf("%s fence: %w", src, err)
 				return
 			}
