@@ -15,6 +15,7 @@ import (
 	"errors"
 	"math/big"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/operation"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/evse"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs/infrastructure"
@@ -225,12 +227,13 @@ const (
 
 // Result is the closed projection. A nil member was not evidenced.
 type Result struct {
-	Status           Status
-	KernelOutcome    *operation.Outcome
-	Delivery         *operation.DeliveryState
-	Acknowledgement  *operation.AckState
-	ReadbackRelation *operation.ReadbackRelation
-	Reason           *string
+	Status            Status
+	KernelOutcome     *operation.Outcome
+	Delivery          *operation.DeliveryState
+	Acknowledgement   *operation.AckState
+	ReadbackRelation  *operation.ReadbackRelation
+	Reason            *string
+	CompoundExecution *driver.CompoundExecution
 }
 
 // Router-owned sanitized reasons. Kernel rejections keep their SemReg error
@@ -295,11 +298,13 @@ func (d Dispatch) ExecutionRecord() operation.ExecutionRecord {
 
 // Completion is the native owner's evidence. A nil Record means the owner
 // accepted the dispatch without terminal evidence yet. ReadbackSnapshot is the
-// exact later snapshot named by Record.Readback, when present. An Execute
-// error discards the completion: it proves nothing about delivery.
+// exact later snapshot named by Record.Readback, when present. CompoundExecution
+// is optional step evidence accompanying the terminal record. An Execute error
+// discards the completion: it proves nothing about delivery.
 type Completion struct {
-	Record           *operation.ExecutionRecord
-	ReadbackSnapshot *semreg.Snapshot
+	Record            *operation.ExecutionRecord
+	ReadbackSnapshot  *semreg.Snapshot
+	CompoundExecution *driver.CompoundExecution
 }
 
 // Executor is injected by the qualified native driver owner for one admitted
@@ -353,7 +358,14 @@ type Router struct {
 	now       func() time.Time
 
 	mu         sync.Mutex
-	dispatched map[*operation.Admission]struct{}
+	dispatched map[*operation.Admission]*dispatchState
+}
+
+// The SemReg record does not store compound steps. The dispatch state keeps
+// them with the same admission, and synchronizes replay with recording.
+type dispatchState struct {
+	mu       sync.Mutex
+	compound *driver.CompoundExecution
 }
 
 // NewRouter composes a router. Typed-nil dependencies count as absent.
@@ -361,7 +373,7 @@ func NewRouter(config Config) *Router {
 	router := &Router{
 		kernel:     config.Kernel,
 		now:        config.Now,
-		dispatched: map[*operation.Admission]struct{}{},
+		dispatched: map[*operation.Admission]*dispatchState{},
 	}
 	if !isNil(config.Snapshots) {
 		router.snapshots = config.Snapshots
@@ -457,8 +469,8 @@ func (r *Router) Route(ctx context.Context, request Request) (Result, error) {
 	if hasRoute && route.BindingID != request.BindingID {
 		return refused(ReasonBindingMismatch), nil
 	}
-	if recorded, ok := admission.Recorded(); ok {
-		return project(recorded), nil
+	if result, ok := r.recorded(admission); ok {
+		return result, nil
 	}
 	guard, hasGuard := admission.GuardClaims()
 	admittedAt, admittedRevision, admitted := admission.AdmittedAt()
@@ -480,12 +492,13 @@ func (r *Router) Route(ctx context.Context, request Request) (Result, error) {
 	if ctx.Err() != nil {
 		return refused(string(semreg.DeadlineExpired)), nil
 	}
-	if !r.claim(admission) {
+	state := r.claim(admission)
+	if state == nil {
 		return r.replayed(admission), nil
 	}
 	dispatch := Dispatch{Intent: admission.Intent(), Route: route, Guard: guard, AdmittedAt: admittedAt, AdmittedRevision: admittedRevision}
 	outcome := make(chan Result, 1)
-	go func() { outcome <- r.execute(ctx, executor, admission, dispatch) }()
+	go func() { outcome <- r.execute(ctx, executor, admission, state, dispatch) }()
 	select {
 	case result := <-outcome:
 		return result, nil
@@ -503,7 +516,7 @@ func (r *Router) Route(ctx context.Context, request Request) (Result, error) {
 // execute runs the executor and validates its terminal evidence through the
 // kernel. It completes even after the bounded wait expired, so late evidence
 // still becomes the admission's immutable record that a replay projects.
-func (r *Router) execute(ctx context.Context, executor Executor, admission *operation.Admission, dispatch Dispatch) (result Result) {
+func (r *Router) execute(ctx context.Context, executor Executor, admission *operation.Admission, state *dispatchState, dispatch Dispatch) (result Result) {
 	// A panicking executor may already have dispatched: like an executor
 	// error, it proves nothing about delivery.
 	defer func() {
@@ -518,35 +531,72 @@ func (r *Router) execute(ctx context.Context, executor Executor, admission *oper
 	case completion.Record == nil:
 		return Result{Status: StatusAccepted}
 	}
+	compound := cloneCompoundExecution(completion.CompoundExecution)
+	if compound != nil && compound.Validate() != nil {
+		return unknown(ReasonExecutionEvidenceInvalid)
+	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
 	recorded, err := r.kernel.Record(admission, *completion.Record, completion.ReadbackSnapshot)
 	if err != nil {
 		return unknown(ReasonExecutionEvidenceInvalid)
 	}
-	return project(recorded)
+	state.compound = compound
+	result = project(recorded)
+	result.CompoundExecution = cloneCompoundExecution(compound)
+	return result
 }
 
-// claim marks the admission dispatched; it reports false when it already was.
-func (r *Router) claim(admission *operation.Admission) bool {
+// claim reserves the admission for one dispatch, returning nil on replay.
+func (r *Router) claim(admission *operation.Admission) *dispatchState {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, dispatched := r.dispatched[admission]; dispatched {
-		return false
+	if r.dispatched[admission] != nil {
+		return nil
 	}
-	r.dispatched[admission] = struct{}{}
-	return true
+	state := &dispatchState{}
+	r.dispatched[admission] = state
+	return state
+}
+
+func (r *Router) dispatchFor(admission *operation.Admission) *dispatchState {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.dispatched[admission]
+}
+
+func (r *Router) recorded(admission *operation.Admission) (Result, bool) {
+	record, ok := admission.Recorded()
+	if !ok {
+		return Result{}, false
+	}
+	result := project(record)
+	if state := r.dispatchFor(admission); state != nil {
+		// If the record became visible during execute, wait for its step copy.
+		state.mu.Lock()
+		result.CompoundExecution = cloneCompoundExecution(state.compound)
+		state.mu.Unlock()
+	}
+	return result, true
+}
+
+func cloneCompoundExecution(compound *driver.CompoundExecution) *driver.CompoundExecution {
+	if compound == nil {
+		return nil
+	}
+	copy := *compound
+	copy.Steps = slices.Clone(compound.Steps)
+	return &copy
 }
 
 // replayed answers an admission that must not be dispatched again: its
 // recorded evidence, admission only while a dispatch has no terminal record,
 // or a no-send refusal for an earlier admission that was never dispatched.
 func (r *Router) replayed(admission *operation.Admission) Result {
-	if recorded, ok := admission.Recorded(); ok {
-		return project(recorded)
+	if result, ok := r.recorded(admission); ok {
+		return result
 	}
-	r.mu.Lock()
-	_, dispatched := r.dispatched[admission]
-	r.mu.Unlock()
-	if dispatched {
+	if r.dispatchFor(admission) != nil {
 		return Result{Status: StatusAccepted}
 	}
 	return refused(ReasonAdmissionReplayed)

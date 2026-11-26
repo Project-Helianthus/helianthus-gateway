@@ -19,6 +19,7 @@ import (
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations/semoptest"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/operation"
 	graphqlgo "github.com/graphql-go/graphql"
 	"github.com/graphql-go/handler"
@@ -51,9 +52,18 @@ type m56Harness struct {
 
 func newM56Harness(t *testing.T, outcome semoptest.Outcome) m56Harness {
 	t.Helper()
+	return newM56HarnessWithCompound(t, outcome, nil)
+}
+
+func newM56HarnessWithCompound(t *testing.T, outcome semoptest.Outcome, compound *driver.CompoundExecution) m56Harness {
+	t.Helper()
 	f := semoptest.New(t)
 	h := m56Harness{f: f, owner: f.Owner(), lookup: &semoptest.Lookup{}, selected: f.Executor(outcome), builder: NewBuilder(nil, nil)}
-	h.lookup.Register(f.Route(), semoptest.Operation, h.selected)
+	var executor semanticoperations.Executor = h.selected
+	if compound != nil {
+		executor = m56CompoundExecutor{Executor: executor, compound: compound}
+	}
+	h.lookup.Register(f.Route(), semoptest.Operation, executor)
 	h.builder.SetSemanticOperationRouter(semanticoperations.NewRouter(semanticoperations.Config{Snapshots: f, Kernel: f.Kernel, Intents: h.owner, Executors: h.lookup}))
 	handler, err := NewInvokeHandler(h.builder, m56Registry{}, m56Invoker{t: t})
 	if err != nil {
@@ -208,6 +218,77 @@ func m56Equal(t *testing.T, got, want map[string]any) {
 	if !bytes.Equal(gotJSON, wantJSON) {
 		t.Fatalf("semantic_operation = %s; want %s", gotJSON, wantJSON)
 	}
+}
+
+type m56CompoundExecutor struct {
+	semanticoperations.Executor
+	compound *driver.CompoundExecution
+}
+
+func (e m56CompoundExecutor) Execute(ctx context.Context, d semanticoperations.Dispatch) (semanticoperations.Completion, error) {
+	completion, err := e.Executor.Execute(ctx, d)
+	completion.CompoundExecution = e.compound
+	return completion, err
+}
+
+func TestSemanticOperationCompoundEvidence(t *testing.T) {
+	query := `mutation SemanticOperation($input: semantic_operation_input!) {
+	  semantic_operation(input: $input) {
+	    status kernel_outcome delivery acknowledgement readback_relation reason
+	    compound_execution {
+	      partial
+	      steps { name attempted delivery acknowledgement readback_relation reason }
+	    }
+	  }
+	}`
+	post := func(t *testing.T, h m56Harness) map[string]any {
+		t.Helper()
+		body := m56Body(t, query, m56Input(t, h.f.Request()))
+		return m56Result(t, m56Post(t, h.handler, "application/json", body))
+	}
+	t.Run("compound keeps the owner's order and aggregate", func(t *testing.T) {
+		compound := &driver.CompoundExecution{
+			Partial: true,
+			Steps: []driver.CompoundStep{
+				{Point: "point.zulu", Attempted: true, Delivery: operation.DeliverySent, Acknowledgement: operation.AckAccepted, ReadbackRelation: operation.ReadbackConfirms},
+				{Point: "point.alpha", Attempted: true, Delivery: operation.DeliveryUnknown, Reason: "fixture.delivery_ambiguous"},
+				{Point: "point.middle", Reason: "fixture.prior_step_ambiguous"},
+			},
+		}
+		h := newM56HarnessWithCompound(t, semoptest.Outcome{Kind: operation.OutcomeIndeterminate, Delivery: operation.DeliveryUnknown}, compound)
+		h.owner.Replay = true
+		want := m56Projection("unknown", "kernel_outcome", "indeterminate", "delivery", "unknown", "compound_execution", map[string]any{
+			"partial": true,
+			"steps": []map[string]any{
+				{"name": "point.zulu", "attempted": true, "delivery": "sent", "acknowledgement": "accepted", "readback_relation": "confirms", "reason": nil},
+				{"name": "point.alpha", "attempted": true, "delivery": "unknown", "acknowledgement": nil, "readback_relation": nil, "reason": "fixture.delivery_ambiguous"},
+				{"name": "point.middle", "attempted": false, "delivery": nil, "acknowledgement": nil, "readback_relation": nil, "reason": "fixture.prior_step_ambiguous"},
+			},
+		})
+		m56Equal(t, post(t, h), want)
+		m56Equal(t, post(t, h), want)
+		if h.selected.Calls() != 1 || h.selected.Sends() != 1 {
+			t.Fatalf("executor calls=%d sends=%d; want 1/1 across two requests", h.selected.Calls(), h.selected.Sends())
+		}
+	})
+	t.Run("false partial flag is not inferred from an unattempted step", func(t *testing.T) {
+		compound := &driver.CompoundExecution{Partial: false, Steps: []driver.CompoundStep{
+			{Point: "point.first", Attempted: true, Delivery: operation.DeliveryUnknown},
+			{Point: "point.next"},
+		}}
+		h := newM56HarnessWithCompound(t, semoptest.Outcome{Kind: operation.OutcomeIndeterminate, Delivery: operation.DeliveryUnknown}, compound)
+		m56Equal(t, post(t, h), m56Projection("unknown", "kernel_outcome", "indeterminate", "delivery", "unknown", "compound_execution", map[string]any{
+			"partial": false,
+			"steps": []map[string]any{
+				{"name": "point.first", "attempted": true, "delivery": "unknown", "acknowledgement": nil, "readback_relation": nil, "reason": nil},
+				{"name": "point.next", "attempted": false, "delivery": nil, "acknowledgement": nil, "readback_relation": nil, "reason": nil},
+			},
+		}))
+	})
+	t.Run("single write keeps scalar fields and has null compound evidence", func(t *testing.T) {
+		h := newM56Harness(t, semoptest.Outcome{Kind: operation.OutcomeAcknowledgedUnverified, Delivery: operation.DeliverySent, Ack: operation.AckAccepted})
+		m56Equal(t, post(t, h), m56Projection("protocol_ack", "kernel_outcome", "acknowledged_unverified", "delivery", "sent", "acknowledgement", "accepted", "compound_execution", nil))
+	})
 }
 
 func TestM56GraphQLMutationReachesExactlyOneSelectedExecutor(t *testing.T) {
@@ -725,6 +806,8 @@ func TestM56GraphQLSchemaDeclaresClosedRoute(t *testing.T) {
 	  mutation: __schema { mutationType { fields { name type { kind name } args { name type { kind ofType { name } } } } } }
 	  input: __type(name: "semantic_operation_input") { inputFields { name type { ...T } } }
 	  result: __type(name: "semantic_operation_result") { fields { name type { ...T } } }
+	  compound: __type(name: "semantic_compound_execution") { fields { name type { ...T } } }
+	  step: __type(name: "semantic_compound_step") { fields { name type { ...T } } }
 	  precondition: __type(name: "semantic_precondition_input") { inputFields { name } }
 	  value: __type(name: "semantic_value_input") { inputFields { name type { ...T } } }
 	}
@@ -753,6 +836,8 @@ func TestM56GraphQLSchemaDeclaresClosedRoute(t *testing.T) {
 			}
 			Input        struct{ InputFields []m56TypeRef }
 			Result       struct{ Fields []m56TypeRef }
+			Compound     struct{ Fields []m56TypeRef }
+			Step         struct{ Fields []m56TypeRef }
 			Precondition struct{ InputFields []struct{ Name string } }
 			Value        struct{ InputFields []m56TypeRef }
 		}
@@ -784,6 +869,13 @@ func TestM56GraphQLSchemaDeclaresClosedRoute(t *testing.T) {
 	m56RequireTypes(t, "semantic_operation_input", response.Data.Input.InputFields, wantInput)
 	m56RequireTypes(t, "semantic_operation_result", response.Data.Result.Fields, map[string]string{
 		"status": "String!", "kernel_outcome": "String", "delivery": "String", "acknowledgement": "String", "readback_relation": "String", "reason": "String",
+		"compound_execution": "semantic_compound_execution",
+	})
+	m56RequireTypes(t, "semantic_compound_execution", response.Data.Compound.Fields, map[string]string{
+		"partial": "Boolean!", "steps": "[semantic_compound_step!]!",
+	})
+	m56RequireTypes(t, "semantic_compound_step", response.Data.Step.Fields, map[string]string{
+		"name": "String!", "attempted": "Boolean!", "delivery": "String", "acknowledgement": "String", "readback_relation": "String", "reason": "String",
 	})
 	names := []string{}
 	for _, field := range response.Data.Precondition.InputFields {

@@ -3,6 +3,7 @@ package semanticoperations_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticoperations/semoptest"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/operation"
 )
 
@@ -52,9 +54,18 @@ type harness struct {
 
 func newHarness(t *testing.T, outcome semoptest.Outcome) harness {
 	t.Helper()
+	return newHarnessWithCompound(t, outcome, nil)
+}
+
+func newHarnessWithCompound(t *testing.T, outcome semoptest.Outcome, compound *driver.CompoundExecution) harness {
+	t.Helper()
 	f := semoptest.New(t)
 	h := harness{f: f, owner: f.Owner(), lookup: &semoptest.Lookup{}, selected: f.Executor(outcome)}
-	h.lookup.Register(f.Route(), semoptest.Operation, h.selected)
+	var executor semanticoperations.Executor = h.selected
+	if compound != nil {
+		executor = compoundExecutor{Executor: executor, compound: compound}
+	}
+	h.lookup.Register(f.Route(), semoptest.Operation, executor)
 	h.router = semanticoperations.NewRouter(semanticoperations.Config{Snapshots: f, Kernel: f.Kernel, Intents: h.owner, Executors: h.lookup})
 	return h
 }
@@ -73,6 +84,109 @@ func requireCode(t *testing.T, err error, want semanticoperations.Code) {
 	var routeErr *semanticoperations.Error
 	if !errors.As(err, &routeErr) || routeErr.Code != want {
 		t.Fatalf("error = %v; want code %s", err, want)
+	}
+}
+
+type compoundExecutor struct {
+	semanticoperations.Executor
+	compound *driver.CompoundExecution
+}
+
+func (e compoundExecutor) Execute(ctx context.Context, d semanticoperations.Dispatch) (semanticoperations.Completion, error) {
+	completion, err := e.Executor.Execute(ctx, d)
+	completion.CompoundExecution = e.compound
+	return completion, err
+}
+
+func TestCompoundEvidenceReplayCopiesOwnerAndCallerValues(t *testing.T) {
+	want := driver.CompoundExecution{Partial: true, Steps: []driver.CompoundStep{
+		{Point: "point.zulu", Attempted: true, Delivery: operation.DeliverySent, Acknowledgement: operation.AckAccepted, ReadbackRelation: operation.ReadbackConfirms},
+		{Point: "point.alpha", Attempted: true, Delivery: operation.DeliveryUnknown, Reason: "fixture.delivery_ambiguous"},
+		{Point: "point.middle", Reason: "fixture.prior_step_ambiguous"},
+	}}
+	ownerCopy := want
+	ownerCopy.Steps = append([]driver.CompoundStep{}, want.Steps...)
+	h := newHarnessWithCompound(t, semoptest.Outcome{Kind: operation.OutcomeIndeterminate, Delivery: operation.DeliveryUnknown}, &ownerCopy)
+	h.owner.Replay = true
+	request := h.f.Request()
+	check := func() *driver.CompoundExecution {
+		t.Helper()
+		got, err := h.router.Route(context.Background(), request)
+		wantAggregate := view{"unknown", "indeterminate", "unknown", null, null, null}
+		if err != nil || viewOf(got) != wantAggregate || !reflect.DeepEqual(got.CompoundExecution, &want) {
+			t.Fatalf("Route() = %+v, compound=%+v, err=%v; want %+v with %+v", viewOf(got), got.CompoundExecution, err, wantAggregate, want)
+		}
+		return got.CompoundExecution
+	}
+	first := check()
+	ownerCopy.Steps[0].Point = "point.changed_by_owner"
+	ownerCopy.Partial = false
+	first.Steps[1].Reason = "fixture.changed_by_caller"
+	first.Partial = false
+	replay := check()
+	replay.Steps[2].Point = "point.changed_by_replay_caller"
+	replay.Partial = false
+	check()
+	if h.selected.Calls() != 1 || h.selected.Sends() != 1 {
+		t.Fatalf("executor calls=%d sends=%d; want 1/1 across three requests", h.selected.Calls(), h.selected.Sends())
+	}
+}
+
+func TestCompoundEvidenceReplayIncludesLateRecord(t *testing.T) {
+	compound := &driver.CompoundExecution{Partial: true, Steps: []driver.CompoundStep{
+		{Point: "point.first", Attempted: true, Delivery: operation.DeliverySent, Acknowledgement: operation.AckAccepted},
+		{Point: "point.next", Attempted: true, Delivery: operation.DeliveryUnknown},
+	}}
+	h := newHarnessWithCompound(t, semoptest.Outcome{Kind: operation.OutcomeIndeterminate, Delivery: operation.DeliveryUnknown, Block: true}, compound)
+	h.owner.Replay = true
+	request := h.f.Request()
+	request.Timeout = semanticoperations.MaxTimeout
+	if first := routeAfterExecutorStart(t, h, request, true); first != (view{"unknown", null, null, null, null, semanticoperations.ReasonEvidenceTimeout}) {
+		t.Fatalf("canceled wait = %+v; want no terminal evidence", first)
+	}
+	h.selected.Release()
+	awaitDone(t, h.selected)
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(time.Millisecond) {
+		got, err := h.router.Route(context.Background(), request)
+		if err == nil && viewOf(got) == (view{"unknown", "indeterminate", "unknown", null, null, null}) && reflect.DeepEqual(got.CompoundExecution, compound) {
+			break
+		}
+		if err != nil || viewOf(got) != (view{"accepted", null, null, null, null, null}) || got.CompoundExecution != nil || time.Now().After(deadline) {
+			t.Fatalf("replay = %+v, %v; want late aggregate and compound evidence together", got, err)
+		}
+	}
+	if h.selected.Calls() != 1 || h.selected.Sends() != 1 {
+		t.Fatalf("executor calls=%d sends=%d; want 1/1", h.selected.Calls(), h.selected.Sends())
+	}
+}
+
+func TestCompoundEvidenceRequiresValidTerminalCompletion(t *testing.T) {
+	compound := &driver.CompoundExecution{Steps: []driver.CompoundStep{{Point: "point.owner", Attempted: true}}}
+	for _, test := range []struct {
+		name    string
+		outcome semoptest.Outcome
+		steps   *driver.CompoundExecution
+		want    view
+	}{
+		{"admission only", semoptest.Outcome{}, compound, view{"accepted", null, null, null, null, null}},
+		{"executor error", semoptest.Outcome{Err: errors.New("fixture executor error")}, compound, view{"unknown", null, null, null, null, semanticoperations.ReasonExecutionEvidenceMissing}},
+		{"record rejected", semoptest.Outcome{Kind: operation.OutcomeIndeterminate, Delivery: operation.DeliveryUnknown, Invalid: true}, compound, view{"unknown", null, null, null, null, semanticoperations.ReasonExecutionEvidenceInvalid}},
+		{"step rejected", semoptest.Outcome{Kind: operation.OutcomeIndeterminate, Delivery: operation.DeliveryUnknown},
+			&driver.CompoundExecution{Steps: []driver.CompoundStep{{Point: "point.unattempted", Delivery: operation.DeliverySent}}},
+			view{"unknown", null, null, null, null, semanticoperations.ReasonExecutionEvidenceInvalid}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h := newHarnessWithCompound(t, test.outcome, test.steps)
+			h.owner.Replay = true
+			first, err := h.router.Route(context.Background(), h.f.Request())
+			if err != nil || viewOf(first) != test.want || first.CompoundExecution != nil {
+				t.Fatalf("first = %+v, %v; want %+v with no compound evidence", first, err, test.want)
+			}
+			replay, err := h.router.Route(context.Background(), h.f.Request())
+			if err != nil || viewOf(replay) != (view{"accepted", null, null, null, null, null}) || replay.CompoundExecution != nil || h.selected.Calls() != 1 {
+				t.Fatalf("replay = %+v, %v after %d calls; want admission only after one call", replay, err, h.selected.Calls())
+			}
+		})
 	}
 }
 
