@@ -1392,11 +1392,13 @@
         "unit"
       ],
       "name": "helianthus_semantic_fact_value",
-      "omission": "Metadata always with provider; values require one conflict-free qualified/promoted/good, available/fresh candidate and valid numeric conversion. Otherwise omit, never fabricate zero.",
+      "omission": "Metadata always with provider; values require one conflict-free qualified/promoted/good, available/fresh candidate. Quantities require the registry unit for the fact (percent on a ratio fact is normalized). Otherwise omit, never fabricate zero.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Provider installed when Modbus TCP, storage RS485 or EVSE Prometheus is enabled; individual domains follow their configuration.",
       "source": "semantic_prometheus.go",
-      "source_guards": [],
+      "source_guards": [
+        "ok"
+      ],
       "type": "gauge"
     },
     {
