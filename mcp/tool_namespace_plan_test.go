@@ -13,6 +13,7 @@ import (
 // toolNamespacePlanPrefixes are the namespaces admitted by
 // docs/architecture/mcp-namespaces.md, one per owner.
 var toolNamespacePlanPrefixes = []string{
+	"driver_",
 	"ebus_v1_",
 	"eebus_v1_",
 	"modbus_v1_",
@@ -53,6 +54,12 @@ func toolNamespacePlanDispatched() []string {
 		leafPromotionCaptureToolName,
 		m8SourceStateToolName,
 		SemanticSnapshotTool,
+		SemanticResourcesListTool,
+		SemanticTraverseTool,
+		SemanticLensGetTool,
+		SemanticCatalogGetTool,
+		driverMemberGetTool,
+		driverMethodCallTool,
 		RuntimeControlListTool,
 		RuntimeControlGetTool,
 		RuntimeControlStartTool,

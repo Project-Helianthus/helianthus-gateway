@@ -13,6 +13,7 @@ forwarding name or deprecation window: a previous name is an unknown tool.
 
 | Prefix | Owner | Contents |
 | --- | --- | --- |
+| `driver_` | shared runtime tree | generic driver member reads and method calls |
 | `ebus_v1_` | protocol-native: eBUS | eBUS bus observation, registry, invocation, standard catalog and vendor-family service reads |
 | `eebus_v1_` | protocol-native: eeBUS | eeBUS runtime, pairing, sessions, services, topology, features and operator commands |
 | `modbus_v1_` | protocol-native: Modbus | Modbus raw reads, profile observations and device-family status reads |
@@ -42,12 +43,33 @@ reads and the protocol-neutral `semantic_v1_*` tools. The family-keyed reads
 move with the retrieval work of #1540; until then they keep their names. The
 `ebus_v1_semantic_*` writes stay in the eBUS namespace.
 
+When a shared SemReg runtime tree is attached, the MCP graph reads serve
+resource listings, traversal, lens results and the element catalog. They use
+SemReg graph rules ENT-2, TRV-1 through TRV-7 and API-1 through API-5; native
+registry data is not part of these graph reads.
+
+## Driver members
+
+With a shared SemReg runtime tree attached, `driver_member_get` reads the
+published value and typed tree descriptor without issuing a bus request.
+The `key` is the shared `MemberKey` object: `namespace`, `instance`, `node`
+(the canonical tree node ID), and `local`.
+
+`driver_method_call` takes the same `key` for native methods and accepts the
+optional base64-encoded `input` defined by the declaring method. The outcome
+preserves the method's encoded result and any rejection reason. For a semantic
+operation, supply the canonical tree `method` key and its SemReg operation
+`request` instead. The operation result is returned unchanged, including
+`compound_execution` when present.
+
 ## Registered tools
 
 The target name equals the current name unless the row says otherwise.
 
 | Tool | Namespace | Target name |
 | --- | --- | --- |
+| `driver_member_get` | `driver_` | `driver_member_get` |
+| `driver_method_call` | `driver_` | `driver_method_call` |
 | `ebus_v1_bus_identification_evidence_list` | `ebus_v1_` | `ebus_v1_bus_identification_evidence_list` |
 | `ebus_v1_bus_messages_list` | `ebus_v1_` | `ebus_v1_bus_messages_list` |
 | `ebus_v1_bus_periodicity_list` | `ebus_v1_` | `ebus_v1_bus_periodicity_list` |
@@ -127,7 +149,11 @@ The target name equals the current name unless the row says otherwise.
 | `modbus_v1_tesla_gen3_evse_current_limit_get` | `modbus_v1_` | `modbus_v1_tesla_gen3_evse_current_limit_get` |
 | `modbus_v1_tesla_hsc_status_get` | `modbus_v1_` | `modbus_v1_tesla_hsc_status_get` |
 | `modbus_v1_tesla_wcapi_get_vitals_replay_get` | `modbus_v1_` | `modbus_v1_tesla_wcapi_get_vitals_replay_get` |
+| `semantic_v1_catalog_get` | `semantic_v1_` | `semantic_v1_catalog_get` |
 | `semantic_v1_evse_current_get` | `semantic_v1_` | `semantic_v1_evse_current_get` |
+| `semantic_v1_lens_get` | `semantic_v1_` | `semantic_v1_lens_get` |
 | `semantic_v1_pv_current_get` | `semantic_v1_` | `semantic_v1_pv_current_get` |
+| `semantic_v1_resources_list` | `semantic_v1_` | `semantic_v1_resources_list` |
 | `semantic_v1_snapshot_get` | `semantic_v1_` | `semantic_v1_snapshot_get` |
 | `semantic_v1_storage_growatt_current_get` | `semantic_v1_` | `semantic_v1_storage_growatt_current_get` |
+| `semantic_v1_traverse` | `semantic_v1_` | `semantic_v1_traverse` |
