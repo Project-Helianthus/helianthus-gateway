@@ -101,12 +101,13 @@ func semanticOperationField(builder *Builder) *graphqlgo.Field {
 	result := graphqlgo.NewObject(graphqlgo.ObjectConfig{
 		Name: "semantic_operation_result",
 		Fields: graphqlgo.Fields{
-			"status":            &graphqlgo.Field{Type: graphqlgo.NewNonNull(graphqlgo.String)},
-			"kernel_outcome":    &graphqlgo.Field{Type: graphqlgo.String},
-			"delivery":          &graphqlgo.Field{Type: graphqlgo.String},
-			"acknowledgement":   &graphqlgo.Field{Type: graphqlgo.String},
-			"readback_relation": &graphqlgo.Field{Type: graphqlgo.String},
-			"reason":            &graphqlgo.Field{Type: graphqlgo.String},
+			"status":             &graphqlgo.Field{Type: graphqlgo.NewNonNull(graphqlgo.String)},
+			"kernel_outcome":     &graphqlgo.Field{Type: graphqlgo.String},
+			"delivery":           &graphqlgo.Field{Type: graphqlgo.String},
+			"acknowledgement":    &graphqlgo.Field{Type: graphqlgo.String},
+			"readback_relation":  &graphqlgo.Field{Type: graphqlgo.String},
+			"reason":             &graphqlgo.Field{Type: graphqlgo.String},
+			"compound_execution": &graphqlgo.Field{Type: semanticCompoundExecutionType()},
 		},
 	})
 	return &graphqlgo.Field{
@@ -340,12 +341,13 @@ func semanticIntegerText(raw any) (string, bool) {
 
 func semanticOperationResultValue(result semanticoperations.Result) map[string]interface{} {
 	return map[string]interface{}{
-		"status":            string(result.Status),
-		"kernel_outcome":    semanticOptional(result.KernelOutcome),
-		"delivery":          semanticOptional(result.Delivery),
-		"acknowledgement":   semanticOptional(result.Acknowledgement),
-		"readback_relation": semanticOptional(result.ReadbackRelation),
-		"reason":            semanticOptional(result.Reason),
+		"status":             string(result.Status),
+		"kernel_outcome":     semanticOptional(result.KernelOutcome),
+		"delivery":           semanticOptional(result.Delivery),
+		"acknowledgement":    semanticOptional(result.Acknowledgement),
+		"readback_relation":  semanticOptional(result.ReadbackRelation),
+		"reason":             semanticOptional(result.Reason),
+		"compound_execution": semanticCompoundExecutionValue(result.CompoundExecution),
 	}
 }
 
