@@ -121,17 +121,20 @@ func (m *gatewaySemanticMetrics) sections(ctx context.Context) (string, string, 
 	view := semanticview.View{}
 	var failure error
 	var served []ebusgateway.SemanticMetricsDomain
-	if ids := m.provider.captureIDs(assets); len(ids) > 0 {
-		metadata, inputs, err := m.provider.Capture(ctx, ids)
-		if err != nil {
-			failure = fmt.Errorf("capture: %w", err)
-		} else {
-			served = m.provider.servedDomains(inputs)
-			if len(assets) > 0 {
-				if view, err = semanticview.Build(metadata, inputsOfAssets(inputs, assets)); err != nil {
-					view, failure = semanticview.View{}, fmt.Errorf("view: %w", err)
-				}
-			}
+	capture, serves, err := m.provider.captureServed(ctx)
+	var metadata *semreg.PackMetadataRegistry
+	var inputs []semanticview.Input
+	if serves && err == nil {
+		metadata, inputs = capture.Metadata, metricInputs(capture.Assets)
+		served = servedDomains(capture.Assets)
+	} else if !serves && len(assets) > 0 {
+		metadata, inputs, err = m.provider.Capture(ctx, assets)
+	}
+	if err != nil {
+		failure = fmt.Errorf("capture: %w", err)
+	} else if len(assets) > 0 {
+		if view, err = semanticview.Build(metadata, inputsOfAssets(inputs, assets)); err != nil {
+			view, failure = semanticview.View{}, fmt.Errorf("view: %w", err)
 		}
 	}
 	text, err := semanticmetrics.Render(view, registry)

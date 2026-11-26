@@ -19,6 +19,7 @@ var ErrCaptureUnavailable = errors.New("semhub: coherent capture unavailable")
 // decisions made at the same hub instant. Withheld publications stay private.
 type CapturedAsset struct {
 	AssetID           semreg.AssetID
+	Owner             semreg.SourceID // The declared owner, not the selected publishing source.
 	Snapshot          *semreg.Snapshot
 	Evaluation        *semreg.EvaluationView
 	SourceAdmitted    bool
@@ -38,13 +39,32 @@ type CoherentCapture struct {
 // reenter the hub or block on a hub writer. Inspect remains an independent,
 // ungated audit surface.
 func (h *Hub) Capture(ctx context.Context, ids []semreg.AssetID, now func() time.Time) (CoherentCapture, error) {
-	return h.capture(ctx, ids, func() (semreg.TimePoint, captureContext, error) {
+	return h.capture(ctx, ids, recordedCaptureSample(now))
+}
+
+// CaptureServed selects and evaluates every declared asset in bytewise order
+// under one read lock. It applies Capture's admission and clock rules, without
+// the explicit selection bound. An empty declared set is a valid read.
+func (h *Hub) CaptureServed(ctx context.Context, now func() time.Time) (CoherentCapture, error) {
+	if h == nil {
+		return CoherentCapture{}, ErrCaptureUnavailable
+	}
+	if err := ctx.Err(); err != nil {
+		return CoherentCapture{}, err
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.captureLocked(ctx, h.assetIDsLocked(), recordedCaptureSample(now))
+}
+
+func recordedCaptureSample(now func() time.Time) func() (semreg.TimePoint, captureContext, error) {
+	return func() (semreg.TimePoint, captureContext, error) {
 		at := now()
 		wall := semreg.TimePoint{UnixNanoseconds: semreg.Int64(strconv.FormatInt(at.UnixNano(), 10)), ClockID: "clock.utc", UncertaintyNS: "0"}
 		return wall, func(snapshot semreg.Snapshot) (semreg.EvaluationContext, error) {
 			return recordedEvaluationContext(snapshot, wall)
 		}, nil
-	})
+	}
 }
 
 // captureContext returns the evaluation context of one admitted snapshot from
@@ -69,9 +89,8 @@ func (h *Hub) capture(ctx context.Context, ids []semreg.AssetID, sample func() (
 	return h.captureLocked(ctx, ids, sample)
 }
 
-// captureLocked is the body of capture; the caller holds the hub read lock
-// and has bounded the selection. A nil evaluation context from sample reads
-// the admitted snapshots without evaluating them.
+// captureLocked reads the selection under the caller's hub read lock. A nil
+// evaluation context from sample reads admitted snapshots without evaluating them.
 func (h *Hub) captureLocked(ctx context.Context, ids []semreg.AssetID, sample func() (semreg.TimePoint, captureContext, error)) (CoherentCapture, error) {
 	if h.restoring {
 		return CoherentCapture{}, ErrCaptureUnavailable
@@ -100,6 +119,7 @@ func (h *Hub) captureLocked(ctx context.Context, ids []semreg.AssetID, sample fu
 		case nil:
 			item.UnavailableReason = "semantic.read.reason.asset_unknown"
 		default:
+			item.Owner = target.source
 			// The asset's publishing sources are its owner and its declared
 			// contributors; a source is admitted when it is admitted, live, not
 			// fenced and its epoch is not retired.
@@ -209,6 +229,10 @@ func (h *Hub) AssetIDs() []semreg.AssetID {
 	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+	return h.assetIDsLocked()
+}
+
+func (h *Hub) assetIDsLocked() []semreg.AssetID {
 	ids := make([]semreg.AssetID, 0, len(h.assets))
 	for id := range h.assets {
 		ids = append(ids, id)
