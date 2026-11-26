@@ -49,8 +49,9 @@ var nativeFamilies = []nativeFamily{
 }
 
 // RenderNativePrometheus writes every published numeric native point and its
-// age. A stale point has its age and no value. An undecodable or undocumented
-// point is absent. There is no count limit. Overflow is the number of value
+// held age. Unknown and stale points emit no value, and emit no samples when
+// no age is held. An undecodable or undocumented point is absent. There is no
+// count limit. Overflow is the number of value
 // series omitted because their label set was already emitted, and it is 0
 // when none were omitted.
 func RenderNativePrometheus(points []NativeObservation) string {

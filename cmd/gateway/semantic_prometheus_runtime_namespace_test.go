@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -67,6 +69,9 @@ type namespacePublished struct {
 	encoded                                         string
 	freshness                                       semreg.Freshness
 	received                                        int64
+	age                                             *semreg.Uint64
+	absent, derived                                 bool
+	readErr                                         error
 }
 
 func namespaceFixture(t *testing.T, published []namespacePublished) *tree.Tree {
@@ -130,12 +135,17 @@ func namespaceFixture(t *testing.T, published []namespacePublished) *tree.Tree {
 			}
 			entry.device[item.kind] = device
 		}
-		observation := tree.Observation{Encoded: []byte(item.encoded), Freshness: item.freshness}
+		observation := tree.Observation{
+			Encoded: []byte(item.encoded), Freshness: item.freshness, Age: item.age,
+			Absent: item.absent, Derived: item.derived,
+		}
 		if item.received != 0 {
 			observation.ReceivedAt = &semreg.TimePoint{UnixNanoseconds: semreg.Int64(strconv.FormatInt(item.received, 10)), ClockID: "clock.utc", UncertaintyNS: "0"}
 		}
 		spec := driver.MemberSpec{Local: driver.MemberID(item.point), Schema: "schema.number", Units: semreg.DefinitionID(item.unit), Mode: "retained", Scope: "scope.test", Channel: item.channel}
-		if err := entry.registry.ObserveMember(device, spec, func(context.Context) (tree.Observation, error) { return observation, nil }); err != nil {
+		if err := entry.registry.ObserveMember(device, spec, func(context.Context) (tree.Observation, error) {
+			return observation, item.readErr
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -244,5 +254,114 @@ func TestNativePointNamespaceComposedScrape(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `helianthus_native_rotational_speed{device="node.battery",driver_instance="inst.c",point="fan_speed",protocol="family.beta",unit="hertz"} 50`) {
 		t.Fatalf("route did not serve the namespace points: %d", response.Code)
+	}
+}
+
+func TestNativePointNamespaceReadStates(t *testing.T) {
+	const received = int64(92 * time.Second)
+	retained, stale, zero := semreg.Uint64("90000000000"), semreg.Uint64("21500000000"), semreg.Uint64("0")
+	published := []namespacePublished{
+		{namespace: "family.alpha", instance: "inst.a", kind: "node.outdoor", point: "fresh_pressure", unit: "unit.bar", channel: "4", encoded: "1.25", freshness: semreg.FreshnessFresh, received: received, age: &retained},
+		{namespace: "family.beta", instance: "inst.b", kind: "node.meter", point: "stale_power", unit: "unit.watt", encoded: "12.5", freshness: semreg.FreshnessStale, received: received, age: &stale},
+		{namespace: "family.beta", instance: "inst.b", kind: "node.meter", point: "absent_power", unit: "unit.watt", absent: true, received: received, age: &zero},
+		{namespace: "family.beta", instance: "inst.b", kind: "node.meter", point: "failed_power", unit: "unit.watt", readErr: errors.New("retained read failed")},
+		{namespace: "family.beta", instance: "inst.c", kind: "node.meter", point: "failed_power", unit: "unit.watt", encoded: "7", freshness: semreg.FreshnessFresh, received: received},
+		{namespace: "family.beta", instance: "inst.c", kind: "node.meter", point: "absent_power", unit: "unit.watt", encoded: "8", freshness: semreg.FreshnessFresh, received: received},
+		{namespace: "family.beta", instance: "inst.b", kind: "node.meter", point: "derived_power", unit: "unit.watt", encoded: "13", freshness: semreg.FreshnessFresh, received: received, derived: true},
+	}
+	metrics, err := newGatewaySemanticMetrics(nil, gatewaySemanticMetricRegistry())
+	if err != nil {
+		t.Fatal(err)
+	}
+	metrics.now = func() time.Time { return time.Unix(101, 0).UTC() }
+	metrics.tree = namespaceFixture(t, published)
+	handler := newGatewayMetricsHandler(ebusgateway.NewBusObservabilityStore(ebusgateway.Config{}), metrics)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("scrape status = %d", response.Code)
+	}
+	for _, tc := range []struct {
+		point string
+		want  []string
+	}{
+		{"fresh_pressure", []string{
+			`helianthus_native_point_age{device="node.outdoor",driver_instance="inst.a",index="4",point="fresh_pressure",protocol="family.alpha",unit="seconds"} 90`,
+			`helianthus_native_pressure{device="node.outdoor",driver_instance="inst.a",index="4",point="fresh_pressure",protocol="family.alpha",unit="pascals"} 125000`,
+		}},
+		{"stale_power", []string{
+			`helianthus_native_point_age{device="node.meter",driver_instance="inst.b",point="stale_power",protocol="family.beta",unit="seconds"} 21.5`,
+		}},
+		{"absent_power", []string{
+			`helianthus_native_point_age{device="node.meter",driver_instance="inst.b",point="absent_power",protocol="family.beta",unit="seconds"} 0`,
+			`helianthus_native_point_age{device="node.meter",driver_instance="inst.c",point="absent_power",protocol="family.beta",unit="seconds"} 9`,
+			`helianthus_native_power{device="node.meter",driver_instance="inst.c",point="absent_power",protocol="family.beta",unit="watts"} 8`,
+		}},
+		{"failed_power", []string{
+			`helianthus_native_point_age{device="node.meter",driver_instance="inst.c",point="failed_power",protocol="family.beta",unit="seconds"} 9`,
+			`helianthus_native_power{device="node.meter",driver_instance="inst.c",point="failed_power",protocol="family.beta",unit="watts"} 7`,
+		}},
+		{"derived_power", nil},
+	} {
+		t.Run(tc.point, func(t *testing.T) {
+			var got []string
+			for _, line := range strings.Split(response.Body.String(), "\n") {
+				if strings.Contains(line, `point="`+tc.point+`"`) {
+					got = append(got, line)
+				}
+			}
+			slices.Sort(got)
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("samples = %q; want %q", got, tc.want)
+			}
+		})
+	}
+
+	// The tree reports a failed retained callback as unavailable and holds no
+	// age for it. It is still an observation, even though neither sample exists.
+	points, err := metrics.namespaceObservations(context.Background(), metrics.now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, point := range points {
+		if point.Point == "failed_power" && point.DriverInstance == "inst.b" {
+			if point.Fresh || point.NativeValue != nil || point.AgeSeconds != nil {
+				t.Fatalf("failed point = %+v; want unknown with no held age", point)
+			}
+			return
+		}
+	}
+	t.Fatal("unavailable point was dropped from the namespace observations")
+}
+
+func TestNativePointFailedReadWithHeldAge(t *testing.T) {
+	// A failed callback on the pinned tree drops its metadata. Exercise the
+	// value envelope separately so a failure that supplies an age keeps it.
+	point := ebusgateway.NativeObservation{
+		Protocol: "family.alpha", Device: "node.meter", DriverInstance: "inst.a",
+		Point: "power", Quantity: "power", NativeUnit: "watt",
+	}
+	age := semreg.Uint64("3000000000")
+	for _, tc := range []struct {
+		name    string
+		status  tree.Status
+		readErr error
+	}{
+		{"read_error", tree.StatusLiveOnly, errors.New("retained read failed")},
+		{"unavailable", tree.StatusUnavailable, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			observation, ok := namespaceReadObservation(point, tree.Value{
+				Status: tc.status, Age: &age, Encoded: []byte("5"),
+			}, tc.readErr, time.Unix(101, 0))
+			if !ok {
+				t.Fatal("failed read was dropped despite its held age")
+			}
+			text := ebusgateway.RenderNativePrometheus([]ebusgateway.NativeObservation{observation})
+			const ageSample = `helianthus_native_point_age{device="node.meter",driver_instance="inst.a",point="power",protocol="family.alpha",unit="seconds"} 3`
+			if !strings.Contains(text, ageSample+"\n") || strings.Contains(text, "helianthus_native_power{") {
+				t.Fatalf("wanted age %q and no value, got:\n%s", ageSample, text)
+			}
+		})
 	}
 }
