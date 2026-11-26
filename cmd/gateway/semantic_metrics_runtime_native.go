@@ -49,8 +49,8 @@ var namespaceUnits = map[semreg.DefinitionID]namespaceUnit{
 // driver published, the device label is the kind of the node that carries the
 // member, the point label is the member's stable local identifier, the index
 // label is the member's channel when it publishes one, and driver_instance is
-// the instance of the member key. A member whose unit is not a published
-// numeric unit, or whose retained value is not a number, is absent.
+// the instance of the member key. An undocumented, undecodable or derived
+// value is excluded. Unknown and stale points carry only their held age.
 func (m *gatewaySemanticMetrics) namespaceObservations(ctx context.Context, at time.Time) ([]ebusgateway.NativeObservation, error) {
 	if m.tree == nil {
 		return nil, nil
@@ -95,10 +95,6 @@ func namespacePoint(ctx context.Context, cut *tree.TreeCut, ref tree.Ref, at tim
 	if err != nil || node.NodeKind == "" {
 		return ebusgateway.NativeObservation{}, false
 	}
-	value, err := cut.Read(ctx, ref, tree.ReadOptions{})
-	if err != nil {
-		return ebusgateway.NativeObservation{}, false
-	}
 	point := ebusgateway.NativeObservation{
 		Protocol: string(descriptor.Namespace), Device: string(node.NodeKind), Point: descriptor.Local,
 		DriverInstance: string(descriptor.Instance.Instance), Quantity: unit.quantity, NativeUnit: unit.unit,
@@ -106,11 +102,27 @@ func namespacePoint(ctx context.Context, cut *tree.TreeCut, ref tree.Ref, at tim
 	if descriptor.Channel != "" {
 		point.Index, point.Indexed = descriptor.Channel, true
 	}
-	if value.ReceivedAt != nil {
+	value, err := cut.Read(ctx, ref, tree.ReadOptions{})
+	return namespaceReadObservation(point, value, err, at)
+}
+
+func namespaceReadObservation(point ebusgateway.NativeObservation, value tree.Value, readErr error, at time.Time) (ebusgateway.NativeObservation, bool) {
+	if value.Derived {
+		return ebusgateway.NativeObservation{}, false
+	}
+	if value.Age != nil {
+		if nanoseconds, err := strconv.ParseUint(string(*value.Age), 10, 64); err == nil {
+			age := float64(nanoseconds) / float64(time.Second)
+			point.AgeSeconds = &age
+		}
+	} else if value.ReceivedAt != nil {
 		if nanoseconds, err := strconv.ParseInt(string(value.ReceivedAt.UnixNanoseconds), 10, 64); err == nil {
 			age := at.Sub(time.Unix(0, nanoseconds)).Seconds()
 			point.AgeSeconds = &age
 		}
+	}
+	if readErr != nil {
+		return point, true
 	}
 	switch value.Status {
 	case tree.StatusCurrent, tree.StatusLiveOnly, tree.StatusChanged:
@@ -119,7 +131,7 @@ func namespacePoint(ctx context.Context, cut *tree.TreeCut, ref tree.Ref, at tim
 			return ebusgateway.NativeObservation{}, false
 		}
 		point.NativeValue, point.Fresh = &number, true
-	case tree.StatusStale:
+	case tree.StatusStale, tree.StatusAbsent, tree.StatusUnavailable:
 	default:
 		return ebusgateway.NativeObservation{}, false
 	}

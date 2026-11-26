@@ -1015,7 +1015,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_temperature",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1034,7 +1034,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_temperature_difference",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1053,7 +1053,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_pressure",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1072,7 +1072,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_volume_flow",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1091,7 +1091,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_energy",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1110,7 +1110,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_power",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1129,7 +1129,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_time",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1148,7 +1148,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_ratio",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1167,7 +1167,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_count",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1186,7 +1186,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_rotational_speed",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1205,7 +1205,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_frequency",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1224,7 +1224,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_current",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1243,7 +1243,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_voltage",
-      "omission": "HELP and TYPE always. A value sample requires a documented numeric point in a convertible unit. An undecodable or undocumented point is absent. A repeated label set is omitted and counted by render overflow.",
+      "omission": "HELP and TYPE always. A value sample requires a fresh, documented numeric point in a convertible unit. Unknown, stale, derived, undecodable and undocumented points emit no value. A repeated label set is omitted and counted by render overflow.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
@@ -1262,7 +1262,7 @@
         "driver_instance"
       ],
       "name": "helianthus_native_point_age",
-      "omission": "HELP and TYPE always. A sample requires a held nonnegative age. A stale point emits its age and no value.",
+      "omission": "HELP and TYPE always. Uses the retained nonnegative age when supplied, otherwise seconds since receipt. Stale and unknown points (absent, unavailable or read failed) emit only age when held, and no sample otherwise. Derived points emit neither age nor value.",
       "owner_page": "docs/observability/semantic-prometheus-coverage.md",
       "production": "Always composed on the scrape route, with no switch.",
       "source": "semantic_prometheus_native.go",
