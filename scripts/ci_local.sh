@@ -60,7 +60,7 @@ GOOS=linux GOARCH=arm GOARM=6 go build -o /dev/null ./cmd/gateway
 
 echo "==> go test (race)"
 go test -race -short -count=1 -timeout 40m ./...
-go test -race -short -count=1 -timeout 20m -tags nomatter ./cmd/gateway
+go test -race -short -count=1 -timeout 40m -tags nomatter ./cmd/gateway
 GOMODCACHE="$(go env GOMODCACHE)" python3 scripts/check_no_matter_profile.py
 
 echo "==> validating source-selection artifact schema coverage"

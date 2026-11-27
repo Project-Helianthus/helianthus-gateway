@@ -2,7 +2,7 @@
   "catalog": {
     "module": "github.com/Project-Helianthus/helianthus-semreg",
     "document": "fixtures/v1/element-catalog-v1.json",
-    "entry_count": 402
+    "entry_count": 1903
   },
   "reads": [
     {

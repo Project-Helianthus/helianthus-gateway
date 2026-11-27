@@ -129,7 +129,7 @@ func TestProjectEVSECurrentEndToEndAndContractPin(t *testing.T) {
 	if len(first.Document.Attributes) != 1 || first.Document.Attributes[0].Element != evseActiveCurrent || first.Document.Attributes[0].Value.Milliampere != "3200" {
 		t.Fatalf("unexpected target document: %#v", first.Document)
 	}
-	if !reflect.DeepEqual(first.Report.Manifest, Manifest()) || len(first.Report.Requested) != 190 || len(first.Report.Dispositions) != 190 {
+	if !reflect.DeepEqual(first.Report.Manifest, Manifest()) || len(first.Report.Requested) != 1070 || len(first.Report.Dispositions) != 1070 {
 		t.Fatalf("unexpected projection report: %#v", first.Report)
 	}
 	var transformed int
