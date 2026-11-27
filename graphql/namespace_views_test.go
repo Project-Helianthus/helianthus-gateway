@@ -431,3 +431,28 @@ func TestNamespaceViewBearingNodeStillListsItsMembers(t *testing.T) {
 		t.Fatalf("got %s, want %s", got, want)
 	}
 }
+
+// A declaration SemReg accepts but the schema cannot hold (a record named like
+// a type of the engine, or one with no fields) is answered by its own field and
+// the schema still builds.
+func TestNamespaceViewUnbuildableDeclarationLeavesSchemaBuildable(t *testing.T) {
+	for name, record := range map[string]string{"engine_type": "method", "engine_attribute": "attribute", "empty": "blank"} {
+		t.Run(name, func(t *testing.T) {
+			f := newViewFixture(t, viewFixtureOnlyNamespace("sample", "one"), func(f *viewFixture, bind map[string]viewBinding) {
+				b := bind["sample/one"]
+				member := f.publish(t, b, "amount", `1`)
+				fields := []driver.ViewField{{Name: "amount", Type: viewScalar("Int", false), Member: member}}
+				if name == "empty" {
+					fields = nil
+				}
+				namespaceMust(t, b.reg.View(driver.ViewSpec{Root: record, Records: []driver.ViewRecord{{Name: record, Fields: fields}}}))
+			})
+			query, err := f.fields(t)
+			namespaceMust(t, err)
+			if query["tree_list"] == nil {
+				t.Fatal("other fields were lost")
+			}
+			namespaceAssertCode(t, namespaceExecute(f.ctx, viewSchemaOf(t, query), `{ sample_view_`+record+` }`, nil), "sample_view_"+record, "invalid_value")
+		})
+	}
+}

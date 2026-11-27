@@ -25,6 +25,55 @@ type namespaceViewRoot struct {
 type namespaceViewTypes struct {
 	objects map[string]*gql.Object
 	all     map[string]tree.ViewRecord
+	// reserved holds the type names the other fields of the engine already use.
+	reserved map[string]bool
+}
+
+func namespaceViewReserve(query gql.Fields) map[string]bool {
+	seen := map[string]bool{}
+	var walk func(t gql.Type)
+	walk = func(t gql.Type) {
+		switch v := t.(type) {
+		case *gql.List:
+			walk(v.OfType)
+		case *gql.NonNull:
+			walk(v.OfType)
+		case *gql.Object:
+			if seen[v.Name()] {
+				return
+			}
+			seen[v.Name()] = true
+			for _, f := range v.Fields() {
+				walk(f.Type)
+				for _, a := range f.Args {
+					walk(a.Type)
+				}
+			}
+		case *gql.InputObject:
+			if seen[v.Name()] {
+				return
+			}
+			seen[v.Name()] = true
+			for _, f := range v.Fields() {
+				walk(f.Type)
+			}
+		case *gql.Scalar:
+			seen[v.Name()] = true
+		case *gql.Enum:
+			seen[v.Name()] = true
+		case *gql.Interface:
+			seen[v.Name()] = true
+		case *gql.Union:
+			seen[v.Name()] = true
+		}
+	}
+	for _, f := range query {
+		walk(f.Type)
+		for _, a := range f.Args {
+			walk(a.Type)
+		}
+	}
+	return seen
 }
 
 // namespaceViewFields adds one query field per declared view root, named
@@ -60,7 +109,7 @@ func namespaceViewFields(query gql.Fields, cut *tree.TreeCut, views []tree.Descr
 			g.problem = "view root is not a GraphQL name: " + d.View.Root
 		}
 	}
-	types := &namespaceViewTypes{objects: map[string]*gql.Object{}, all: map[string]tree.ViewRecord{}}
+	types := &namespaceViewTypes{objects: map[string]*gql.Object{}, all: map[string]tree.ViewRecord{}, reserved: namespaceViewReserve(query)}
 	names := make([]string, 0, len(groups))
 	for name := range groups {
 		names = append(names, name)
@@ -174,6 +223,12 @@ func (t *namespaceViewTypes) object(name string) (*gql.Object, error) {
 	}
 	if !namespaceViewName.MatchString(name) {
 		return nil, namespaceInvalid("view record is not a GraphQL name: " + name)
+	}
+	if t.reserved[name] {
+		return nil, namespaceInvalid("view record name is used by the engine: " + name)
+	}
+	if len(record.Fields) == 0 {
+		return nil, namespaceInvalid("view record declares no fields: " + name)
 	}
 	object := gql.NewObject(gql.ObjectConfig{Name: name, Fields: gql.FieldsThunk(func() gql.Fields {
 		fields := make(gql.Fields, len(record.Fields))
