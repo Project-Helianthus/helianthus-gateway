@@ -81,10 +81,11 @@ func runGatewayShutdownSteps(steps []gatewayShutdownStep, result *error) {
 //     configuration, the semantic hub preflight, the release checker, the
 //     synchronized evidence sidecar, the Portal contribution registry, the
 //     runtime state, the Portal configuration, the stale eeBUS operator socket
-//     clean-up, the managed sidecars, the eBUS driver, the runtime control and
-//     the retained EVSE owner. acquireEEBusSurfaces then creates the eeBUS
-//     adapter and admin handler and configures the synchronized evidence
-//     sidecar. The first failure stops the acquisition and is returned with
+//     clean-up, the managed sidecars, the semreg host, the eBUS driver, the
+//     runtime control and the retained EVSE owner. acquireEEBusSurfaces then
+//     creates the eeBUS adapter and admin handler and configures the
+//     synchronized evidence sidecar. The first failure stops the acquisition
+//     and is returned with
 //     the same text as before; the releases registered until then still run.
 //   - Defaults: an absent synchronized evidence sidecar or retained EVSE owner
 //     registers no release; an eBUS control service that is unavailable or a
@@ -117,6 +118,7 @@ type gatewayProcessShell struct {
 	teslaHSCRetained    *teslaHSCRetainedOwner
 	eebusAdapter        *eebusRuntimeAdapter
 	eebusAdminHandler   http.HandlerFunc
+	semregHost          *gatewayHost
 }
 
 // newGatewayProcessShell validates the collaborators and registers the
@@ -267,6 +269,9 @@ func (shell *gatewayProcessShell) acquireDriverAndControl() error {
 	sidecars := prepareManagedSidecars(shell.ctx, *shell.cfg, shell.semanticHub, shell.runtimeStateMgr.State().Meta.InstanceGUID, shell.portalContributions, shell.portalConfig)
 	shell.sidecars = sidecars
 	shell.bindings = &managedSidecarBindings{sidecars: sidecars}
+	if err := shell.acquireSemRegHost(); err != nil {
+		return err
+	}
 	shell.acquire("eBUS driver")
 	ebusDriver, err := prepareGatewayEBusDriver(shell.cfg, sidecars.driverConfigs()...)
 	if err != nil {
@@ -313,6 +318,39 @@ func (shell *gatewayProcessShell) acquireDriverAndControl() error {
 		log.Printf("eBUS control service unavailable; continuing without eBUS")
 	} else if view, err := service.Get(primaryEBusDriverID); err == nil && view.ObservedState != "RUNNING" {
 		log.Printf("eBUS driver not running at startup; continuing desired=%s state=%s reason=%s", view.DesiredState, view.ObservedState, view.Reason)
+	}
+	return nil
+}
+
+// acquireSemRegHost opens the SemReg host on the runtime-state directory and
+// passes the configured driver options through as host enablement. No driver
+// factory is selected. A state directory that cannot be created is logged and
+// skipped, as runtime-state load already continues in that case.
+func (shell *gatewayProcessShell) acquireSemRegHost() error {
+	shell.acquire("semreg host")
+	var instances []gatewayHostInstance
+	if shell.sidecars != nil {
+		instances = shell.sidecars.hostInstances
+	}
+	assembly, err := openGatewayHost(shell.ctx, shell.cfg.RuntimeStatePath, instances)
+	if err != nil {
+		if gatewayHostStateDirUnavailable(err) {
+			log.Printf("semreg host: %v", err)
+			return nil
+		}
+		return fmt.Errorf("semreg host: %w", err)
+	}
+	shell.semregHost = assembly
+	shell.onShutdown("semreg host", func(result error) error {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := assembly.closeProcess(closeCtx); err != nil {
+			log.Printf("semreg host close: %v", err)
+		}
+		return result
+	})
+	if err := assembly.Start(shell.ctx); err != nil {
+		return fmt.Errorf("semreg host: %w", err)
 	}
 	return nil
 }
