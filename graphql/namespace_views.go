@@ -29,8 +29,11 @@ type namespaceViewTypes struct {
 	reserved map[string]bool
 }
 
-func namespaceViewReserve(query gql.Fields) map[string]bool {
+func namespaceViewReserve(fieldSets ...gql.Fields) map[string]bool {
 	seen := map[string]bool{}
+	for _, name := range []string{"String", "Int", "Float", "Boolean", "ID", "Query", "Mutation", "Subscription", "query", "mutation", "subscription"} {
+		seen[name] = true
+	}
 	var walk func(t gql.Type)
 	walk = func(t gql.Type) {
 		switch v := t.(type) {
@@ -67,10 +70,12 @@ func namespaceViewReserve(query gql.Fields) map[string]bool {
 			seen[v.Name()] = true
 		}
 	}
-	for _, f := range query {
-		walk(f.Type)
-		for _, a := range f.Args {
-			walk(a.Type)
+	for _, query := range fieldSets {
+		for _, f := range query {
+			walk(f.Type)
+			for _, a := range f.Args {
+				walk(a.Type)
+			}
 		}
 	}
 	return seen
@@ -84,7 +89,7 @@ func namespaceViewReserve(query gql.Fields) map[string]bool {
 // conflicts with another declaration, a scalar the engine does not serve, or a
 // field name that two declarations share) is answered by its own field with the
 // stable error, and never disturbs the other fields of the engine.
-func namespaceViewFields(query gql.Fields, cut *tree.TreeCut, views []tree.Descriptor) error {
+func namespaceViewFields(query, mutation gql.Fields, cut *tree.TreeCut, views []tree.Descriptor) error {
 	type group struct {
 		namespace driver.NamespaceID
 		root      string
@@ -109,7 +114,7 @@ func namespaceViewFields(query gql.Fields, cut *tree.TreeCut, views []tree.Descr
 			g.problem = "view root is not a GraphQL name: " + d.View.Root
 		}
 	}
-	types := &namespaceViewTypes{objects: map[string]*gql.Object{}, all: map[string]tree.ViewRecord{}, reserved: namespaceViewReserve(query)}
+	types := &namespaceViewTypes{objects: map[string]*gql.Object{}, all: map[string]tree.ViewRecord{}, reserved: namespaceViewReserve(query, mutation)}
 	names := make([]string, 0, len(groups))
 	for name := range groups {
 		names = append(names, name)

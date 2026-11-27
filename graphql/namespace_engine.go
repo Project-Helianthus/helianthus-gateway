@@ -80,7 +80,7 @@ func NamespaceFields(ctx context.Context, runtime *tree.Tree, cut *tree.TreeCut,
 			}
 		}
 	}
-	if err := namespaceViewFields(query, cut, views); err != nil {
+	if err := namespaceViewFields(query, calls.fields, cut, views); err != nil {
 		return nil, nil, err
 	}
 	return query, calls.fields, nil

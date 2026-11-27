@@ -72,11 +72,16 @@ func newViewFixture(t *testing.T, namespaces map[driver.NamespaceID][]driver.Ins
 
 func (f *viewFixture) fields(t *testing.T) (gql.Fields, error) {
 	t.Helper()
+	query, _, err := f.fieldSets(t)
+	return query, err
+}
+
+func (f *viewFixture) fieldSets(t *testing.T) (gql.Fields, gql.Fields, error) {
+	t.Helper()
 	cut, err := f.runtime.Capture(f.ctx, tree.CutOptions{})
 	namespaceMust(t, err)
 	t.Cleanup(func() { namespaceMust(t, cut.Close()) })
-	query, _, err := NamespaceFields(f.ctx, f.runtime, cut, tree.NodeRef{ID: semreg.ResourceID(namespaceRootPath[1:]), Bridge: "bridge.synthetic"}, semanticOperationField(NewBuilder(nil, nil)))
-	return query, err
+	return NamespaceFields(f.ctx, f.runtime, cut, tree.NodeRef{ID: semreg.ResourceID(namespaceRootPath[1:]), Bridge: "bridge.synthetic"}, semanticOperationField(NewBuilder(nil, nil)))
 }
 
 func (f *viewFixture) schema(t *testing.T) gql.Schema {
@@ -453,6 +458,31 @@ func TestNamespaceViewUnbuildableDeclarationLeavesSchemaBuildable(t *testing.T) 
 				t.Fatal("other fields were lost")
 			}
 			namespaceAssertCode(t, namespaceExecute(f.ctx, viewSchemaOf(t, query), `{ sample_view_`+record+` }`, nil), "sample_view_"+record, "invalid_value")
+		})
+	}
+}
+
+// A record named like a type of the mutation fields, a served scalar or a root
+// object is refused by its own field, and the query-plus-mutation schema builds.
+func TestNamespaceViewRecordNamedLikeMutationOrBuiltInTypeKeepsSchemaBuildable(t *testing.T) {
+	for _, record := range []string{"tree_method_result", "semantic_compound_step", "Float", "Query", "Mutation"} {
+		t.Run(record, func(t *testing.T) {
+			f := newViewFixture(t, viewFixtureOnlyNamespace("sample", "one"), func(f *viewFixture, bind map[string]viewBinding) {
+				b := bind["sample/one"]
+				member := f.publish(t, b, "amount", `1.5`)
+				namespaceMust(t, b.reg.View(driver.ViewSpec{Root: record, Records: []driver.ViewRecord{{Name: record, Fields: []driver.ViewField{{Name: "amount", Type: viewScalar("Float", false), Member: member}}}}}))
+			})
+			query, mutation, err := f.fieldSets(t)
+			namespaceMust(t, err)
+			if len(mutation) == 0 {
+				t.Fatal("no mutation fields to compose with")
+			}
+			schema, err := gql.NewSchema(gql.SchemaConfig{
+				Query:    gql.NewObject(gql.ObjectConfig{Name: "query", Fields: query}),
+				Mutation: gql.NewObject(gql.ObjectConfig{Name: "mutation", Fields: mutation}),
+			})
+			namespaceMust(t, err)
+			namespaceAssertCode(t, namespaceExecute(f.ctx, schema, `{ sample_view_`+record+` }`, nil), "sample_view_"+record, "invalid_value")
 		})
 	}
 }
