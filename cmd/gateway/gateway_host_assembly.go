@@ -114,9 +114,11 @@ func (opened *gatewayHost) planned() []string {
 }
 
 // gatewayHostStateDirUnavailable reports an error from creating or opening the
-// state directory itself: a mkdir below it that failed, or a path through it
-// that is not a directory. Runtime-state load already continues in that case.
-// Any other error is not this one.
+// state directory itself: a mkdir below it that failed, a path through it that
+// is not a directory, or a write refused by a directory that is already there.
+// An absent directory and one that is present but not writable have the same
+// outcome. Runtime-state load already continues in that case. Any other error
+// is not this one.
 func gatewayHostStateDirUnavailable(err error, stateDir string) bool {
 	var pathErr *os.PathError
 	if !errors.As(err, &pathErr) {
@@ -126,5 +128,8 @@ func gatewayHostStateDirUnavailable(err error, stateDir string) bool {
 	if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return false
 	}
-	return pathErr.Op == "mkdir" || errors.Is(pathErr.Err, syscall.ENOTDIR)
+	if pathErr.Op == "mkdir" || errors.Is(pathErr.Err, syscall.ENOTDIR) {
+		return true
+	}
+	return errors.Is(pathErr.Err, os.ErrPermission) || errors.Is(pathErr.Err, syscall.EROFS)
 }

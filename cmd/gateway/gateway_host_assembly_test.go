@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -291,14 +292,66 @@ func TestGatewayHostStateDirUnavailableIsNarrow(t *testing.T) {
 		{"mkdir of the state directory", &os.PathError{Op: "mkdir", Path: state, Err: syscall.EACCES}, true},
 		{"mkdir below the state directory", &os.PathError{Op: "mkdir", Path: filepath.Join(state, "lifecycle"), Err: syscall.EROFS}, true},
 		{"path through a file", &os.PathError{Op: "open", Path: filepath.Join(state, "local-identity.json"), Err: syscall.ENOTDIR}, true},
+		{"write refused in an existing directory", &os.PathError{Op: "open", Path: filepath.Join(state, "local-identity.json.1.tmp"), Err: syscall.EACCES}, true},
+		{"operation not permitted in an existing directory", &os.PathError{Op: "open", Path: filepath.Join(state, "local-identity.json.1.tmp"), Err: syscall.EPERM}, true},
+		{"read-only existing directory", &os.PathError{Op: "open", Path: filepath.Join(state, "local-identity.json.1.tmp"), Err: syscall.EROFS}, true},
 		{"read error of a record", &os.PathError{Op: "open", Path: filepath.Join(state, "local-identity.json"), Err: syscall.EIO}, false},
 		{"mkdir elsewhere", &os.PathError{Op: "mkdir", Path: other, Err: syscall.EACCES}, false},
+		{"permission denied elsewhere", &os.PathError{Op: "open", Path: other, Err: syscall.EACCES}, false},
 		{"not a path error", errors.New("local identity record is damaged"), false},
 	}
 	for _, tc := range cases {
 		if got := gatewayHostStateDirUnavailable(tc.err, state); got != tc.want {
 			t.Errorf("%s: unavailable = %v; want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+// TestGatewayHostRegistrationSkipsAnExistingUnwritableStateDirectory opens the
+// real host on a directory that already exists and cannot be written. Creating
+// the identity file is refused, and the process continues with no host, the
+// same outcome as a directory that cannot be created.
+func TestGatewayHostRegistrationSkipsAnExistingUnwritableStateDirectory(t *testing.T) {
+	root := t.TempDir()
+	state := filepath.Join(root, "state")
+	if err := os.Mkdir(state, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(state, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(state, 0o700) })
+
+	path := filepath.Join(state, "runtime_state.json")
+	opened, err := openGatewayHost(context.Background(), path, nil)
+	if err == nil {
+		if closeErr := opened.Close(context.Background()); closeErr != nil {
+			t.Errorf("close host: %v", closeErr)
+		}
+		t.Fatal("host open on an existing unwritable state directory succeeded")
+	}
+	var pathErr *os.PathError
+	if !errors.As(err, &pathErr) || filepath.Dir(pathErr.Path) != state || !strings.HasPrefix(filepath.Base(pathErr.Path), "local-identity.json") || !errors.Is(pathErr.Err, os.ErrPermission) {
+		t.Fatalf("open error = %v; want permission denied creating the identity file in %s", err, state)
+	}
+	if !gatewayHostStateDirUnavailable(err, state) {
+		t.Fatalf("open error = %v; an existing unwritable state directory is skipped", err)
+	}
+
+	cfg := ebusgateway.Config{RuntimeStatePath: path}
+	shell, err := newGatewayProcessShell(context.Background(), &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shell.sidecars = &managedSidecars{hostInstances: []gatewayHostInstance{{Kind: "family.alpha", Instance: "primary", Enabled: false}}}
+	if err := shell.acquireSemRegHost(); err != nil {
+		t.Fatalf("unwritable state directory returned %v; the process continues", err)
+	}
+	if shell.semregHost != nil {
+		t.Fatal("unwritable state directory opened a host")
+	}
+	if err := shell.runShutdown(nil); err != nil {
+		t.Fatalf("shutdown = %v", err)
 	}
 }
 

@@ -324,8 +324,9 @@ func (shell *gatewayProcessShell) acquireDriverAndControl() error {
 
 // acquireSemRegHost opens the SemReg host on the runtime-state directory and
 // passes the configured driver options through as host enablement. No driver
-// factory is selected. A state directory that cannot be created is logged and
-// skipped, as runtime-state load already continues in that case.
+// factory is selected. A state directory that cannot be created, or that
+// exists but cannot be written, is logged and skipped, as runtime-state load
+// already continues in that case.
 func (shell *gatewayProcessShell) acquireSemRegHost() error {
 	shell.acquire("semreg host")
 	var instances []gatewayHostInstance
