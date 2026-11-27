@@ -40,6 +40,7 @@ func NamespaceFields(ctx context.Context, runtime *tree.Tree, cut *tree.TreeCut,
 	// Namespace plan §§2–3: tree_list walks the registry's nodes, while
 	// the native verbs take the names of the published namespace members.
 	queue := []tree.NodeRef{root}
+	var views []tree.Descriptor
 	for len(queue) != 0 {
 		node := queue[0]
 		queue = queue[1:]
@@ -50,6 +51,10 @@ func NamespaceFields(ctx context.Context, runtime *tree.Tree, cut *tree.TreeCut,
 		for _, d := range page.Entries {
 			if d.Kind == tree.EntryNode {
 				queue = append(queue, namespaceNodeRef(root, string(d.Ref)))
+				continue
+			}
+			if d.Kind == tree.EntryView {
+				views = append(views, d)
 				continue
 			}
 			if d.Domain != tree.KeywordNative {
@@ -74,6 +79,9 @@ func NamespaceFields(ctx context.Context, runtime *tree.Tree, cut *tree.TreeCut,
 				return nil, nil, err
 			}
 		}
+	}
+	if err := namespaceViewFields(query, cut, views); err != nil {
+		return nil, nil, err
 	}
 	return query, calls.fields, nil
 }
