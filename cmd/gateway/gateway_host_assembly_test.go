@@ -3,67 +3,18 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
-	"strings"
+	"syscall"
 	"testing"
 
 	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
 )
-
-func init() {
-	// Process shutdown writes the host checkpoint into the runtime-state
-	// directory. Tests remove that directory before they join the process, so
-	// a file created between readdir and rmdir leaves the directory unremovable.
-	// Move the host directories aside first when they live under the temp root.
-	gatewayHostPrepareClose = func(stateDir string) func() {
-		if !gatewayHostStateDirUnderTemp(stateDir) {
-			return nil
-		}
-		private, err := os.MkdirTemp("", "gateway-host-close")
-		if err != nil {
-			return nil
-		}
-		moved := false
-		for _, name := range []string{"identity", "lifecycle"} {
-			from := filepath.Join(stateDir, name)
-			if _, err := os.Lstat(from); err != nil {
-				continue
-			}
-			if err := os.Rename(from, filepath.Join(private, name)); err != nil {
-				continue
-			}
-			moved = true
-		}
-		cleanup := func() { _ = os.RemoveAll(private) }
-		if !moved {
-			cleanup()
-			return nil
-		}
-		return cleanup
-	}
-}
-
-func gatewayHostStateDirUnderTemp(stateDir string) bool {
-	if stateDir == "" {
-		return false
-	}
-	temp := os.TempDir()
-	if resolved, err := filepath.EvalSymlinks(temp); err == nil {
-		temp = resolved
-	}
-	dir := stateDir
-	if resolved, err := filepath.EvalSymlinks(stateDir); err == nil {
-		dir = resolved
-	}
-	temp = filepath.Clean(temp)
-	dir = filepath.Clean(dir)
-	return dir == temp || strings.HasPrefix(dir, temp+string(os.PathSeparator))
-}
 
 // TestGatewayHostRegistrationCopiesIdentityFields varies every field of the
 // host instance identity.
@@ -275,24 +226,12 @@ func TestGatewayHostRegistrationAdmitsConfiguredInstances(t *testing.T) {
 	}
 }
 
-func TestGatewayHostStateDirUnderTemp(t *testing.T) {
-	if gatewayHostStateDirUnderTemp("") || gatewayHostStateDirUnderTemp("/data") {
-		t.Fatal("a state directory outside the temp root was treated as removable")
-	}
-	if !gatewayHostStateDirUnderTemp(t.TempDir()) {
-		t.Fatal("TempDir is not under the temp root")
-	}
-}
-
-// TestGatewayHostShutdownMovesHostDirectoriesBeforeClose is the process
-// shutdown path. The checkpoint write must not leave identity or lifecycle in
-// the state directory: a test removes that directory before it joins the process.
-func TestGatewayHostShutdownMovesHostDirectoriesBeforeClose(t *testing.T) {
-	dir, err := os.MkdirTemp("", "gateway-host-remove")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+// TestGatewayHostShutdownWritesCheckpointInPlace is the process shutdown
+// path. The close writes the host checkpoint into the state directory and no
+// test hook moves anything aside: identity and lifecycle are still there after
+// the process is joined, and the test removes the directory afterwards.
+func TestGatewayHostShutdownWritesCheckpointInPlace(t *testing.T) {
+	dir := t.TempDir()
 	cfg := ebusgateway.Config{RuntimeStatePath: filepath.Join(dir, "runtime_state.json")}
 	shell, err := newGatewayProcessShell(context.Background(), &cfg)
 	if err != nil {
@@ -305,17 +244,60 @@ func TestGatewayHostShutdownMovesHostDirectoriesBeforeClose(t *testing.T) {
 	if shell.semregHost == nil {
 		t.Fatal("host was not opened")
 	}
-	for _, name := range []string{"identity", "lifecycle"} {
-		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
-			t.Fatalf("%s before shutdown: %v", name, err)
-		}
-	}
 	if err := shell.runShutdown(nil); err != nil {
 		t.Fatalf("shutdown: %v", err)
 	}
 	for _, name := range []string{"identity", "lifecycle"} {
-		if _, err := os.Lstat(filepath.Join(dir, name)); !os.IsNotExist(err) {
-			t.Fatalf("%s after shutdown = %v; want it removed before the state directory", name, err)
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Fatalf("%s after shutdown: %v; the checkpoint is written in place", name, err)
+		}
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove state directory after the process is joined: %v", err)
+	}
+}
+
+// TestGatewayHostCloseReturnsTheCheckpointError pins that the close path
+// returns the error the host close returns and never reports success because
+// something else happened: a checkpoint that cannot be written is an error.
+func TestGatewayHostCloseReturnsTheCheckpointError(t *testing.T) {
+	dir := t.TempDir()
+	opened, err := openGatewayHost(context.Background(), filepath.Join(dir, "runtime_state.json"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := opened.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// A directory where the checkpoint's temporary file belongs makes the write fail.
+	blocker := filepath.Join(dir, "identity", "checkpoint.json.tmp")
+	if err := os.MkdirAll(blocker, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := opened.Close(context.Background()); err == nil {
+		t.Fatal("Close = nil; a checkpoint that cannot be written is a close error")
+	}
+}
+
+func TestGatewayHostStateDirUnavailableIsNarrow(t *testing.T) {
+	root := t.TempDir()
+	state := filepath.Join(root, "state")
+	other := filepath.Join(root, "other", "x")
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"mkdir of the state directory", &os.PathError{Op: "mkdir", Path: state, Err: syscall.EACCES}, true},
+		{"mkdir below the state directory", &os.PathError{Op: "mkdir", Path: filepath.Join(state, "lifecycle"), Err: syscall.EROFS}, true},
+		{"path through a file", &os.PathError{Op: "open", Path: filepath.Join(state, "local-identity.json"), Err: syscall.ENOTDIR}, true},
+		{"read error of a record", &os.PathError{Op: "open", Path: filepath.Join(state, "local-identity.json"), Err: syscall.EIO}, false},
+		{"mkdir elsewhere", &os.PathError{Op: "mkdir", Path: other, Err: syscall.EACCES}, false},
+		{"not a path error", errors.New("local identity record is damaged"), false},
+	}
+	for _, tc := range cases {
+		if got := gatewayHostStateDirUnavailable(tc.err, state); got != tc.want {
+			t.Errorf("%s: unavailable = %v; want %v", tc.name, got, tc.want)
 		}
 	}
 }

@@ -334,7 +334,7 @@ func (shell *gatewayProcessShell) acquireSemRegHost() error {
 	}
 	assembly, err := openGatewayHost(shell.ctx, shell.cfg.RuntimeStatePath, instances)
 	if err != nil {
-		if gatewayHostStateDirUnavailable(err) {
+		if gatewayHostStateDirUnavailable(err, gatewayRuntimeStateDir(shell.cfg.RuntimeStatePath)) {
 			log.Printf("semreg host: %v", err)
 			return nil
 		}
@@ -344,7 +344,7 @@ func (shell *gatewayProcessShell) acquireSemRegHost() error {
 	shell.onShutdown("semreg host", func(result error) error {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := assembly.closeProcess(closeCtx); err != nil {
+		if err := assembly.Close(closeCtx); err != nil {
 			log.Printf("semreg host close: %v", err)
 		}
 		return result

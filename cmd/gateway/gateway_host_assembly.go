@@ -6,6 +6,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 
 	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/host"
@@ -34,12 +36,6 @@ type gatewayHost struct {
 	site     *host.Site
 	stateDir string
 }
-
-// gatewayHostPrepareClose runs before the process closes the host. The gateway
-// binary leaves it nil. A test sets it so the checkpoint write cannot add a
-// file under the state directory while that directory is being removed. The
-// cleanup drops whatever the hook moved; nil means the directories stayed.
-var gatewayHostPrepareClose func(stateDir string) (cleanup func())
 
 func gatewayRuntimeStateDir(path string) string {
 	if path == "" {
@@ -98,29 +94,6 @@ func (opened *gatewayHost) Close(ctx context.Context) error {
 	return opened.site.Close(ctx)
 }
 
-// closeProcess closes the host from process shutdown. A test hook may move the
-// host directories aside first. The checkpoint write then cannot create a file
-// in the state directory, and that write's error is not a process error.
-func (opened *gatewayHost) closeProcess(ctx context.Context) error {
-	if opened == nil || opened.site == nil {
-		return nil
-	}
-	var cleanup func()
-	displaced := false
-	if gatewayHostPrepareClose != nil {
-		cleanup = gatewayHostPrepareClose(opened.stateDir)
-		displaced = cleanup != nil
-	}
-	err := opened.Close(ctx)
-	if cleanup != nil {
-		cleanup()
-	}
-	if displaced {
-		return nil
-	}
-	return err
-}
-
 func (opened *gatewayHost) Unmatched() []string {
 	if opened == nil || opened.site == nil {
 		return nil
@@ -140,9 +113,18 @@ func (opened *gatewayHost) planned() []string {
 	return planned
 }
 
-// gatewayHostStateDirUnavailable reports a state directory the process cannot
-// create. Runtime-state load already continues in that case.
-func gatewayHostStateDirUnavailable(err error) bool {
+// gatewayHostStateDirUnavailable reports an error from creating or opening the
+// state directory itself: a mkdir below it that failed, or a path through it
+// that is not a directory. Runtime-state load already continues in that case.
+// Any other error is not this one.
+func gatewayHostStateDirUnavailable(err error, stateDir string) bool {
 	var pathErr *os.PathError
-	return errors.As(err, &pathErr)
+	if !errors.As(err, &pathErr) {
+		return false
+	}
+	rel, relErr := filepath.Rel(stateDir, pathErr.Path)
+	if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return false
+	}
+	return pathErr.Op == "mkdir" || errors.Is(pathErr.Err, syscall.ENOTDIR)
 }
