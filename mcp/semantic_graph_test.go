@@ -389,11 +389,11 @@ func TestSemanticGraphNamingAndToolInventoryDelta(t *testing.T) {
 	}
 	inventoryMust(t, RegisterSemanticGraphTools(s, runtime))
 	after := inventoryTools(t, s, inventoryProfile{})
-	if len(after) != len(before)+6 || !reflect.DeepEqual(before, after[:len(before)]) {
+	if len(after) != len(before)+8 || !reflect.DeepEqual(before, after[:len(before)]) {
 		t.Fatal("existing tools/list prefix changed or the add count is wrong")
 	}
 	// API-1 and API-4: only graph reads join the protocol-neutral namespace.
-	want := []string{"semantic_v1_resources_list", "semantic_v1_traverse", "semantic_v1_lens_get", "semantic_v1_catalog_get", "driver_member_get", "driver_method_call"}
+	want := []string{"semantic_v1_resources_list", "semantic_v1_traverse", "semantic_v1_lens_get", "semantic_v1_catalog_get", "driver_namespaces_list", "driver_members_list", "driver_member_get", "driver_method_call"}
 	for i, tool := range after[len(before):] {
 		if tool.Name != want[i] {
 			t.Errorf("new tool %d = %q, want %q", i, tool.Name, want[i])

@@ -50,7 +50,22 @@ registry data is not part of these graph reads.
 
 ## Driver members
 
-With a shared SemReg runtime tree attached, `driver_member_get` reads the
+With a shared SemReg runtime tree attached, `driver_namespaces_list` lists
+every namespace a driver declares in namespace-key order, each with all its
+instances in instance-key order, including instances with no members. It takes
+no arguments and answers from one capture's roster.
+
+`driver_members_list` lists the members of one namespace by `instance` and
+`node`, optionally by `kind`, with the member `key`, kind, access mode and typed
+descriptor, in stable order. `page_size` is the caller's. Each answer carries
+the `cut` it is pinned to and a `next` token while more remain; send both back
+as `cut` and `page_token` to continue. The cut is released with the last page.
+Instances of several namespaces share a node, so a page holds only the
+requested namespace's members and may hold fewer than `page_size`, or none, while
+`next` is set. A token from another cut is refused, and an undeclared namespace instance is a
+dangling reference. Listing starts no bus request.
+
+`driver_member_get` reads the
 published value and typed tree descriptor without issuing a bus request.
 The `key` is the shared `MemberKey` object: `namespace`, `instance`, `node`
 (the canonical tree node ID), and `local`.
@@ -68,6 +83,8 @@ The target name equals the current name unless the row says otherwise.
 
 | Tool | Namespace | Target name |
 | --- | --- | --- |
+| `driver_namespaces_list` | `driver_` | `driver_namespaces_list` |
+| `driver_members_list` | `driver_` | `driver_members_list` |
 | `driver_member_get` | `driver_` | `driver_member_get` |
 | `driver_method_call` | `driver_` | `driver_method_call` |
 | `ebus_v1_bus_identification_evidence_list` | `ebus_v1_` | `ebus_v1_bus_identification_evidence_list` |
