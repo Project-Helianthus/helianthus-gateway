@@ -338,17 +338,80 @@ func TestNamespaceViewRejectsWhatItCannotServe(t *testing.T) {
 		f := newViewFixture(t, viewFixtureOnlyNamespace("sample", "one"), func(f *viewFixture, bind map[string]viewBinding) {
 			one(f, bind["sample/one"], "reading", viewScalar("Decimal", false), `1`)
 		})
-		if _, err := f.fields(t); err == nil {
-			t.Fatal("an unknown scalar was served")
-		}
+		query, err := f.fields(t)
+		namespaceMust(t, err)
+		namespaceAssertCode(t, namespaceExecute(f.ctx, viewSchemaOf(t, query), `{ sample_view_reading }`, nil), "sample_view_reading", "invalid_value")
 	})
 	t.Run("one record name with two shapes", func(t *testing.T) {
 		f := newViewFixture(t, map[driver.NamespaceID][]driver.InstanceKey{"sample": {"one"}, "aux": {"one"}}, func(f *viewFixture, bind map[string]viewBinding) {
 			one(f, bind["sample/one"], "reading", viewScalar("Int", false), `1`)
 			one(f, bind["aux/one"], "reading", viewScalar("String", false), `"1"`)
 		})
-		if _, err := f.fields(t); err == nil {
-			t.Fatal("conflicting record shapes were served")
+		query, err := f.fields(t)
+		namespaceMust(t, err)
+		schema := viewSchemaOf(t, query)
+		if got := viewJSON(t, namespaceExecute(f.ctx, schema, `{ aux_view_reading(instance:"one"){ amount } }`, nil)); got != `{"aux_view_reading":{"amount":"1"}}` {
+			t.Fatalf("first declaration lost: %s", got)
+		}
+		namespaceAssertCode(t, namespaceExecute(f.ctx, schema, `{ sample_view_reading }`, nil), "sample_view_reading", "invalid_value")
+	})
+}
+
+func viewSchemaOf(t *testing.T, query gql.Fields) gql.Schema {
+	t.Helper()
+	schema, err := gql.NewSchema(gql.SchemaConfig{Query: gql.NewObject(gql.ObjectConfig{Name: "query", Fields: query})})
+	namespaceMust(t, err)
+	return schema
+}
+
+// A record that names itself is served, and does not recurse without end.
+func TestNamespaceViewServesRecursiveRecord(t *testing.T) {
+	f := newViewFixture(t, viewFixtureOnlyNamespace("sample", "one"), func(f *viewFixture, bind map[string]viewBinding) {
+		b := bind["sample/one"]
+		member := f.publish(t, b, "node", `{"value":2,"child":null}`)
+		value := f.publish(t, b, "value", `1`)
+		namespaceMust(t, b.reg.View(driver.ViewSpec{Root: "node", Records: []driver.ViewRecord{{Name: "node", Fields: []driver.ViewField{
+			{Name: "value", Type: viewScalar("Int", false), Member: value},
+			{Name: "child", Type: viewRecordOf("node", false, true), Member: member},
+		}}}}))
+	})
+	got := viewJSON(t, namespaceExecute(f.ctx, f.schema(t), `{ sample_view_node(instance:"one"){ value child { value child { value } } } }`, nil))
+	if want := `{"sample_view_node":{"child":{"child":null,"value":2},"value":1}}`; got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+// A declaration SemReg accepts never removes the other fields of the engine.
+func TestNamespaceViewConflictLeavesOtherFieldsServed(t *testing.T) {
+	f := newViewFixture(t, viewFixtureOnlyNamespace("sample", "one", "two"), func(f *viewFixture, bind map[string]viewBinding) {
+		for instance, extra := range map[string]bool{"sample/one": false, "sample/two": true} {
+			b := bind[instance]
+			member := f.publish(t, b, "amount", `1`)
+			fields := []driver.ViewField{{Name: "amount", Type: viewScalar("Int", false), Member: member}}
+			if extra {
+				fields = append(fields, driver.ViewField{Name: "more", Type: viewScalar("Int", true), Member: member})
+			}
+			namespaceMust(t, b.reg.View(driver.ViewSpec{Root: "reading", Records: []driver.ViewRecord{{Name: "reading", Fields: fields}}}))
 		}
 	})
+	query, err := f.fields(t)
+	namespaceMust(t, err)
+	if query["tree_list"] == nil || query["sample_describe"] == nil && query["sample_read"] == nil && len(query) < 3 {
+		t.Fatalf("other fields were lost: %d fields", len(query))
+	}
+	namespaceAssertCode(t, namespaceExecute(f.ctx, viewSchemaOf(t, query), `{ sample_view_reading }`, nil), "sample_view_reading", "invalid_value")
+}
+
+// Two distinct declarations never share a field name silently.
+func TestNamespaceViewNameCollisionIsRefused(t *testing.T) {
+	f := newViewFixture(t, map[driver.NamespaceID][]driver.InstanceKey{"a": {"one"}, "a_view_b": {"one"}}, func(f *viewFixture, bind map[string]viewBinding) {
+		for key, root := range map[string]string{"a/one": "b_view_c", "a_view_b/one": "c"} {
+			b := bind[key]
+			member := f.publish(t, b, "amount", `1`)
+			namespaceMust(t, b.reg.View(driver.ViewSpec{Root: root, Records: []driver.ViewRecord{{Name: root, Fields: []driver.ViewField{{Name: "amount", Type: viewScalar("Int", false), Member: member}}}}}))
+		}
+	})
+	query, err := f.fields(t)
+	namespaceMust(t, err)
+	namespaceAssertCode(t, namespaceExecute(f.ctx, viewSchemaOf(t, query), `{ a_view_b_view_c }`, nil), "a_view_b_view_c", "invalid_value")
 }

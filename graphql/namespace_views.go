@@ -30,23 +30,35 @@ type namespaceViewTypes struct {
 // namespaceViewFields adds one query field per declared view root, named
 // <namespace>_view_<root>, taking the instance that declared the view. The
 // record, field, type, nesting and unit of each GraphQL type are those the
-// driver declared; the engine holds no knowledge of any driver.
+// driver declared; the engine holds no knowledge of any driver. A declaration
+// that cannot be served (a name that is not a GraphQL name, a shape that
+// conflicts with another declaration, a scalar the engine does not serve, or a
+// field name that two declarations share) is answered by its own field with the
+// stable error, and never disturbs the other fields of the engine.
 func namespaceViewFields(query gql.Fields, cut *tree.TreeCut, views []tree.Descriptor) error {
-	groups := map[string]map[driver.InstanceKey]*tree.ViewDescription{}
-	namespaces := map[string]driver.NamespaceID{}
+	type group struct {
+		namespace driver.NamespaceID
+		root      string
+		instances map[driver.InstanceKey]*tree.ViewDescription
+		problem   string
+	}
+	groups := map[string]*group{}
 	for _, d := range views {
 		if d.View == nil {
 			return namespaceInvalid("view descriptor has no declaration")
 		}
 		name := string(d.Namespace) + "_view_" + d.View.Root
-		if !namespaceViewName.MatchString(name) {
-			return namespaceInvalid("view root is not a GraphQL name: " + d.View.Root)
+		g := groups[name]
+		if g == nil {
+			g = &group{namespace: d.Namespace, root: d.View.Root, instances: map[driver.InstanceKey]*tree.ViewDescription{}}
+			groups[name] = g
+		} else if g.namespace != d.Namespace || g.root != d.View.Root {
+			g.problem = "two declarations share the field name " + name
 		}
-		if groups[name] == nil {
-			groups[name] = map[driver.InstanceKey]*tree.ViewDescription{}
+		g.instances[d.Instance.Instance] = d.View
+		if !namespaceViewName.MatchString(name) && g.problem == "" {
+			g.problem = "view root is not a GraphQL name: " + d.View.Root
 		}
-		groups[name][d.Instance.Instance] = d.View
-		namespaces[name] = d.Namespace
 	}
 	types := &namespaceViewTypes{objects: map[string]*gql.Object{}, all: map[string]tree.ViewRecord{}}
 	names := make([]string, 0, len(groups))
@@ -55,26 +67,24 @@ func namespaceViewFields(query gql.Fields, cut *tree.TreeCut, views []tree.Descr
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		instances := groups[name]
+		if query[name] != nil && groups[name].problem == "" {
+			continue // an existing field is never overwritten
+		}
+		g := groups[name]
 		var shape *tree.ViewDescription
-		for _, view := range instances {
-			if shape == nil {
-				shape = view
-			} else if !reflect.DeepEqual(viewShapeOnly(shape), viewShapeOnly(view)) {
-				return namespaceInvalid("instances declare different shapes for " + name)
-			}
-			for _, record := range view.Records {
-				if held, ok := types.all[record.Name]; ok && !reflect.DeepEqual(viewRecordShape(held), viewRecordShape(record)) {
-					return namespaceInvalid("record " + record.Name + " is declared with different shapes")
-				}
-				types.all[record.Name] = record
-			}
+		if g.problem == "" {
+			g.problem = types.admit(g.instances, &shape, name)
 		}
-		root, err := types.object(shape.Root)
-		if err != nil {
-			return err
+		if g.problem != "" {
+			message := g.problem
+			query[name] = &gql.Field{
+				Type:    gql.String,
+				Resolve: func(gql.ResolveParams) (any, error) { return nil, namespaceInvalid(message) },
+			}
+			continue
 		}
-		views := instances
+		views := g.instances
+		root := types.objects[shape.Root]
 		query[name] = &gql.Field{
 			Type: root,
 			Args: gql.FieldConfigArgument{"instance": &gql.ArgumentConfig{Type: gql.NewNonNull(gql.String)}},
@@ -93,6 +103,49 @@ func namespaceViewFields(query gql.Fields, cut *tree.TreeCut, views []tree.Descr
 		}
 	}
 	return nil
+}
+
+// admit checks one group against the records already held and builds its
+// types. It returns the reason the group cannot be served, and leaves the held
+// records and types untouched in that case.
+func (t *namespaceViewTypes) admit(instances map[driver.InstanceKey]*tree.ViewDescription, shape **tree.ViewDescription, name string) string {
+	pending := map[string]tree.ViewRecord{}
+	for _, view := range instances {
+		if *shape == nil {
+			*shape = view
+		} else if !reflect.DeepEqual(viewShapeOnly(*shape), viewShapeOnly(view)) {
+			return "instances declare different shapes for " + name
+		}
+		for _, record := range view.Records {
+			if held, ok := t.all[record.Name]; ok && !reflect.DeepEqual(viewRecordShape(held), viewRecordShape(record)) {
+				return "record " + record.Name + " is declared with different shapes"
+			}
+			pending[record.Name] = record
+		}
+	}
+	var added []string
+	for n, record := range pending {
+		if _, ok := t.all[n]; !ok {
+			t.all[n] = record
+			added = append(added, n)
+		}
+	}
+	held := map[string]bool{}
+	for n := range t.objects {
+		held[n] = true
+	}
+	if _, err := t.object((*shape).Root); err != nil {
+		for _, n := range added {
+			delete(t.all, n)
+		}
+		for n := range t.objects {
+			if !held[n] {
+				delete(t.objects, n)
+			}
+		}
+		return err.Error()
+	}
+	return ""
 }
 
 func viewRecordShape(r tree.ViewRecord) tree.ViewRecord {
@@ -122,14 +175,6 @@ func (t *namespaceViewTypes) object(name string) (*gql.Object, error) {
 	if !namespaceViewName.MatchString(name) {
 		return nil, namespaceInvalid("view record is not a GraphQL name: " + name)
 	}
-	for _, f := range record.Fields {
-		if !namespaceViewName.MatchString(f.Name) {
-			return nil, namespaceInvalid("view field is not a GraphQL name: " + f.Name)
-		}
-		if _, err := t.output(f.Type); err != nil {
-			return nil, err
-		}
-	}
 	object := gql.NewObject(gql.ObjectConfig{Name: name, Fields: gql.FieldsThunk(func() gql.Fields {
 		fields := make(gql.Fields, len(record.Fields))
 		for _, f := range record.Fields {
@@ -143,6 +188,16 @@ func (t *namespaceViewTypes) object(name string) (*gql.Object, error) {
 		return fields
 	})})
 	t.objects[name] = object
+	for _, f := range record.Fields {
+		if !namespaceViewName.MatchString(f.Name) {
+			delete(t.objects, name)
+			return nil, namespaceInvalid("view field is not a GraphQL name: " + f.Name)
+		}
+		if _, err := t.output(f.Type); err != nil {
+			delete(t.objects, name)
+			return nil, err
+		}
+	}
 	return object, nil
 }
 
