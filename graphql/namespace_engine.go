@@ -308,6 +308,9 @@ func namespaceListField(cut *tree.TreeCut, root tree.NodeRef, types namespaceTyp
 			}
 			entries := make([]map[string]any, 0, len(page.Entries))
 			for _, d := range page.Entries {
+				if d.Kind == tree.EntryView {
+					continue // views are served by their own query fields, not as listed entries
+				}
 				data, err := namespaceDescriptorValue(d)
 				if err != nil {
 					return nil, namespaceErrorFrom(err)

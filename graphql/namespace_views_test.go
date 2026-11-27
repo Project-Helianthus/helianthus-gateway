@@ -415,3 +415,19 @@ func TestNamespaceViewNameCollisionIsRefused(t *testing.T) {
 	namespaceMust(t, err)
 	namespaceAssertCode(t, namespaceExecute(f.ctx, viewSchemaOf(t, query), `{ a_view_b_view_c }`, nil), "a_view_b_view_c", "invalid_value")
 }
+
+// A node that holds a view still lists its attribute entries.
+func TestNamespaceViewBearingNodeStillListsItsMembers(t *testing.T) {
+	var root string
+	f := newViewFixture(t, viewFixtureOnlyNamespace("sample", "one"), func(f *viewFixture, bind map[string]viewBinding) {
+		b := bind["sample/one"]
+		member := f.publish(t, b, "amount", `1`)
+		root = string(b.reg.Root().ID)
+		namespaceMust(t, b.reg.View(driver.ViewSpec{Root: "reading", Records: []driver.ViewRecord{{Name: "reading", Fields: []driver.ViewField{{Name: "amount", Type: viewScalar("Int", false), Member: member}}}}}))
+	})
+	result := namespaceExecute(f.ctx, f.schema(t), `query($node:String!){ tree_list(node:$node,page_size:100){ entries{ attribute{ descriptor{ local } } } } }`, map[string]any{"node": "/" + root})
+	got := viewJSON(t, result)
+	if want := `{"tree_list":{"entries":[{"attribute":{"descriptor":{"local":"amount"}}}]}}`; got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
