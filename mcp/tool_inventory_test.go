@@ -243,7 +243,7 @@ func inventorySource(name string, p inventoryProfile, base map[string]string) st
 		}
 	}
 	switch name {
-	case driverMemberGetTool, driverMethodCallTool:
+	case driverNamespacesListTool, driverMembersListTool, driverMemberGetTool, driverMethodCallTool:
 		return "mcp/driver_members.go"
 	case SemanticResourcesListTool, SemanticTraverseTool, SemanticLensGetTool, SemanticCatalogGetTool:
 		return "mcp/semantic_graph.go"

@@ -58,6 +58,8 @@ func toolNamespacePlanDispatched() []string {
 		SemanticTraverseTool,
 		SemanticLensGetTool,
 		SemanticCatalogGetTool,
+		driverNamespacesListTool,
+		driverMembersListTool,
 		driverMemberGetTool,
 		driverMethodCallTool,
 		RuntimeControlListTool,

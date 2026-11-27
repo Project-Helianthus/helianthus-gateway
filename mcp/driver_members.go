@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	driverMemberGetTool  = "driver_member_get"
-	driverMethodCallTool = "driver_method_call"
+	driverNamespacesListTool = "driver_namespaces_list"
+	driverMembersListTool    = "driver_members_list"
+	driverMemberGetTool      = "driver_member_get"
+	driverMethodCallTool     = "driver_method_call"
 )
 
 func driverMemberTools() []Tool {
@@ -21,6 +23,19 @@ func driverMemberTools() []Tool {
 		"required":   []string{"namespace", "instance", "node", "local"},
 	}
 	return []Tool{
+		{Name: driverNamespacesListTool, Description: "List every namespace a driver declares with all its instances, including instances with no members (OPERATOR items 6 and 13).", InputSchema: map[string]any{
+			"type": "object", "additionalProperties": false, "properties": map[string]any{},
+		}},
+		{Name: driverMembersListTool, Description: "List the members of a driver namespace by instance and node, in pages pinned to one cut; send the returned cut and next token to continue (OPERATOR items 6 and 13).", InputSchema: map[string]any{
+			"type": "object", "additionalProperties": false,
+			"properties": map[string]any{
+				"namespace": text, "instance": text, "node": text,
+				"kind":       map[string]any{"type": "string", "enum": []string{"node", "attribute", "method", "view"}},
+				"page_size":  map[string]any{"type": "integer", "minimum": 1},
+				"page_token": text, "cut": text,
+			},
+			"required": []string{"namespace", "instance", "node", "page_size"},
+		}},
 		{Name: driverMemberGetTool, Description: "Read a driver's published attribute by its shared member key (OPERATOR items 6 and 13).", InputSchema: map[string]any{
 			"type": "object", "additionalProperties": false, "properties": map[string]any{"key": key}, "required": []string{"key"},
 		}},
@@ -158,4 +173,116 @@ func (s *Server) callDriverMethod(ctx context.Context, call rawCallToolParams, d
 		return outcome.Operation, nil
 	}
 	return driverNativeOutcome{outcome.Native, outcome.Error}, nil
+}
+
+type driverNamespaceEntry struct {
+	Owner     driver.DriverKind    `json:"owner"`
+	Key       driver.NamespaceID   `json:"namespace"`
+	Instances []driver.InstanceKey `json:"instances"`
+}
+
+type driverNamespaceList struct {
+	Cut        tree.CutID             `json:"cut"`
+	Namespaces []driverNamespaceEntry `json:"namespaces"`
+}
+
+// These records are assembled from the tree's typed outputs, not client input.
+func (driverNamespaceList) Validate() error { return nil }
+
+func (s *Server) listDriverNamespaces(ctx context.Context, call rawCallToolParams, duplicate bool) (semreg.Record, error) {
+	var args struct{}
+	if err := decodeTreeArguments(call.Arguments, duplicate, &args); err != nil {
+		return nil, err
+	}
+	cut, err := s.semanticGraph.Capture(ctx, tree.CutOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = cut.Close() }()
+	roster := cut.Roster()
+	out := driverNamespaceList{Cut: cut.ID(), Namespaces: make([]driverNamespaceEntry, len(roster))}
+	for i, entry := range roster {
+		out.Namespaces[i] = driverNamespaceEntry{Owner: entry.Owner, Key: entry.Key, Instances: entry.Instances}
+	}
+	return out, nil
+}
+
+type driverMemberEntry struct {
+	Key        *driver.MemberKey `json:"key,omitempty"`
+	Kind       tree.EntryKind    `json:"kind"`
+	Mode       driver.AccessMode `json:"mode,omitempty"`
+	Descriptor tree.Descriptor   `json:"descriptor"`
+}
+
+type driverMemberPage struct {
+	Cut     tree.CutID          `json:"cut"`
+	Members []driverMemberEntry `json:"members"`
+	Next    string              `json:"next,omitempty"`
+}
+
+// These records are assembled from the tree's typed outputs, not client input.
+func (driverMemberPage) Validate() error { return nil }
+
+func (s *Server) listDriverMembers(ctx context.Context, call rawCallToolParams, duplicate bool) (semreg.Record, error) {
+	var args struct {
+		Namespace driver.NamespaceID `json:"namespace"`
+		Instance  driver.InstanceKey `json:"instance"`
+		Node      driver.NodeID      `json:"node"`
+		Kind      tree.EntryKind     `json:"kind"`
+		PageSize  int                `json:"page_size"`
+		PageToken string             `json:"page_token"`
+		Cut       tree.CutID         `json:"cut"`
+	}
+	if err := decodeTreeArguments(call.Arguments, duplicate, &args); err != nil {
+		return nil, err
+	}
+	if args.Namespace == "" || args.Instance == "" || args.Node == "" {
+		return nil, &semreg.Error{ID: semreg.InvalidValue, Detail: "namespace, instance and node are required"}
+	}
+	var cut *tree.TreeCut
+	var err error
+	if args.Cut != "" {
+		cut, err = s.semanticGraph.CutByID(args.Cut)
+	} else {
+		cut, err = s.semanticGraph.Capture(ctx, tree.CutOptions{})
+	}
+	if err != nil {
+		return nil, err
+	}
+	release := true
+	defer func() {
+		if release {
+			_ = cut.Close()
+		}
+	}()
+	declared := false
+	for _, entry := range cut.Roster() {
+		if entry.Key != args.Namespace {
+			continue
+		}
+		for _, instance := range entry.Instances {
+			declared = declared || instance == args.Instance
+		}
+	}
+	if !declared {
+		return nil, &semreg.Error{ID: semreg.DanglingReference, Detail: "namespace instance is not declared"}
+	}
+	node := tree.NodeRef{Bridge: cut.InstallationRoot().Bridge, ID: semreg.ResourceID(args.Node)}
+	listed, err := cut.List(ctx, node, tree.Page{Size: args.PageSize, Token: args.PageToken, Filter: tree.Filter{Instance: &args.Instance, Kind: args.Kind}})
+	if err != nil {
+		return nil, err
+	}
+	out := driverMemberPage{Cut: listed.Cut, Members: make([]driverMemberEntry, 0, len(listed.Entries)), Next: listed.Next}
+	for _, d := range listed.Entries {
+		if d.Namespace != args.Namespace {
+			continue
+		}
+		entry := driverMemberEntry{Kind: d.Kind, Mode: d.Mode, Descriptor: d}
+		if d.Kind == tree.EntryAttribute || d.Kind == tree.EntryMethod {
+			entry.Key = &driver.MemberKey{Namespace: d.Namespace, Instance: d.Instance.Instance, Node: args.Node, Local: driver.MemberID(d.Local)}
+		}
+		out.Members = append(out.Members, entry)
+	}
+	release = listed.Next == ""
+	return out, nil
 }
