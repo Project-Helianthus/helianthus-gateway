@@ -25,7 +25,7 @@ const (
 	semanticStorageContractID = "PUBLIC_GRAPHQL_SEMANTIC_STORAGE_V1"
 	semanticEVSEContractID    = "PUBLIC_GRAPHQL_SEMANTIC_EVSE_V1"
 	maxRequestBytes           = 16 << 10
-	maxResponseBytes          = 1 << 20
+	maxResponseBytes          = 4 << 20
 	maxJSONDepth              = 64
 	maxQueryDepth             = 8
 	maxSelectedFields         = 256

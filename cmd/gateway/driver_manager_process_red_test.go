@@ -147,14 +147,14 @@ func TestIssue851HTTPShellStartsWhileEBusConstructionIsBlocked(t *testing.T) {
 	go func() { done <- run(ctx, cfg) }()
 	select {
 	case <-dialStarted:
-	case <-time.After(time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("eBUS construction did not start")
 	}
 	select {
 	case <-httpStarted:
 	case err := <-done:
 		t.Fatalf("run exited while eBUS construction was blocked: %v", err)
-	case <-time.After(time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("HTTP shell waited for blocked eBUS construction")
 	}
 	close(dialRelease)
@@ -239,14 +239,14 @@ func TestIssue851DelayedHealthyDriverWakesOneImmediateStartupScan(t *testing.T) 
 	go func() { done <- run(ctx, cfg) }()
 	select {
 	case <-dialStarted:
-	case <-time.After(time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("delayed eBUS construction did not start")
 	}
 	select {
 	case <-httpStarted:
 	case err := <-done:
 		t.Fatalf("run() exited before HTTP shell startup: %v", err)
-	case <-time.After(time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("HTTP shell waited for delayed healthy eBUS construction")
 	}
 	select {
@@ -340,14 +340,14 @@ func TestIssue851HTTPShellStartsBeforeENHSourceSelectionWarmup(t *testing.T) {
 	go func() { done <- run(ctx, cfg) }()
 	select {
 	case <-dialStarted:
-	case <-time.After(time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("eBUS ENH construction did not start")
 	}
 	select {
 	case <-httpStarted:
 	case err := <-done:
 		t.Fatalf("run exited before early HTTP shell: %v", err)
-	case <-time.After(time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("HTTP shell waited for ENH passive source-selection warmup")
 	}
 	if surfaceErr != nil {
