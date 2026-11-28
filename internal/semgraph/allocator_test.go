@@ -560,14 +560,17 @@ func TestSupersedeRefusesPreviousAnchorNeverResolved(t *testing.T) {
 	}
 }
 
-// gateStore blocks the first Lookup until released and reports whether the
-// first lookup's caller had returned when Commit ran.
+// gateStore holds the first Lookup, and reports whether the resolution that
+// made that lookup had recorded its key when a supersession was committed. The
+// resolution's own commit is observed inside the store, under the store lock the
+// allocators share, because a flag set by the caller after Resolve returns is
+// set after that lock is released and orders nothing.
 type gateStore struct {
 	*MemoryStore
-	looked    chan struct{}
-	gated     sync.Once
-	firstDone *int32
-	atCommit  int32
+	looked   chan struct{}
+	gated    sync.Once
+	resolved int32
+	atCommit int32
 }
 
 func (s *gateStore) Lookup(key AnchorKey) (Entry, bool, error) {
@@ -580,13 +583,16 @@ func (s *gateStore) Lookup(key AnchorKey) (Entry, bool, error) {
 }
 
 func (s *gateStore) Commit(record Supersession) error {
-	atomic.StoreInt32(&s.atCommit, atomic.LoadInt32(s.firstDone))
+	if record.PreviousBasis == record.NextBasis {
+		atomic.StoreInt32(&s.resolved, 1)
+	} else {
+		atomic.StoreInt32(&s.atCommit, atomic.LoadInt32(&s.resolved))
+	}
 	return s.MemoryStore.Commit(record)
 }
 
 func TestResolveIsAtomicWithSupersessionOnASharedStore(t *testing.T) {
-	var firstDone int32
-	store := &gateStore{MemoryStore: NewMemoryStore(), looked: make(chan struct{}), firstDone: &firstDone}
+	store := &gateStore{MemoryStore: NewMemoryStore(), looked: make(chan struct{})}
 	label := zoneAnchor(semreg.AnchorOperatorSlot, "zone-a", "label")
 	position := zoneAnchor(semreg.AnchorNativeSlot, "zone-a", "position")
 	first, second := newTestAllocator(t, store), newTestAllocator(t, store)
@@ -595,7 +601,6 @@ func TestResolveIsAtomicWithSupersessionOnASharedStore(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		_, _, _ = first.Resolve(kindZone, label)
-		atomic.StoreInt32(&firstDone, 1)
 	}()
 	<-store.looked
 	go func() {
