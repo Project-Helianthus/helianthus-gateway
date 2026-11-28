@@ -608,6 +608,9 @@ func TestRun_ProxySingleENSAutoUsesDefaultSelectionBeforeProxyResolution(t *test
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	var runErr error
+	// The state directory is made before the join below is registered, so it is
+	// removed only after the process has joined and written its host checkpoint.
+	stateDir := t.TempDir()
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -665,6 +668,7 @@ func TestRun_ProxySingleENSAutoUsesDefaultSelectionBeforeProxyResolution(t *test
 	cfg.TransportConfig.Address = "127.0.0.1:19001"
 
 	withRuntimeControlTestState(t, &cfg)
+	cfg.RuntimeStatePath = filepath.Join(stateDir, "runtime_state.json")
 	go func() {
 		defer close(done)
 		runErr = run(ctx, cfg)
@@ -754,6 +758,9 @@ func TestRun_DefaultSourceSelectionSeedsStartupProbeTargets(t *testing.T) {
 		startVaillantSemanticPollingFn = origStartVaillantSemanticPollingFn
 		startHTTPServerFn = origStartHTTPServerFn
 	}
+	// The state directory is made before the join below is registered, so it is
+	// removed only after the process has joined and written its host checkpoint.
+	stateDir := t.TempDir()
 	t.Cleanup(func() {
 		// Assertion failures also cancel and join before restoring shared hooks.
 		cancelRun()
@@ -804,6 +811,7 @@ func TestRun_DefaultSourceSelectionSeedsStartupProbeTargets(t *testing.T) {
 	cfg.ScanSourceAuto = true
 
 	withRuntimeControlTestState(t, &cfg)
+	cfg.RuntimeStatePath = filepath.Join(stateDir, "runtime_state.json")
 	go func() {
 		defer close(done)
 		runErr = run(ctx, cfg)
@@ -869,6 +877,9 @@ func TestRun_ConfiguredDirectSourceSeedsStartupProbeTargets(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			done := make(chan struct{})
 			var runErr error
+			// The state directory is made before the join below is registered, so it is
+			// removed only after the process has joined and written its host checkpoint.
+			stateDir := t.TempDir()
 			t.Cleanup(func() {
 				cancel()
 				select {
@@ -926,6 +937,7 @@ func TestRun_ConfiguredDirectSourceSeedsStartupProbeTargets(t *testing.T) {
 			cfg.ScanSourceAuto = false
 
 			withRuntimeControlTestState(t, &cfg)
+			cfg.RuntimeStatePath = filepath.Join(stateDir, "runtime_state.json")
 			go func() {
 				defer close(done)
 				runErr = run(ctx, cfg)
@@ -970,6 +982,9 @@ func TestRun_DefersSemanticBootstrapUntilStartupConfirmationReadyOnPassiveObserv
 	origStartPassiveTransactionReconstructor := startPassiveTransactionReconstructor
 	origStartBroadcastListenerWithReconstructorFn := startBroadcastListenerWithReconstructorFn
 	origStartHTTPServerFn := startHTTPServerFn
+	// The state directory is made before the join below is registered, so it is
+	// removed only after the process has joined and written its host checkpoint.
+	stateDir := t.TempDir()
 	t.Cleanup(func() {
 		wireObserveFirstObserversFn = origWireObserveFirstObserversFn
 		startDiscoveryScanLoopFn = origStartDiscoveryScanLoopFn
@@ -1033,6 +1048,7 @@ func TestRun_DefersSemanticBootstrapUntilStartupConfirmationReadyOnPassiveObserv
 
 	done := make(chan error, 1)
 	withRuntimeControlTestState(t, &cfg)
+	cfg.RuntimeStatePath = filepath.Join(stateDir, "runtime_state.json")
 	go func() {
 		done <- run(ctx, cfg)
 	}()
@@ -1085,6 +1101,9 @@ func TestRun_OverrideClosesSemanticBarrierOnAdmissionFailure(t *testing.T) {
 	origStartDiscoveryScanLoopFn := startDiscoveryScanLoopFn
 	origStartVaillantSemanticPollingFn := startVaillantSemanticPollingFn
 	origStartHTTPServerFn := startHTTPServerFn
+	// The state directory is made before the join below is registered, so it is
+	// removed only after the process has joined and written its host checkpoint.
+	stateDir := t.TempDir()
 	t.Cleanup(func() {
 		wireObserveFirstObserversFn = origWireObserveFirstObserversFn
 		startDiscoveryScanLoopFn = origStartDiscoveryScanLoopFn
@@ -1140,6 +1159,7 @@ func TestRun_OverrideClosesSemanticBarrierOnAdmissionFailure(t *testing.T) {
 
 	done := make(chan error, 1)
 	withRuntimeControlTestState(t, &cfg)
+	cfg.RuntimeStatePath = filepath.Join(stateDir, "runtime_state.json")
 	go func() {
 		done <- run(ctx, cfg)
 	}()
@@ -1188,6 +1208,9 @@ func TestRun_DoesNotDeferSemanticBootstrapOutsidePassiveObserveFirst(t *testing.
 	close(activeProbePassed)
 	done := make(chan struct{})
 	var runErr error
+	// The state directory is made before the join below is registered, so it is
+	// removed only after the process has joined and written its host checkpoint.
+	stateDir := t.TempDir()
 	t.Cleanup(func() {
 		stopStartupWatchdog()
 		cancel()
@@ -1244,6 +1267,7 @@ func TestRun_DoesNotDeferSemanticBootstrapOutsidePassiveObserveFirst(t *testing.
 	cfg.BroadcastListen = false
 
 	withRuntimeControlTestState(t, &cfg)
+	cfg.RuntimeStatePath = filepath.Join(stateDir, "runtime_state.json")
 	go func() {
 		defer close(done)
 		runErr = run(ctx, cfg)
@@ -1267,6 +1291,9 @@ func TestRun_WaitsForStartupScanFirstPassBeforePassiveObserveFirst(t *testing.T)
 	origStartPassiveTransactionReconstructor := startPassiveTransactionReconstructor
 	origStartBroadcastListenerWithReconstructorFn := startBroadcastListenerWithReconstructorFn
 	origStartHTTPServerFn := startHTTPServerFn
+	// The state directory is made before the join below is registered, so it is
+	// removed only after the process has joined and written its host checkpoint.
+	stateDir := t.TempDir()
 	t.Cleanup(func() {
 		wireObserveFirstObserversFn = origWireObserveFirstObserversFn
 		startDiscoveryScanLoopFn = origStartDiscoveryScanLoopFn
@@ -1313,6 +1340,7 @@ func TestRun_WaitsForStartupScanFirstPassBeforePassiveObserveFirst(t *testing.T)
 
 	done := make(chan error, 1)
 	withRuntimeControlTestState(t, &cfg)
+	cfg.RuntimeStatePath = filepath.Join(stateDir, "runtime_state.json")
 	go func() {
 		done <- run(ctx, cfg)
 	}()

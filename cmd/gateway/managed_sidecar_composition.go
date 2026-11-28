@@ -33,9 +33,10 @@ const (
 )
 
 type managedSidecars struct {
-	registry *runtimecontrol.Registry
-	entries  []*managedSidecar
-	primary  *ebusDriverRuntime
+	registry      *runtimecontrol.Registry
+	entries       []*managedSidecar
+	primary       *ebusDriverRuntime
+	hostInstances []gatewayHostInstance
 }
 
 type managedSidecar struct {
@@ -133,6 +134,8 @@ func prepareManagedSidecars(ctx context.Context, cfg ebusgateway.Config, hub *se
 		descriptor(managedGrowattCANID, cfg.GrowattBMSCANConfig.Enabled, source(managedGrowattCANID), sidecarNativeContract("github.com/Project-Helianthus/helianthus-gateway", "GrowattBMSCANReceiveOnly"), newGrowattBMSCANManagedFactory(cfg.GrowattBMSCANConfig, nil)),
 		managedEEBusDescriptor(cfg, source(managedEEBusID)),
 	))
+	// Snapshot host enablement before the portal record narrows eligibility.
+	hostInstances := hostInstancesFromDescriptors(descriptors)
 	// An accepted Portal selection narrows configured eligibility before any
 	// registration or construction. A driver withheld by a record that did not
 	// load stays registered with a failing executor and is never constructed.
@@ -150,7 +153,7 @@ func prepareManagedSidecars(ctx context.Context, cfg ebusgateway.Config, hub *se
 		portalWithheld[descriptors[i].DriverID] = withheld
 	}
 	registry := runtimecontrol.NewRegistry(controlHubOwnership{hub: hub})
-	result := &managedSidecars{registry: registry}
+	result := &managedSidecars{registry: registry, hostInstances: hostInstances}
 	// Register fixed identities before the configurable Growatt identity.
 	// A refusal withholds only its driver; no factory runs during registration.
 	if primarySource, err := ebusPrimarySourceID(guid); err == nil {
@@ -161,6 +164,7 @@ func prepareManagedSidecars(ctx context.Context, cfg ebusgateway.Config, hub *se
 				}
 				return result.primary, nil
 			})); err == nil {
+				result.hostInstances = append(result.hostInstances, hostInstancesFromDescriptors([]runtimecontrol.Descriptor{primary})...)
 				// The accepted selection is part of the frozen registration.
 				if !portalConfig.application(primaryEBusDriverID, true).enabled {
 					primary.Disposition = runtimecontrol.DispositionDisabled
