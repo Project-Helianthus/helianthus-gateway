@@ -55,10 +55,10 @@ jobs:
           GOOS=linux GOARCH=arm GOARM=7 go build -o /dev/null ./cmd/gateway
           GOOS=linux GOARCH=arm GOARM=6 go build -o /dev/null ./cmd/gateway
 
-  test:
+  test-packages:
     # stays GitHub-hosted: race suite needs isolated CPU and the localhost-binding test is not runner-robust yet (CI migration val 3, see the follow-up issue linked in the PR body)
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,17 +77,20 @@ jobs:
       - run: python3 -m pip install pytest
       - run: python3 -m pip install -r requirements-lint.txt
       - run: python3 -m pytest tests/test_metrics_inventory_docs.py tests/test_naming_contract.py tests/test_dispatch_documentation.py tests/test_rename_underscore_packages.py -q -p no:cacheprovider
-      # Measured on 2026-11-27: cmd/gateway takes about forty minutes under
-      # -race on the hosted runner. On main at the head of GM02 the job failed
-      # with "panic: test timed out after 40m0s" in cmd/gateway (2400 s); a pull
-      # request three hours later failed the same way, with
-      # TestHuaweiIdentityGrowthMeasurement at 5 min 57 s among the running
-      # tests; the run before that on main succeeded with the whole job at 58
-      # minutes. No test hangs. The first run gets 75 minutes, the second keeps
-      # 40 minutes (scripts/ci_local.sh uses 40m), and the 150-minute job limit
-      # leaves room for both commands and the other steps.
-      - run: go test -race -count=1 -timeout 75m ./...
-      - run: go test -race -short -count=1 -timeout 40m -tags nomatter ./cmd/gateway
+      # Packages other than cmd/gateway. cmd/gateway is the long pole (about
+      # forty minutes under -race on the hosted runner) and runs in test-gateway.
+      # This command keeps -timeout 75m. An empty package list fails the leg.
+      - name: Race-test packages other than cmd/gateway
+        run: |
+          set -euo pipefail
+          go list ./... > "$RUNNER_TEMP/packages.txt"
+          grep -v '/cmd/gateway$' "$RUNNER_TEMP/packages.txt" > "$RUNNER_TEMP/packages-other.txt" || true
+          if ! grep -q . "$RUNNER_TEMP/packages-other.txt"; then
+            echo "no packages other than cmd/gateway" >&2
+            exit 1
+          fi
+          mapfile -t packages < "$RUNNER_TEMP/packages-other.txt"
+          go test -race -count=1 -timeout 75m "${packages[@]}"
       - run: GOMODCACHE="$(go env GOMODCACHE)" python3 scripts/check_no_matter_profile.py
       - name: SemReg PV public integration
         run: GOWORK=off go test -race -count=1 ./internal/modbusadapter ./m2mgraphql ./mcp ./portal ./cmd/gateway -run 'TestPVPublication|TestAdapterPublishesOneSemRegPVProjection|TestSemanticPV|TestPortalPV|TestM2MGraphQLRuntime'
@@ -98,6 +101,94 @@ jobs:
       - run: python3 scripts/check_python_lint.py
       - run: python3 -m unittest discover -s tests -p test_python_lint.py -v
       - run: python3 -m unittest discover -s tests -p test_changelog_fragments.py -v
+
+  test-gateway:
+    # stays GitHub-hosted: race suite needs isolated CPU and the localhost-binding test is not runner-robust yet (CI migration val 3, see the follow-up issue linked in the PR body)
+    name: test-gateway (${{ matrix.config }}, ${{ matrix.part }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # scripts/ci_test_parts.py --parts must equal the length of this list.
+        part: [0, 1, 2, 3]
+        config: [race, nomatter]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          # The persistent runner keeps its module directory; restoring the
+          # setup-go cache over it only adds tar conflicts and minutes.
+          # Hosted runners start empty and keep the cache.
+          cache: ${{ runner.environment == 'github-hosted' }}
+      # Each part runs the top-level tests go test -list prints for that build
+      # configuration, and no others. Measured on 2026-11-27, cmd/gateway takes
+      # about forty minutes under -race on the hosted runner. -timeout stays 75m
+      # for the race run and 40m for the nomatter short run. A failed list, or
+      # an empty part, fails the leg. Benchmarks, when the list has any, run
+      # one iteration (-benchtime 1x) in the part that owns them.
+      - name: Test this part of cmd/gateway
+        run: |
+          set -euo pipefail
+          case "${{ matrix.config }}" in
+            race)
+              flags=(-race -count=1 -timeout 75m)
+              ;;
+            nomatter)
+              flags=(-race -short -count=1 -timeout 40m -tags nomatter)
+              ;;
+            *)
+              echo "unknown build configuration" >&2
+              exit 1
+              ;;
+          esac
+          go test -list '.*' "${flags[@]}" ./cmd/gateway > "$RUNNER_TEMP/cmd-gateway-tests.txt"
+          python3 scripts/ci_test_parts.py --parts 4 --part "${{ matrix.part }}" < "$RUNNER_TEMP/cmd-gateway-tests.txt" > "$RUNNER_TEMP/part-spec.txt"
+          run_expr=""
+          bench_expr=""
+          while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+              "run "*) run_expr=${line#"run "} ;;
+              "bench "*) bench_expr=${line#"bench "} ;;
+              "") ;;
+              *)
+                echo "unexpected part spec" >&2
+                exit 1
+                ;;
+            esac
+          done < "$RUNNER_TEMP/part-spec.txt"
+          if [ -z "$run_expr" ]; then
+            echo "part spec has no run expression" >&2
+            exit 1
+          fi
+          if [ -n "$bench_expr" ]; then
+            go test "${flags[@]}" -run "$run_expr" -bench "$bench_expr" -benchtime 1x ./cmd/gateway
+          else
+            go test "${flags[@]}" -run "$run_expr" ./cmd/gateway
+          fi
+
+  test:
+    # Required check name. Repository settings name this job; they are unchanged.
+    # needs on the matrix job waits for every part. always() plus the result
+    # check fails this job when a leg fails, instead of skipping the check.
+    needs: [test-packages, test-gateway]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail unless every test leg succeeded
+        run: |
+          set -euo pipefail
+          packages="${{ needs.test-packages.result }}"
+          gateway="${{ needs.test-gateway.result }}"
+          echo "test-packages: ${packages}"
+          echo "test-gateway: ${gateway}"
+          test "$packages" = success
+          test "$gateway" = success
 
   lint:
     # fork pull requests never run on the persistent runners
