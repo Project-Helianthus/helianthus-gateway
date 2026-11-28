@@ -30,6 +30,7 @@ func newHTTPControlPlaneGraphQLHandlers(
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	queryHandler = gatewaySemanticGraphQueryHandler(queryHandler)
 	snapshotHandler, err := graphql.NewProjectionSnapshotHandler(builder)
 	if err != nil {
 		return nil, nil, nil, err

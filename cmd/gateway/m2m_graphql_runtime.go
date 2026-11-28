@@ -16,6 +16,9 @@ import (
 	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
 	"github.com/Project-Helianthus/helianthus-gateway/m2mgraphql"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/tree"
+	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 )
 
 type m2mGraphQLRuntime struct {
@@ -150,6 +153,10 @@ func newM2MGraphQLRuntimeWithRoutes(config ebusgateway.Config, adapter *modbusad
 	if err != nil {
 		return nil, errors.New("M2M GraphQL handler configuration is invalid")
 	}
+	graphqlHandler, err = gatewayRemoteSemanticHandler(graphqlHandler, allowed, pvCurrent, storageCurrent, semanticEVSECurrent)
+	if err != nil {
+		return nil, errors.New("M2M GraphQL handler configuration is invalid")
+	}
 	handler := graphqlHandler
 	if routes != nil {
 		handler, err = routes(graphqlHandler)
@@ -203,6 +210,133 @@ func newGrowattStorageGraphQLProvider(growatt ...*growattBMSRS485ProductionProvi
 		published, err := currentGrowattStoragePublic(ctx, asset, growatt...)
 		return published, err == nil
 	}
+}
+
+// gatewayGraphCodedError carries a SemReg error id in the extension the remote
+// graph handler copies onto the response. A plain error stays SOURCE_UNAVAILABLE.
+type gatewayGraphCodedError struct {
+	code    string
+	message string
+}
+
+func (e gatewayGraphCodedError) Error() string { return e.message }
+
+func (e gatewayGraphCodedError) Extensions() map[string]any {
+	return map[string]any{"code": e.code}
+}
+
+func gatewayGraphCode(err error) error {
+	if err == nil {
+		return nil
+	}
+	var semantic *semreg.Error
+	if errors.As(err, &semantic) && semantic != nil && semantic.ID != "" {
+		return gatewayGraphCodedError{code: string(semantic.ID), message: semantic.Error()}
+	}
+	return err
+}
+
+// The page and the omission vector use the same JSON shape as the local schema
+// and the MCP tools, so one request has one canonical record.
+type gatewayGraphResourceList struct {
+	graph.ResourcePage
+	NotIncluded []graph.NotIncludedAsset `json:"not_included,omitempty"`
+}
+
+type gatewayGraphTraversal struct {
+	graph.TraversalPage
+	NotIncluded []graph.NotIncludedAsset `json:"not_included,omitempty"`
+}
+
+type gatewayGraphCatalog struct {
+	Digest  semreg.Digest   `json:"digest"`
+	Status  graph.Status    `json:"status"`
+	Planes  []graph.Plane   `json:"planes"`
+	Lenses  []graph.Lens    `json:"lenses"`
+	Entries []graph.Element `json:"entries"`
+}
+
+func (c gatewayGraphCatalog) Validate() error { return c.Digest.Validate() }
+
+func gatewayGraphTree() (*tree.Tree, error) {
+	graphTree := gatewayComposedTree()
+	if graphTree == nil {
+		return nil, errors.New("semantic graph read unavailable")
+	}
+	return graphTree, nil
+}
+
+func gatewayGraphDecode(variables map[string]any, dst any) error {
+	if variables == nil {
+		variables = map[string]any{}
+	}
+	raw, err := json.Marshal(variables)
+	if err != nil {
+		return &semreg.Error{ID: semreg.InvalidValue, Detail: "invalid semantic graph arguments"}
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return &semreg.Error{ID: semreg.InvalidValue, Detail: "invalid semantic graph arguments"}
+	}
+	return nil
+}
+
+func gatewayGraphFinish(record semreg.Record, err error) (json.RawMessage, error) {
+	if err != nil {
+		return nil, gatewayGraphCode(err)
+	}
+	canonical, err := semreg.CanonicalJSON(record)
+	if err != nil {
+		return nil, gatewayGraphCode(err)
+	}
+	return json.RawMessage(canonical), nil
+}
+
+func gatewaySemanticResourcesRead(ctx context.Context, variables map[string]any) (json.RawMessage, error) {
+	graphTree, err := gatewayGraphTree()
+	if err != nil {
+		return nil, err
+	}
+	var request graph.ListRequest
+	if err := gatewayGraphDecode(variables, &request); err != nil {
+		return nil, gatewayGraphCode(err)
+	}
+	result, err := graphTree.ListResources(ctx, request)
+	return gatewayGraphFinish(gatewayGraphResourceList{result.Page, result.NotIncluded}, err)
+}
+
+func gatewaySemanticTraversalRead(ctx context.Context, variables map[string]any) (json.RawMessage, error) {
+	graphTree, err := gatewayGraphTree()
+	if err != nil {
+		return nil, err
+	}
+	var request graph.TraversalRequest
+	if err := gatewayGraphDecode(variables, &request); err != nil {
+		return nil, gatewayGraphCode(err)
+	}
+	result, err := graphTree.Traverse(ctx, request)
+	return gatewayGraphFinish(gatewayGraphTraversal{result.Page, result.NotIncluded}, err)
+}
+
+func gatewaySemanticLensRead(ctx context.Context, variables map[string]any) (json.RawMessage, error) {
+	graphTree, err := gatewayGraphTree()
+	if err != nil {
+		return nil, err
+	}
+	var request graph.LensRequest
+	if err := gatewayGraphDecode(variables, &request); err != nil {
+		return nil, gatewayGraphCode(err)
+	}
+	result, err := graphTree.RetrieveLens(ctx, request)
+	return gatewayGraphFinish(result, err)
+}
+
+func gatewaySemanticElementCatalogRead(ctx context.Context, _ map[string]any) (json.RawMessage, error) {
+	graphTree, err := gatewayGraphTree()
+	if err != nil {
+		return nil, err
+	}
+	result, err := graphTree.Catalog(ctx)
+	return gatewayGraphFinish(gatewayGraphCatalog(result), err)
 }
 
 func currentGrowattStoragePublic(ctx context.Context, asset string, growatt ...*growattBMSRS485ProductionProvider) (json.RawMessage, error) {

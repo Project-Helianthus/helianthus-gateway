@@ -180,11 +180,13 @@ func TestGatewayProcessShellShutdownSequenceThroughLifecycle(t *testing.T) {
 		"acquire:late-bound writers",
 		"acquire:graphql builder start",
 		"register:control-plane context",
+		"register:composed surfaces",
 		"acquire:HTTP control plane",
 		"register:consumers",
 		"register:generation tasks",
 		"release:generation tasks",
 		"release:consumers",
+		"release:composed surfaces",
 		"release:control-plane context",
 		"release:gateway",
 		"release:transport watch",
@@ -216,6 +218,7 @@ func TestGatewayProcessShellOmitsReleasesOfAbsentResources(t *testing.T) {
 	requireProcessShellSteps(t, "release order", trace.phase("release"), []string{
 		"generation tasks",
 		"consumers",
+		"composed surfaces",
 		"control-plane context",
 		"gateway",
 		"final source-selection artifact",
@@ -307,6 +310,7 @@ func TestGatewayProcessShellReleasesOnlyComposedAPIOnFailure(t *testing.T) {
 		}
 		requireProcessShellSteps(t, "acquisitions", trace.phase("acquire"), processAcquisitionOrder(apiCompositionAcquisitionOrder...))
 		requireProcessShellSteps(t, "releases", trace.phase("release"), []string{
+			"composed surfaces",
 			"control-plane context",
 			"gateway",
 			"transport watch",

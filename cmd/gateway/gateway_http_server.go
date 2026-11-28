@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 	"github.com/Project-Helianthus/helianthus-gateway/graphql"
@@ -168,6 +169,7 @@ func registerHTTPPortalRoutes(mux *http.ServeMux, portalPath string, opts portal
 	if portalPath == "" {
 		return
 	}
+	attachGatewayPortalContributionOptions(&opts, source)
 	opts.PortalCatalogPath = catalogPath
 	opts.PortalCatalogAvailable = true
 	opts.BasePath = portalPath + "/"
@@ -177,6 +179,35 @@ func registerHTTPPortalRoutes(mux *http.ServeMux, portalPath string, opts portal
 	// Portal directory carries the served prefix (portal.IngressPathHeader) and
 	// the query instead of a root-absolute target that Ingress cannot route.
 	mux.Handle(portalPath, portalHandler)
+}
+
+// attachGatewayPortalContributionOptions gives the mounted contribution
+// handler the same registry, index, invoker, revalidator and served-cut
+// capture the gateway catalog composer uses. A caller that already set
+// contributions keeps that binding.
+func attachGatewayPortalContributionOptions(opts *portal.Options, source catalogv1.SourceCapture) {
+	if opts == nil || opts.Contributions != nil || source == nil {
+		return
+	}
+	owner, ok := source.(gatewayPortalCatalogContributionOwner)
+	if !ok {
+		return
+	}
+	contributions := owner.PortalCatalogContributions()
+	if contributions == nil || contributions.registry == nil || contributions.index == nil {
+		return
+	}
+	invoker, revalidator := contributions.actionAdmission()
+	opts.Contributions = &portal.ContributionOptions{
+		Registry:      contributions.registry,
+		Index:         contributions.index,
+		Invoker:       invoker,
+		Revalidator:   revalidator,
+		TargetCatalog: contributions.index.catalogElements,
+		Capture: func(semanticview.View) (catalogv1.Capture, error) {
+			return source.Capture(time.Now().UTC())
+		},
+	}
 }
 
 func validatePortalCatalogRoute(cfg ebusgateway.Config) error {

@@ -66,6 +66,19 @@ func installGatewayHTTPMCPSurface(surface gatewayHTTPMCPSurface) error {
 	if surface.configWriter != nil {
 		surface.server.SetConfigWriter(surface.configWriter)
 	}
+	return attachGatewaySemanticGraph(surface.server)
+}
+
+// attachGatewaySemanticGraph registers the four semantic reads and the driver
+// namespace tools on the host tree. An unbound host leaves the server as it is.
+func attachGatewaySemanticGraph(server *mcp.Server) error {
+	graphTree := gatewayComposedTree()
+	if graphTree == nil || server == nil {
+		return nil
+	}
+	if err := mcp.RegisterSemanticGraphTools(server, graphTree); err != nil {
+		return fmt.Errorf("register semantic graph MCP tools: %w", err)
+	}
 	return nil
 }
 

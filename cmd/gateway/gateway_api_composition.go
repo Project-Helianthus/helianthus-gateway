@@ -394,6 +394,11 @@ func (api *gatewayAPIComposition) startControlPlane() (*http.Server, mdns.Advert
 	// canceled by teardown after retirement and the explicit close sequence.
 	controlPlaneCtx, controlPlaneCancel := newGatewayControlPlaneContext(ctx)
 	shell.onShutdownFunc("control-plane context", controlPlaneCancel)
+	// The HTTP and remote surfaces read this holder at request time. M2M is
+	// built earlier, so the bind has to precede the listener and the metric
+	// lock has to outlive it: shutdown runs last in, first out.
+	bindGatewayComposedSurfaces(shell.semregHost, api.portalCatalogSource)
+	shell.onShutdownFunc("composed surfaces", resetGatewayComposedSurfaces)
 	shell.acquire("HTTP control plane")
 	return startHTTPServerFn(
 		controlPlaneCtx,

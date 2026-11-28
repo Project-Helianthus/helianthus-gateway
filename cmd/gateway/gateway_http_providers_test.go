@@ -147,6 +147,12 @@ func httpProviderTools(t *testing.T, server *mcp.Server) json.RawMessage {
 	return response.Result
 }
 
+// composedSurfaceHTTPParts supplies the empty registry the HTTP listener requires.
+func composedSurfaceHTTPParts() (*ebusgateway.Gateway, *graphql.Builder, *graphql.BroadcastHub) {
+	reg := registry.NewDeviceRegistry(nil)
+	return &ebusgateway.Gateway{Registry: reg}, graphql.NewBuilder(reg, nil), graphql.NewBroadcastHub(nil)
+}
+
 func TestHTTPProviderCompositionAvailability(t *testing.T) {
 	profiles := gatewayInventoryProfiles(t)
 	// Independent switches cover absent, enabled and partially supplied owners.

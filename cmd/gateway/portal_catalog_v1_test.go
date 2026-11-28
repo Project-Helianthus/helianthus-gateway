@@ -21,8 +21,10 @@ import (
 	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter"
 	sunspectest "github.com/Project-Helianthus/helianthus-gateway/internal/modbusadapter/testfixture"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticview"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	"github.com/Project-Helianthus/helianthus-gateway/mcp"
+	"github.com/Project-Helianthus/helianthus-gateway/portal"
 	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
@@ -30,6 +32,7 @@ import (
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
 	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 )
 
 type portalCatalogBarrierSource struct {
@@ -214,7 +217,49 @@ func TestAppendPortalSnapshotUsesMatchedCurrentBindingAndEpochScalars(t *testing
 	})
 }
 
+// TestPortalCatalogRuntimeHandlerInstallsProductionDescriptors mounts the
+// production portal mux. Both catalog composers receive the host invoker and
+// revalidator. The claim cases vary every claim field:
+//
+//   - CatalogRevision: Composer.Invoke compares the served revision and returns ErrStale.
+//   - Digest: a non-empty wrong digest fails matchesDigest and Invoke returns ErrStale.
+//   - DriverID, ManifestID, ManifestVersion, ActionID, ResourceID, CapabilityID,
+//     SnapshotID, Revision, BindingID, SourceEpoch and DriverGeneration: matchesClaim
+//     returns ErrUnauthorized before the revalidator runs.
+//   - IdempotencyKey empty, Deadline zero and Deadline in the past: Invoke returns
+//     ErrStale before it looks the action up.
+//
+// The accepted call is the one that reaches gatewayHostActionAdmission.Revalidate
+// and then Invoke. Replacing the idempotency key changes the native procedure
+// input. The member key of the setup procedure is varied the same way:
+//
+//   - Namespace: Dispatch builds the native segment from the key. A different
+//     namespace does not call the registered procedure.
+//   - Instance: hookNode requires the node instance. A different instance does
+//     not call the procedure.
+//   - Node: hookNode refuses a device node before prepare, so the device
+//     procedure is not called. The instance procedure is called while that
+//     device does not exist yet.
+//   - Local: a different local id does not call pairing.
 func TestPortalCatalogRuntimeHandlerInstallsProductionDescriptors(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(resetGatewayComposedSurfaces)
+	opened, factory, started := openSurfaceHost(t, dir, true)
+	t.Cleanup(func() { _ = opened.Close(context.Background()) })
+	t.Cleanup(func() {
+		factory.release()
+		if started == nil {
+			return
+		}
+		select {
+		case err := <-started:
+			if err != nil {
+				t.Errorf("surface start: %v", err)
+			}
+		case <-time.After(8 * time.Second):
+			t.Errorf("surface start did not return")
+		}
+	})
 	contributions, err := newGatewayPortalCatalogContributions()
 	if err != nil {
 		t.Fatal(err)
@@ -226,17 +271,266 @@ func TestPortalCatalogRuntimeHandlerInstallsProductionDescriptors(t *testing.T) 
 		}
 	}()
 	source := newGatewayPortalCatalogSource(nil, nil, nil, contributions)
-	h := newPortalCatalogV1Handler(source)
-	req := httptest.NewRequest(http.MethodPost, "/graphql/portal/v1", bytes.NewBufferString(`{"operationName":"PortalCatalogV1","variables":{}}`))
-	res := httptest.NewRecorder()
-	h.ServeHTTP(res, req)
-	if res.Code != http.StatusOK {
-		t.Fatalf("handler status=%d body=%s", res.Code, res.Body.String())
-	}
-	for _, want := range []string{`"portal.pv"`, `"portal.storage"`, `"portal.evse"`} {
-		if !bytes.Contains(res.Body.Bytes(), []byte(want)) {
-			t.Fatalf("catalog omitted %s: %s", want, res.Body.String())
+	bindGatewayComposedSurfaces(opened, source)
+	publishSurfaceManifests(t, contributions)
+	mux := http.NewServeMux()
+	registerHTTPPortalRoutes(mux, "/portal", portal.Options{SharedSemanticView: func(context.Context) (semanticview.View, error) {
+		return semanticview.View{}, nil
+	}}, source)
+	paths := []string{"/graphql/portal/v1", "/portal/graphql/portal/v1"}
+	for _, path := range paths {
+		body := portalMuxPost(t, mux, path, `{"operationName":"PortalCatalogV1","variables":{}}`)
+		for _, want := range []string{`"portal.pv"`, `"portal.storage"`, `"portal.evse"`, `"pairing"`, `"resource:surface:`} {
+			if !bytes.Contains(body, []byte(want)) {
+				t.Fatalf("%s omitted %s: %s", path, want, body)
+			}
 		}
+		portalAssertTargetReport(t, mux, path, contributions)
+	}
+	catalog := portalDecodeCatalog(t, portalMuxPost(t, mux, paths[0], `{"operationName":"PortalCatalogV1","variables":{}}`))
+	again := portalDecodeCatalog(t, portalMuxPost(t, mux, paths[0], `{"operationName":"PortalCatalogV1","variables":{}}`))
+	if again.CatalogRevision != catalog.CatalogRevision {
+		t.Fatalf("catalog revision moved %q -> %q resources %d -> %d", catalog.CatalogRevision, again.CatalogRevision, len(catalog.Resources), len(again.Resources))
+	}
+	before := factory.pairingSum()
+	keys := []string{"marker-gateway", "marker-contribution"}
+	for i, path := range paths {
+		// Each composer seals its own catalog revision. The claim is the catalog that path just served.
+		served := catalog
+		if path != paths[0] {
+			served = portalDecodeCatalog(t, portalMuxPost(t, mux, path, `{"operationName":"PortalCatalogV1","variables":{}}`))
+		}
+		action, digest := portalSurfaceAction(t, served)
+		claim := portalSurfaceClaim(served, action, digest, keys[i])
+		native := portalInvokeNative(t, mux, path, claim)
+		if !strings.Contains(native, keys[i]) {
+			t.Fatalf("%s native = %s", path, native)
+		}
+	}
+	if factory.pairingSum() != before+2 {
+		t.Fatalf("pairing calls = %d, want %d", factory.pairingSum(), before+2)
+	}
+	rejectAction, rejectDigest := portalSurfaceAction(t, catalog)
+	portalRejectClaimFields(t, mux, paths[0], portalSurfaceClaim(catalog, rejectAction, rejectDigest, "marker-reject"), factory)
+
+	state := factory.readyState()
+	if state == nil || state.device.ID != "" {
+		t.Fatalf("setup ran after the device existed: %+v", state)
+	}
+	marker := []byte("before-device")
+	calls := state.pairing.Load()
+	outcome, err := (gatewaySetupSurface{tree: opened.site.Tree()}).Dispatch(context.Background(), hookMemberKey(string(surfaceDriverKind), state.key, state.root, "pairing"), marker)
+	if err != nil || !bytes.Contains(outcome.Native, marker) || state.pairing.Load() != calls+1 || state.deviceCalls.Load() != 0 {
+		t.Fatalf("instance setup before the device: %v %s calls %d", err, outcome.Native, state.pairing.Load())
+	}
+	setup := gatewaySetupSurface{tree: opened.site.Tree()}
+	if err := dispatchDangles(setup.Dispatch(context.Background(), hookMemberKey("family.other", state.key, state.root, "pairing"), marker)); err != nil || state.pairing.Load() != calls+1 {
+		t.Fatalf("wrong namespace called pairing: %v calls %d", err, state.pairing.Load())
+	}
+	if _, err := setup.Dispatch(context.Background(), hookMemberKey(string(surfaceDriverKind), "surface.other", state.root, "pairing"), marker); err == nil || state.pairing.Load() != calls+1 {
+		t.Fatalf("wrong instance = %v calls %d", err, state.pairing.Load())
+	}
+	if err := dispatchDangles(setup.Dispatch(context.Background(), hookMemberKey(string(surfaceDriverKind), state.key, state.root, "other"), marker)); err != nil || state.pairing.Load() != calls+1 {
+		t.Fatalf("wrong local called pairing: %v calls %d", err, state.pairing.Load())
+	}
+	factory.release()
+	factory.waitRunning(t, opened)
+	if state.device.ID == "" {
+		t.Fatal("device node was not registered")
+	}
+	if _, err := setup.Dispatch(context.Background(), hookMemberKey(string(surfaceDriverKind), state.key, state.device, "pairing"), marker); !errors.Is(err, errGatewayHookLevel) || state.deviceCalls.Load() != 0 {
+		t.Fatalf("device setup = %v device calls %d", err, state.deviceCalls.Load())
+	}
+	body := portalMuxPost(t, mux, paths[0], `{"operationName":"PortalCatalogV1","variables":{}}`)
+	for _, want := range []string{`"resource:surface:surface.one"`, `"resource:surface:surface.two"`} {
+		if !bytes.Contains(body, []byte(want)) {
+			t.Fatalf("catalog omitted %s after both instances started: %s", want, body)
+		}
+	}
+	entries, err := contributions.index.catalogElements(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	portalAssertPresentationExcluded(t, entries, body)
+}
+
+func portalMuxPost(t *testing.T, mux *http.ServeMux, path, payload string) []byte {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(payload))
+	res := httptest.NewRecorder()
+	mux.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("%s status=%d body=%s", path, res.Code, res.Body.String())
+	}
+	return res.Body.Bytes()
+}
+
+func portalDecodeCatalog(t *testing.T, body []byte) catalogv1.Catalog {
+	t.Helper()
+	var decoded struct {
+		Data struct {
+			PortalCatalogV1 catalogv1.Catalog `json:"portalCatalogV1"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.Errors) != 0 {
+		t.Fatalf("catalog errors: %+v", decoded.Errors)
+	}
+	return decoded.Data.PortalCatalogV1
+}
+
+func portalSurfaceAction(t *testing.T, catalog catalogv1.Catalog) (catalogv1.Action, string) {
+	t.Helper()
+	for _, action := range catalog.Actions {
+		if action.NativeMemberID != "pairing" || action.ResourceID == "" {
+			continue
+		}
+		for _, item := range catalog.Contributions {
+			if item.DriverID == action.ContributionDriverID && item.ManifestID == action.ContributionManifestID && item.ManifestVersion == action.ContributionManifestVersion && item.Digest != "" {
+				return action, item.Digest
+			}
+		}
+	}
+	t.Fatalf("pairing action was not discovered: %+v", catalog.Actions)
+	return catalogv1.Action{}, ""
+}
+
+func portalSurfaceClaim(catalog catalogv1.Catalog, action catalogv1.Action, digest, key string) catalogv1.Claims {
+	return catalogv1.Claims{
+		CatalogRevision: catalog.CatalogRevision, Digest: digest, DriverID: action.ContributionDriverID,
+		ManifestID: action.ContributionManifestID, ManifestVersion: action.ContributionManifestVersion,
+		ActionID: action.ID, ResourceID: action.ResourceID, CapabilityID: action.CapabilityID,
+		SnapshotID: action.Source.SnapshotID, Revision: action.Source.Revision, BindingID: action.Source.BindingID,
+		SourceEpoch: action.Source.SourceEpoch, IdempotencyKey: key, DriverGeneration: action.Source.DriverGeneration,
+		Deadline: time.Now().Add(2 * time.Minute),
+	}
+}
+
+func portalInvokeNative(t *testing.T, mux *http.ServeMux, path string, claim catalogv1.Claims) string {
+	t.Helper()
+	raw, err := json.Marshal(map[string]any{"operationName": "PortalActionInvokeV1", "variables": map[string]any{"claim": claim}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded struct {
+		Data struct {
+			PortalActionInvokeV1 map[string]string `json:"portalActionInvokeV1"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(portalMuxPost(t, mux, path, string(raw)), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.Errors) != 0 || decoded.Data.PortalActionInvokeV1["native"] == "" {
+		t.Fatalf("invoke errors=%+v result=%+v revision=%q deadline=%s key=%q digest=%q snap=%q", decoded.Errors, decoded.Data.PortalActionInvokeV1, claim.CatalogRevision, claim.Deadline.Format(time.RFC3339Nano), claim.IdempotencyKey, claim.Digest, claim.SnapshotID)
+	}
+	return decoded.Data.PortalActionInvokeV1["native"]
+}
+
+func portalRejectClaimFields(t *testing.T, mux *http.ServeMux, path string, claim catalogv1.Claims, factory *surfaceDriverFactory) {
+	t.Helper()
+	// CatalogRevision is the composer's revision, not the source snapshot.
+	catalog := portalDecodeCatalog(t, portalMuxPost(t, mux, path, `{"operationName":"PortalCatalogV1","variables":{}}`))
+	claim.CatalogRevision = catalog.CatalogRevision
+	cases := []struct {
+		name   string
+		mutate func(*catalogv1.Claims)
+		want   string
+	}{
+		{"catalog revision", func(c *catalogv1.Claims) { c.CatalogRevision += "-mutated" }, catalogv1.ErrStale.Error()},
+		{"digest", func(c *catalogv1.Claims) { c.Digest += "-mutated" }, catalogv1.ErrStale.Error()},
+		{"driver", func(c *catalogv1.Claims) { c.DriverID += "-mutated" }, catalogv1.ErrUnauthorized.Error()},
+		{"manifest", func(c *catalogv1.Claims) { c.ManifestID += "-mutated" }, catalogv1.ErrUnauthorized.Error()},
+		{"manifest version", func(c *catalogv1.Claims) { c.ManifestVersion = "9.9.9" }, catalogv1.ErrUnauthorized.Error()},
+		{"action", func(c *catalogv1.Claims) { c.ActionID += "-mutated" }, catalogv1.ErrUnauthorized.Error()},
+		{"resource", func(c *catalogv1.Claims) { c.ResourceID += "-mutated" }, catalogv1.ErrUnauthorized.Error()},
+		{"capability", func(c *catalogv1.Claims) { c.CapabilityID += "-mutated" }, catalogv1.ErrUnauthorized.Error()},
+		{"snapshot", func(c *catalogv1.Claims) { c.SnapshotID += "-mutated" }, catalogv1.ErrUnauthorized.Error()},
+		{"revision", func(c *catalogv1.Claims) { c.Revision += "-mutated" }, catalogv1.ErrUnauthorized.Error()},
+		{"binding", func(c *catalogv1.Claims) { c.BindingID += "-mutated" }, catalogv1.ErrUnauthorized.Error()},
+		{"source epoch", func(c *catalogv1.Claims) { c.SourceEpoch += "-mutated" }, catalogv1.ErrUnauthorized.Error()},
+		{"driver generation", func(c *catalogv1.Claims) { c.DriverGeneration++ }, catalogv1.ErrUnauthorized.Error()},
+		{"idempotency key", func(c *catalogv1.Claims) { c.IdempotencyKey = "" }, catalogv1.ErrStale.Error()},
+		{"deadline zero", func(c *catalogv1.Claims) { c.Deadline = time.Time{} }, catalogv1.ErrStale.Error()},
+		{"deadline past", func(c *catalogv1.Claims) { c.Deadline = time.Now().Add(-time.Minute) }, catalogv1.ErrStale.Error()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mutated := claim
+			tc.mutate(&mutated)
+			before := factory.pairingSum()
+			raw, err := json.Marshal(map[string]any{"operationName": "PortalActionInvokeV1", "variables": map[string]any{"claim": mutated}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := portalMuxPost(t, mux, path, string(raw))
+			var decoded struct {
+				Errors []struct {
+					Message string `json:"message"`
+				} `json:"errors"`
+			}
+			if err := json.Unmarshal(body, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if len(decoded.Errors) != 1 || decoded.Errors[0].Message != tc.want || factory.pairingSum() != before {
+				t.Fatalf("mutation %s body=%s calls %d", tc.name, body, factory.pairingSum())
+			}
+		})
+	}
+}
+
+func portalAssertTargetReport(t *testing.T, mux *http.ServeMux, path string, contributions *gatewayPortalCatalogContributions) {
+	t.Helper()
+	body := portalMuxPost(t, mux, path, `{"operationName":"PortalTargetReportV1","variables":{}}`)
+	var decoded struct {
+		Data struct {
+			PortalTargetReportV1 catalogv1.TargetReport `json:"portalTargetReportV1"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	report := decoded.Data.PortalTargetReportV1
+	if len(report.Descriptors) < 32 || report.TargetID != catalogv1.PortalTarget {
+		t.Fatalf("%s target report has %d descriptors", path, len(report.Descriptors))
+	}
+	for _, descriptor := range report.Descriptors {
+		if descriptor.Disposition != graph.DispositionUnsupported || descriptor.Reason != "catalog.reason.target_presentation" {
+			t.Fatalf("descriptor %+v is graph content", descriptor)
+		}
+	}
+	entries, err := contributions.index.catalogElements(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	portalAssertPresentationExcluded(t, entries, body)
+}
+
+func portalAssertPresentationExcluded(t *testing.T, entries []graph.Element, catalogBody []byte) {
+	t.Helper()
+	seen := 0
+	for _, entry := range entries {
+		if entry.ElementKind != graph.KindPresentation || entry.Presentation == nil || entry.Presentation.Target != graph.TargetPortal {
+			continue
+		}
+		seen++
+		if entry.Disposition != graph.DispositionUnsupported || string(entry.Reason) != "catalog.reason.target_presentation" || len(entry.Planes) != 0 {
+			t.Fatalf("presentation %+v is in graph content", entry.Ref)
+		}
+		ref, ok := entry.Ref.DefinitionRef()
+		if ok && bytes.Contains(catalogBody, []byte(`"`+string(ref.ID)+`"`)) && bytes.Contains(catalogBody, []byte(`"resource_id":"`+string(ref.ID)+`"`)) {
+			t.Fatalf("presentation %s is a catalog resource", ref.ID)
+		}
+	}
+	if seen < 32 {
+		t.Fatalf("portal presentation descriptors = %d", seen)
 	}
 }
 
