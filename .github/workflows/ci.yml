@@ -58,7 +58,7 @@ jobs:
   test:
     # stays GitHub-hosted: race suite needs isolated CPU and the localhost-binding test is not runner-robust yet (CI migration val 3, see the follow-up issue linked in the PR body)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,10 +77,16 @@ jobs:
       - run: python3 -m pip install pytest
       - run: python3 -m pip install -r requirements-lint.txt
       - run: python3 -m pytest tests/test_metrics_inventory_docs.py tests/test_naming_contract.py tests/test_dispatch_documentation.py tests/test_rename_underscore_packages.py -q -p no:cacheprovider
-      # cmd/gateway runs for fifteen to more than twenty minutes under -race on
-      # the hosted runner; 40 minutes matches scripts/ci_local.sh, and the
-      # 90-minute job limit leaves room for both commands.
-      - run: go test -race -count=1 -timeout 40m ./...
+      # Measured on 2026-11-27: cmd/gateway takes about forty minutes under
+      # -race on the hosted runner. On main at the head of GM02 the job failed
+      # with "panic: test timed out after 40m0s" in cmd/gateway (2400 s); a pull
+      # request three hours later failed the same way, with
+      # TestHuaweiIdentityGrowthMeasurement at 5 min 57 s among the running
+      # tests; the run before that on main succeeded with the whole job at 58
+      # minutes. No test hangs. The first run gets 75 minutes, the second keeps
+      # 40 minutes (scripts/ci_local.sh uses 40m), and the 150-minute job limit
+      # leaves room for both commands and the other steps.
+      - run: go test -race -count=1 -timeout 75m ./...
       - run: go test -race -short -count=1 -timeout 40m -tags nomatter ./cmd/gateway
       - run: GOMODCACHE="$(go env GOMODCACHE)" python3 scripts/check_no_matter_profile.py
       - name: SemReg PV public integration
