@@ -964,3 +964,256 @@ func surfaceGet(t *testing.T, url string) []byte {
 	}
 	return body
 }
+
+func TestRemoteGraphReadsStayInsideThePublicationSet(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(resetGatewayComposedSurfaces)
+	opened, _, _ := openSurfaceHost(t, dir, false)
+	t.Cleanup(func() { _ = opened.Close(context.Background()) })
+	bindGatewayComposedSurfaces(opened, nil)
+	listed, err := opened.site.Tree().ListResources(context.Background(), graph.ListRequest{PageSize: graph.MaxPageSize})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keptAsset, hiddenAsset string
+	for _, entry := range listed.Page.Resources {
+		switch string(entry.ResourceID) {
+		case "resource:surface:surface.one":
+			keptAsset = string(entry.AssetID)
+		case "resource:surface:surface.two":
+			hiddenAsset = string(entry.AssetID)
+		}
+	}
+	if keptAsset == "" || hiddenAsset == "" || keptAsset == hiddenAsset {
+		t.Fatalf("assets kept=%s hidden=%s", keptAsset, hiddenAsset)
+	}
+	one, err := gatewayRemoteSemanticHandler(http.NotFoundHandler(), map[string]struct{}{keptAsset: {}}, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty, err := gatewayRemoteSemanticHandler(http.NotFoundHandler(), map[string]struct{}{}, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reads := []surfaceGraphRead{
+		{name: "resources", operation: "SemanticResources", query: surfaceResourcesQuery, variables: map[string]any{"page_size": 32}},
+		{name: "traversal", operation: "SemanticTraversal", query: surfaceTraversalQuery, variables: map[string]any{"entry": map[string]any{"kind": "sites"}, "planes": []any{"physical", "energy"}, "direction": "outgoing", "depth": 4, "page_size": 32}},
+		{name: "lens", operation: "SemanticLens", query: surfaceLensQuery, variables: map[string]any{"entry": map[string]any{"kind": "lens_roots", "lens": "lens.energy_flow"}, "lens": "lens.energy_flow", "direction": "outgoing", "depth": 4, "page_size": 32}},
+	}
+	published := map[string]struct{}{}
+	for _, read := range reads {
+		raw, readErr := surfaceUnfilteredGraph(t, read)
+		if readErr == nil {
+			surfaceCollectAssets(raw, published)
+		}
+		body, code := surfaceRemoteGraph(t, one, read)
+		if bytes.Contains(body, []byte(hiddenAsset)) || bytes.Contains(body, []byte("resource:surface:surface.two")) {
+			t.Fatalf("%s code=%s names the unpublished asset: %s", read.name, code, body)
+		}
+		if read.name == "resources" && (code != "" || !bytes.Contains(body, []byte("resource:surface:surface.one")) || !bytes.Contains(body, []byte(keptAsset))) {
+			t.Fatalf("resources code=%s body=%s", code, body)
+		}
+		hiddenBody, _ := surfaceRemoteGraph(t, empty, read)
+		if bytes.Contains(hiddenBody, []byte(hiddenAsset)) || bytes.Contains(hiddenBody, []byte(keptAsset)) || bytes.Contains(hiddenBody, []byte("resource:surface:surface.one")) || bytes.Contains(hiddenBody, []byte("resource:surface:surface.two")) {
+			t.Fatalf("%s empty publication set leaked a resource: %s", read.name, hiddenBody)
+		}
+	}
+	for _, entry := range listed.Page.Resources {
+		published[string(entry.AssetID)] = struct{}{}
+	}
+	for _, member := range listed.Page.Members {
+		published[string(member.AssetID)] = struct{}{}
+	}
+	for _, asset := range listed.Page.Excluded {
+		published[string(asset)] = struct{}{}
+	}
+	for _, row := range listed.NotIncluded {
+		published[string(row.AssetID)] = struct{}{}
+	}
+	for _, read := range reads {
+		left, leftErr := surfaceUnfilteredGraph(t, read)
+		right, rightErr := surfaceScopedGraph(t, read, published)
+		if (leftErr == nil) != (rightErr == nil) || (leftErr != nil && leftErr.Error() != rightErr.Error()) || !bytes.Equal(left, right) {
+			t.Fatalf("%s publication of every asset changed the read: %v %v\n%s\n%s", read.name, leftErr, rightErr, left, right)
+		}
+	}
+	catalog, err := gatewaySemanticElementCatalogRead(context.Background(), map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, code := surfaceRemoteGraph(t, one, surfaceGraphRead{name: "catalog", operation: "SemanticElementCatalog", query: surfaceCatalogQuery, variables: map[string]any{}})
+	if code != "" || !bytes.Equal(body, catalog) {
+		t.Fatalf("element catalog code=%s equal=%t", code, bytes.Equal(body, catalog))
+	}
+}
+
+func surfaceUnfilteredGraph(t *testing.T, read surfaceGraphRead) ([]byte, error) {
+	t.Helper()
+	switch read.operation {
+	case "SemanticTraversal":
+		return gatewaySemanticTraversalRead(context.Background(), read.variables)
+	case "SemanticLens":
+		return gatewaySemanticLensRead(context.Background(), read.variables)
+	default:
+		return gatewaySemanticResourcesRead(context.Background(), read.variables)
+	}
+}
+
+func surfaceScopedGraph(t *testing.T, read surfaceGraphRead, allowed map[string]struct{}) ([]byte, error) {
+	t.Helper()
+	switch read.operation {
+	case "SemanticTraversal":
+		return gatewaySemanticTraversalScoped(context.Background(), read.variables, allowed)
+	case "SemanticLens":
+		return gatewaySemanticLensScoped(context.Background(), read.variables, allowed)
+	default:
+		return gatewaySemanticResourcesScoped(context.Background(), read.variables, allowed)
+	}
+}
+
+func surfaceCollectAssets(raw []byte, into map[string]struct{}) {
+	var node any
+	if json.Unmarshal(raw, &node) != nil {
+		return
+	}
+	var walk func(any)
+	walk = func(value any) {
+		switch typed := value.(type) {
+		case map[string]any:
+			for _, child := range typed {
+				walk(child)
+			}
+		case []any:
+			for _, child := range typed {
+				walk(child)
+			}
+		case string:
+			if strings.HasPrefix(typed, "asset:") {
+				into[typed] = struct{}{}
+			}
+		}
+	}
+	walk(node)
+}
+
+func TestGatewayGraphScopeDropsUnpublishedAssetsAndOmissions(t *testing.T) {
+	kept := semreg.AssetID("asset:kept")
+	hidden := semreg.AssetID("asset:hidden")
+	keptID := semreg.ResourceID("resource:kept")
+	hiddenID := semreg.ResourceID("resource:hidden")
+	otherID := semreg.ResourceID("resource:other")
+	index := map[semreg.ResourceID]semreg.AssetID{keptID: kept, hiddenID: hidden}
+	allowed := map[string]struct{}{string(kept): {}}
+	page := gatewayGraphResourceList{
+		ResourcePage: graph.ResourcePage{
+			Completeness: graph.CutComplete,
+			Resources: []graph.ResourceEntry{
+				{ResourceID: keptID, AssetID: kept},
+				{ResourceID: hiddenID, AssetID: hidden},
+			},
+			Members: []graph.CutMember{
+				{AssetID: kept, SnapshotID: "snap:kept"},
+				{AssetID: hidden, SnapshotID: "snap:hidden"},
+			},
+			Excluded: []semreg.AssetID{kept, hidden},
+		},
+		NotIncluded: []graph.NotIncludedAsset{
+			{AssetID: kept, Reason: graph.NotIncludedSourceUnavailable},
+			{AssetID: hidden, Reason: graph.NotIncludedPublicationWithheld},
+		},
+	}
+	if scoped := gatewayScopeResourceList(page, nil, index); scoped.Completeness != graph.CutComplete || len(scoped.Resources) != 2 || len(scoped.NotIncluded) != 2 {
+		t.Fatalf("nil publication set changed the page: %+v", scoped)
+	}
+	both := map[string]struct{}{string(kept): {}, string(hidden): {}}
+	if scoped := gatewayScopeResourceList(page, both, index); scoped.Completeness != graph.CutComplete || len(scoped.Excluded) != 2 || scoped.NotIncluded[1].AssetID != hidden {
+		t.Fatalf("allowing every asset changed the page: %+v", scoped)
+	}
+	scoped := gatewayScopeResourceList(page, allowed, index)
+	raw, err := json.Marshal(scoped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"asset:hidden", "resource:hidden", "snap:hidden"} {
+		if bytes.Contains(raw, []byte(forbidden)) {
+			t.Fatalf("filtered list still has %s: %s", forbidden, raw)
+		}
+	}
+	for _, want := range []string{"asset:kept", "resource:kept", "snap:kept", string(graph.NotIncludedSourceUnavailable)} {
+		if !bytes.Contains(raw, []byte(want)) {
+			t.Fatalf("filtered list dropped %s: %s", want, raw)
+		}
+	}
+	if scoped.Completeness != graph.CutPartial || scoped.Resources == nil || scoped.Members == nil || scoped.Excluded == nil || len(scoped.Excluded) != 1 {
+		t.Fatalf("filtered list shape: %+v", scoped)
+	}
+	empty := gatewayScopeResourceList(page, map[string]struct{}{}, index)
+	if empty.Resources == nil || len(empty.Resources) != 0 || empty.Members == nil || len(empty.Members) != 0 || empty.Excluded != nil || empty.NotIncluded != nil || empty.Completeness != graph.CutPartial {
+		t.Fatalf("empty publication set shape: %+v", empty)
+	}
+	hiddenResource := semreg.ResourceID("resource:hidden")
+	traversal := gatewayGraphTraversal{
+		TraversalPage: graph.TraversalPage{
+			Completeness: graph.CutComplete,
+			Resources: []graph.ReachedResource{
+				{ResourceID: keptID, AssetID: kept},
+				{ResourceID: hiddenID, AssetID: hidden},
+			},
+			Members:  []graph.CutMember{{AssetID: kept, SnapshotID: "snap:kept"}, {AssetID: hidden, SnapshotID: "snap:hidden"}},
+			Excluded: []semreg.AssetID{hidden},
+			Relations: []graph.CutRelation{
+				{AssetID: kept, From: keptID, To: otherID},
+				{AssetID: kept, From: keptID, To: hiddenID},
+				{AssetID: hidden, From: hiddenID, To: keptID},
+			},
+			Frontier: []graph.FrontierEntry{{ResourceID: hiddenID, Reason: graph.FrontierDepthLimit}, {ResourceID: keptID, Reason: graph.FrontierDepthLimit}},
+			Entry:    graph.EntryPoint{Kind: graph.EntryResource, Resource: hiddenID},
+		},
+		NotIncluded: []graph.NotIncludedAsset{{AssetID: hidden, Reason: graph.NotIncludedPublicationWithheld}},
+	}
+	filteredTraversal := gatewayScopeTraversal(traversal, allowed, index)
+	traversalRaw, err := json.Marshal(filteredTraversal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(traversalRaw, []byte("resource:hidden")) || bytes.Contains(traversalRaw, []byte("asset:hidden")) || bytes.Contains(traversalRaw, []byte("snap:hidden")) {
+		t.Fatalf("filtered traversal leaked: %s", traversalRaw)
+	}
+	if !bytes.Contains(traversalRaw, []byte("resource:kept")) || !bytes.Contains(traversalRaw, []byte("resource:other")) {
+		t.Fatalf("filtered traversal dropped a kept endpoint: %s", traversalRaw)
+	}
+	subject := hiddenResource
+	lens := graph.LensResult{
+		Resources: []graph.LensResource{
+			{AssetID: kept, Resource: semreg.Resource{ResourceID: keptID}},
+			{AssetID: hidden, Resource: semreg.Resource{ResourceID: hiddenID}},
+		},
+		Relations:    []graph.LensRelation{{AssetID: hidden, From: hiddenID, To: keptID}, {AssetID: kept, From: keptID, To: otherID}},
+		Absences:     []semreg.RelationAbsence{{Resource: hiddenID}, {Resource: keptID}},
+		Facts:        []graph.LensFact{{AssetID: hidden, Subject: hiddenID}, {AssetID: kept, Subject: keptID}},
+		Services:     []semreg.ServiceInstance{{AssetID: hidden}, {AssetID: kept, Resource: &subject}, {AssetID: kept}},
+		Capabilities: []semreg.CapabilityInstance{{AssetID: hidden}, {AssetID: kept}},
+		Findings:     []graph.CutFinding{{Assets: []semreg.AssetID{hidden}}, {Assets: []semreg.AssetID{kept}}},
+		Frontier:     []graph.FrontierEntry{{ResourceID: hiddenID}, {ResourceID: keptID}},
+		Cut: graph.CutRef{
+			Completeness: graph.CutComplete,
+			Members:      []graph.CutMember{{AssetID: kept}, {AssetID: hidden}},
+			NotIncluded:  []graph.NotIncludedAsset{{AssetID: hidden, Reason: graph.NotIncludedExcluded}, {AssetID: kept, Reason: graph.NotIncludedSourceUnavailable}},
+		},
+		Entry: graph.EntryPoint{Kind: graph.EntryResource, Resource: hiddenID},
+	}
+	filteredLens := gatewayScopeLens(lens, allowed, index)
+	lensRaw, err := json.Marshal(filteredLens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(lensRaw, []byte("asset:hidden")) || bytes.Contains(lensRaw, []byte("resource:hidden")) {
+		t.Fatalf("filtered lens leaked: %s", lensRaw)
+	}
+	if !bytes.Contains(lensRaw, []byte("resource:kept")) || !bytes.Contains(lensRaw, []byte("resource:other")) || !bytes.Contains(lensRaw, []byte(string(graph.NotIncludedSourceUnavailable))) {
+		t.Fatalf("filtered lens dropped a kept row: %s", lensRaw)
+	}
+	if filteredLens.Cut.Completeness != graph.CutPartial || filteredLens.Resources == nil || filteredLens.Cut.Members == nil {
+		t.Fatalf("filtered lens shape: %+v", filteredLens.Cut)
+	}
+}

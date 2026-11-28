@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portalgraphql"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/life"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/tree"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
@@ -364,9 +366,14 @@ func gatewayResourceFromCut(descriptor contributionv1.AcceptedDescriptor, entry 
 	}, true
 }
 
+// errGatewaySemanticActionUnavailable is the portal result for an admitted
+// action that names a semantic operation. This invoker dispatches native
+// setup procedures only.
+var errGatewaySemanticActionUnavailable = errors.New("portal semantic action unavailable")
+
 // gatewayHostActionAdmission is the host invoker and revalidator. A native
 // action is a setup procedure on an instance or transport node. A semantic
-// action records the operation the catalog admitted. The revalidator repeats
+// action has no dispatcher here and is unavailable. The revalidator repeats
 // the detached source identity of the action the catalog just built.
 type gatewayHostActionAdmission struct {
 	tree *tree.Tree
@@ -391,7 +398,7 @@ func (a gatewayHostActionAdmission) Invoke(action catalogv1.Action, claim catalo
 		if a.tree == nil {
 			return nil, fmt.Errorf("portal action %s has no host tree", action.ID)
 		}
-		key, err := gatewayNativeActionKey(a.tree, action.ContributionDriverID, action.NativeMemberID)
+		key, err := gatewayNativeActionKey(a.tree, action.ContributionDriverID, action.NativeMemberID, action.ResourceID, action.Source.AssetID)
 		if err != nil {
 			return nil, err
 		}
@@ -404,21 +411,30 @@ func (a gatewayHostActionAdmission) Invoke(action catalogv1.Action, claim catalo
 		}
 		return json.Marshal(map[string]string{"native": string(outcome.Native)})
 	}
-	return json.Marshal(map[string]string{"operation": action.OperationID})
+	return nil, errGatewaySemanticActionUnavailable
 }
 
-// gatewayNativeActionKey selects the first instance or transport method whose
-// local id and namespace owner match the action. A device node is not a setup
-// procedure.
-func gatewayNativeActionKey(graphTree *tree.Tree, driverID, local string) (driver.MemberKey, error) {
-	if graphTree == nil || graphTree.Registry == nil {
+// gatewayNativeActionKey selects the setup method on the instance that owns
+// the selected resource. Ownership is the host asset of that instance. An
+// instance node wins over a transport node of the same instance. A device
+// node is not a setup procedure, and more than one node at the chosen level
+// is refused.
+func gatewayNativeActionKey(graphTree *tree.Tree, driverID, local, resourceID, sourceAsset string) (driver.MemberKey, error) {
+	if graphTree == nil || graphTree.Registry == nil || resourceID == "" {
+		return driver.MemberKey{}, fmt.Errorf("native action %s is not registered", local)
+	}
+	ctx := context.Background()
+	asset, err := gatewayResourceAsset(ctx, graphTree, resourceID)
+	if err != nil {
+		return driver.MemberKey{}, err
+	}
+	if asset == "" || (sourceAsset != "" && sourceAsset != string(asset)) {
 		return driver.MemberKey{}, fmt.Errorf("native action %s is not registered", local)
 	}
 	changes, ok := graphTree.Registry.Since(0)
 	if !ok {
 		return driver.MemberKey{}, fmt.Errorf("native action %s is not registered", local)
 	}
-	ctx := context.Background()
 	cut, err := graphTree.Capture(ctx, tree.CutOptions{})
 	if err != nil {
 		return driver.MemberKey{}, err
@@ -428,6 +444,8 @@ func gatewayNativeActionKey(graphTree *tree.Tree, driverID, local string) (drive
 	for _, entry := range cut.Roster() {
 		owners[entry.Key] = entry.Owner
 	}
+	instanceKeys := map[driver.MemberKey]struct{}{}
+	transportKeys := map[driver.MemberKey]struct{}{}
 	for _, change := range changes {
 		if change.Kind != tree.ChangeMethod {
 			continue
@@ -447,14 +465,70 @@ func gatewayNativeActionKey(graphTree *tree.Tree, driverID, local string) (drive
 		if err != nil || (level != tree.LevelInstance && level != tree.LevelTransport) {
 			continue
 		}
-		return driver.MemberKey{
+		if gatewayInstanceAsset(parsed.Node.Driver, parsed.Node.Instance) != asset {
+			continue
+		}
+		key := driver.MemberKey{
 			Namespace: descriptor.Namespace,
 			Instance:  parsed.Node.Instance,
 			Node:      driver.NodeID(parsed.Node.NodeID()),
 			Local:     driver.MemberID(local),
-		}, nil
+		}
+		if level == tree.LevelInstance {
+			instanceKeys[key] = struct{}{}
+			continue
+		}
+		transportKeys[key] = struct{}{}
 	}
-	return driver.MemberKey{}, fmt.Errorf("native action %s is not registered", local)
+	switch {
+	case len(instanceKeys) == 1:
+		return gatewayOneMemberKey(instanceKeys), nil
+	case len(instanceKeys) == 0 && len(transportKeys) == 1:
+		return gatewayOneMemberKey(transportKeys), nil
+	case len(instanceKeys) == 0 && len(transportKeys) == 0:
+		return driver.MemberKey{}, fmt.Errorf("native action %s is not registered", local)
+	default:
+		return driver.MemberKey{}, fmt.Errorf("native action %s matches more than one node", local)
+	}
+}
+
+func gatewayOneMemberKey(keys map[driver.MemberKey]struct{}) driver.MemberKey {
+	for key := range keys {
+		return key
+	}
+	return driver.MemberKey{}
+}
+
+// gatewayResourceAsset reads every page of the newest cut until it finds the
+// resource. An empty asset means the resource is not in the cut.
+func gatewayResourceAsset(ctx context.Context, graphTree *tree.Tree, resourceID string) (semreg.AssetID, error) {
+	seen := map[string]struct{}{}
+	var token string
+	for {
+		if _, again := seen[token]; again {
+			return "", fmt.Errorf("native action resource %s page repeated", resourceID)
+		}
+		seen[token] = struct{}{}
+		result, err := graphTree.ListResources(ctx, graph.ListRequest{PageSize: graph.MaxPageSize, PageToken: token})
+		if err != nil {
+			return "", err
+		}
+		for _, entry := range result.Page.Resources {
+			if string(entry.ResourceID) == resourceID {
+				return entry.AssetID, nil
+			}
+		}
+		if result.Page.NextPage == "" {
+			return "", nil
+		}
+		token = result.Page.NextPage
+	}
+}
+
+// gatewayInstanceAsset is the asset the host stamps on one driver instance.
+func gatewayInstanceAsset(kind driver.DriverKind, instance driver.InstanceKey) semreg.AssetID {
+	sum := sha256.Sum256([]byte(life.Ref{Driver: kind, Instance: instance}.ID()))
+	return semreg.AssetID("asset:instance:" + hex.EncodeToString(sum[:8]))
 }
 
 func gatewayPortalStoragePublication(provider *growattBMSRS485ProductionProvider) *growattStoragePublication {

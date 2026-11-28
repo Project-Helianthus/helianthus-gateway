@@ -27,11 +27,13 @@ import (
 	"github.com/Project-Helianthus/helianthus-gateway/portal"
 	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-gateway/portalgraphql"
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
 	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 )
 
@@ -390,14 +392,81 @@ func portalSurfaceAction(t *testing.T, catalog catalogv1.Catalog) (catalogv1.Act
 		if action.NativeMemberID != "pairing" || action.ResourceID == "" {
 			continue
 		}
-		for _, item := range catalog.Contributions {
-			if item.DriverID == action.ContributionDriverID && item.ManifestID == action.ContributionManifestID && item.ManifestVersion == action.ContributionManifestVersion && item.Digest != "" {
-				return action, item.Digest
-			}
-		}
+		return portalSurfaceActionDigest(t, catalog, action)
 	}
 	t.Fatalf("pairing action was not discovered: %+v", catalog.Actions)
 	return catalogv1.Action{}, ""
+}
+
+func portalSurfaceActionFor(t *testing.T, catalog catalogv1.Catalog, resourceID string) (catalogv1.Action, string) {
+	t.Helper()
+	for _, action := range catalog.Actions {
+		if action.NativeMemberID == "pairing" && action.ResourceID == resourceID {
+			return portalSurfaceActionDigest(t, catalog, action)
+		}
+	}
+	t.Fatalf("pairing action for %s was not discovered: %+v", resourceID, catalog.Actions)
+	return catalogv1.Action{}, ""
+}
+
+func portalSurfaceActionDigest(t *testing.T, catalog catalogv1.Catalog, action catalogv1.Action) (catalogv1.Action, string) {
+	t.Helper()
+	for _, item := range catalog.Contributions {
+		if item.DriverID == action.ContributionDriverID && item.ManifestID == action.ContributionManifestID && item.ManifestVersion == action.ContributionManifestVersion && item.Digest != "" {
+			return action, item.Digest
+		}
+	}
+	t.Fatalf("pairing action %s has no digest", action.ResourceID)
+	return catalogv1.Action{}, ""
+}
+
+func TestGatewayNativeActionDispatchFollowsTheSelectedResource(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(resetGatewayComposedSurfaces)
+	opened, factory, _ := openSurfaceHost(t, dir, false)
+	t.Cleanup(func() { _ = opened.Close(context.Background()) })
+	contributions, err := newGatewayPortalCatalogContributions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	leases := startPortalTestBaseline(t, contributions)
+	defer func() {
+		for _, lease := range leases {
+			lease.Stop()
+		}
+	}()
+	source := newGatewayPortalCatalogSource(nil, nil, nil, contributions)
+	bindGatewayComposedSurfaces(opened, source)
+	publishSurfaceManifests(t, contributions)
+	mux := http.NewServeMux()
+	registerHTTPPortalRoutes(mux, "/portal", portal.Options{SharedSemanticView: func(context.Context) (semanticview.View, error) {
+		return semanticview.View{}, nil
+	}}, source)
+	catalog := portalDecodeCatalog(t, portalMuxPost(t, mux, "/graphql/portal/v1", `{"operationName":"PortalCatalogV1","variables":{}}`))
+	one := factory.state(driver.InstanceKey("surface.one"))
+	two := factory.state(driver.InstanceKey("surface.two"))
+	if one == nil || two == nil {
+		t.Fatal("both instances are required")
+	}
+	// The second resource is invoked first. A lookup that ignores the resource
+	// executes pairing on whichever instance was registered first.
+	portalInvokeSurfacePairing(t, mux, catalog, "resource:surface:surface.two", "marker-two", two, one)
+	portalInvokeSurfacePairing(t, mux, catalog, "resource:surface:surface.one", "marker-one", one, two)
+}
+
+func portalInvokeSurfacePairing(t *testing.T, mux *http.ServeMux, catalog catalogv1.Catalog, resourceID, marker string, selected, other *surfaceInstanceState) {
+	t.Helper()
+	action, digest := portalSurfaceActionFor(t, catalog, resourceID)
+	beforeSelected := selected.pairing.Load()
+	beforeOther := other.pairing.Load()
+	beforeDevices := selected.deviceCalls.Load() + other.deviceCalls.Load()
+	native := portalInvokeNative(t, mux, "/graphql/portal/v1", portalSurfaceClaim(catalog, action, digest, marker))
+	if native != string(selected.key)+":"+marker {
+		t.Fatalf("%s native = %s", resourceID, native)
+	}
+	if selected.pairing.Load() != beforeSelected+1 || other.pairing.Load() != beforeOther || selected.deviceCalls.Load()+other.deviceCalls.Load() != beforeDevices {
+		t.Fatalf("%s pairing selected=%d other=%d devices=%d", resourceID, selected.pairing.Load(), other.pairing.Load(), selected.deviceCalls.Load()+other.deviceCalls.Load())
+	}
 }
 
 func portalSurfaceClaim(catalog catalogv1.Catalog, action catalogv1.Action, digest, key string) catalogv1.Claims {
@@ -1192,6 +1261,84 @@ func (portalTestInvoker) Invoke(catalogv1.Action, catalogv1.Claims) (json.RawMes
 type portalTestRevalidator struct{}
 
 func (portalTestRevalidator) Revalidate(catalogv1.Action, catalogv1.Claims) error { return nil }
+
+// TestGatewayHostSemanticActionInvokeIsUnavailable admits a non-native
+// operation action and invokes it through the portal endpoint. The host
+// invoker does not dispatch that operation, so the call is an unavailable
+// error and not a success body naming the operation.
+func TestGatewayHostSemanticActionInvokeIsUnavailable(t *testing.T) {
+	contributions := newPortalFixtureContributions(t)
+	owner := portalAllocationDescriptor("evse.primary", "portal.evse.allocation", "1.0.0")
+	lease := startPortalTestLease(t, contributions, portalFixtureManifest(owner))
+	defer lease.Stop()
+	admission := newGatewayHostActionAdmission(nil)
+	contributions.bindActionAdmission(admission, admission)
+
+	attribution := portalAttribution{drivers: portalTestDrivers{"source:owner": "evse.runtime"}, accepted: contributions.snapshot().Accepted}.ownedBy("source:owner")
+	service := semanticRef(owner.Fields[0].ServiceRef)
+	capability := semanticRef(owner.Fields[0].CapabilityRef)
+	resources, _, diagnostics := portalSnapshotCapture(attribution, owner, portalContributorSnapshot(service, capability, []string{"owner"}, "owner"), semreg.EvaluationView{}, []semreg.Selection{}, map[string]any{})
+	if len(diagnostics) != 0 || len(resources) != 1 {
+		t.Fatalf("resources=%d diagnostics=%+v", len(resources), diagnostics)
+	}
+	resources[0].ID = "resource:shared"
+	composer, err := contributions.composer(portalStaticCapture{captured: catalogv1.Capture{
+		Domains: owner.Requires.Packs,
+		LensMembers: map[string][]catalogv1.LensMember{portalFixtureLensID: {
+			{ResourceID: "resource:shared", AssetID: "asset:shared"},
+		}},
+		Resources: resources,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := composer.Catalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Actions) != 1 {
+		t.Fatalf("actions=%+v", catalog.Actions)
+	}
+	action := catalog.Actions[0]
+	if action.ID != "allocate" || action.NativeMemberID != "" || action.OperationID != "evse.operation.set_allocated_current" {
+		t.Fatalf("action=%+v", action)
+	}
+	var digest string
+	for _, item := range catalog.Contributions {
+		if item.DriverID == action.ContributionDriverID && item.ManifestID == action.ContributionManifestID && item.ManifestVersion == action.ContributionManifestVersion {
+			digest = item.Digest
+		}
+	}
+	if digest == "" {
+		t.Fatal("admitted semantic action has no digest")
+	}
+	claim := portalSurfaceClaim(catalog, action, digest, "marker-semantic")
+	raw, err := admission.Invoke(action, claim)
+	if raw != nil || !errors.Is(err, errGatewaySemanticActionUnavailable) {
+		t.Fatalf("invoke raw=%s err=%v", raw, err)
+	}
+
+	body, err := json.Marshal(map[string]any{"operationName": "PortalActionInvokeV1", "variables": map[string]any{"claim": claim}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	portalgraphql.Handler{Catalog: composer}.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/graphql/portal/v1", bytes.NewReader(body)))
+	if response.Code != http.StatusOK || bytes.Contains(response.Body.Bytes(), []byte(`"portalActionInvokeV1"`)) {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	var decoded struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.Errors) != 1 || decoded.Errors[0].Message != errGatewaySemanticActionUnavailable.Error() {
+		t.Fatalf("body=%s", response.Body.String())
+	}
+}
 
 func TestPortalCatalogKeepsResourceWithSeveralContributors(t *testing.T) {
 	contributions := newPortalFixtureContributions(t)
