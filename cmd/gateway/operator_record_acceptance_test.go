@@ -722,18 +722,64 @@ func TestOperatorRecordAcceptanceRefusesAJoinOfDifferentNativeAnchors(t *testing
 	}
 }
 
-// The one remaining limit of the operator-record path: an operator identity
-// declaration in the form of an identity link names the driver's binding, so
-// only the driver's own batch can carry it. Declaring it publishes nothing; a
-// driver batch that does not carry it leaves it pending; the driver's next
-// batch that carries the pending links publishes it.
+// oraGraphFact is the graph membership and route authority of one asset,
+// without the snapshot identifier a later batch changes.
+type oraGraphFact struct {
+	resources    []semreg.Resource
+	relations    []semreg.RelationInstance
+	services     []semreg.ServiceInstance
+	capabilities []semreg.CapabilityInstance
+	assets       []semreg.AssetID
+	cutRelations []graph.CutRelation
+	excluded     []semreg.AssetID
+	findings     []graph.CutFinding
+}
+
+func (f *oraFixture) graphFact(t *testing.T, id semreg.AssetID) oraGraphFact {
+	t.Helper()
+	view := f.inspect(t, id)
+	cut := f.cut(t)
+	members := cut.Members()
+	assets := make([]semreg.AssetID, len(members))
+	for i, member := range members {
+		assets[i] = member.AssetID
+	}
+	return oraGraphFact{
+		resources:    append([]semreg.Resource(nil), view.Snapshot.Resources...),
+		relations:    append([]semreg.RelationInstance(nil), view.Snapshot.Relations...),
+		services:     append([]semreg.ServiceInstance(nil), view.Snapshot.Services...),
+		capabilities: append([]semreg.CapabilityInstance(nil), view.Snapshot.Capabilities...),
+		assets:       assets,
+		cutRelations: cut.Relations(),
+		excluded:     cut.Excluded(),
+		findings:     cut.Findings(),
+	}
+}
+
+// An operator identity link names the driver's binding, so only the driver's
+// own batch can carry it. The accepted configured record reaches the hub
+// through the configuration provider. Nothing is published before that owner's
+// batch. The owner's batch that carries the pending links publishes the
+// selected resource and the audit of the stored records. Removing the record
+// withdraws the association on the owner's next eligible batch. The link does
+// not change graph membership or route authority.
 func TestOperatorRecordAcceptanceIdentityLinkWaitsForTheDriversNextBatch(t *testing.T) {
 	site := oraSitePath()
 	site.unlinked = true
 	f := newOraFixture(t, infrastructure.New, []*oraPath{site})
-	audit := portalOperatorAudit(oraSiteAsset, nil)
-	if err := f.hub.SetOperatorLinks(oraSiteAsset, oraSiteSource, []semhub.OperatorLink{{Native: site.native(), Resource: oraConnection, Basis: []semreg.EvidenceRef{audit.evidence()}}}); err != nil {
-		t.Fatalf("declare the operator identity link: %v", err)
+	native := site.native()
+	set := portalconfig.OperatorRecordSet{Format: portalconfig.OperatorRecordsFormat, Revision: "0", Records: []portalconfig.OperatorRecord{{
+		Form: portalconfig.OperatorFormIdentityLink, Home: string(oraSiteAsset), ResourceID: string(oraConnection), BasisClass: string(semreg.RelationConfiguration), Native: &native,
+	}}}
+	saved := f.replace(t, set, "waiting:"+portalOperatorIdentityLinkPending)
+	audit := portalOperatorAudit(oraSiteAsset, saved.Records)
+	before := f.graphFact(t, oraSiteAsset)
+	if len(before.services) != 0 || len(before.capabilities) != 0 || len(before.relations) != 0 || len(before.cutRelations) != 0 {
+		t.Fatalf("route authority before the link: services=%d capabilities=%d relations=%d cut=%d", len(before.services), len(before.capabilities), len(before.relations), len(before.cutRelations))
+	}
+	resource, ok := oprResourceIn(f.inspect(t, oraSiteAsset).Snapshot, oraConnection)
+	if !ok || resource.State != semreg.ResourceCurrent {
+		t.Fatalf("selected resource %+v present=%v", resource, ok)
 	}
 	linked := func() (semreg.IdentityLink, bool) {
 		for _, link := range f.inspect(t, oraSiteAsset).Snapshot.IdentityLinks {
@@ -743,22 +789,46 @@ func TestOperatorRecordAcceptanceIdentityLinkWaitsForTheDriversNextBatch(t *test
 		}
 		return semreg.IdentityLink{}, false
 	}
-	if link, ok := linked(); ok {
-		t.Fatalf("the declaration was published before the driver's batch: %+v", link)
+	for _, link := range f.inspect(t, oraSiteAsset).Snapshot.IdentityLinks {
+		if link.BindingID == site.binding(t) && link.Resource != nil {
+			t.Fatalf("the configured link was published before the owner's batch: %+v", link)
+		}
+		if link.BindingID == site.binding(t) && link.Resource == nil && link.State != semreg.LinkQualified {
+			t.Fatalf("the unlinked binding is %+v", link)
+		}
 	}
 	if err := f.publish(t, site, nil); err != nil {
-		t.Fatalf("driver batch without the pending link: %v", err)
+		t.Fatalf("owner batch without the pending link: %v", err)
 	}
 	if link, ok := linked(); ok {
-		t.Fatalf("a batch that did not carry the declaration published it: %+v", link)
+		t.Fatalf("a batch that did not carry the configured link published it: %+v", link)
 	}
 	if err := f.publish(t, site, func(tx *semhub.Tx, batch *semreg.PublicationBatch) {
 		batch.IdentityLinkUpserts = tx.OperatorLinks(batch.BindingUpserts)
 	}); err != nil {
-		t.Fatalf("driver batch with the pending link: %v", err)
+		t.Fatalf("owner batch with the pending link: %v", err)
 	}
 	link, ok := linked()
 	if !ok || *link.Resource != oraConnection || link.State != semreg.LinkQualified || !reflect.DeepEqual(link.Basis, []semreg.EvidenceRef{audit.evidence()}) {
-		t.Fatalf("link=%+v present=%v, want the declaration carried by the driver's batch", link, ok)
+		t.Fatalf("link=%+v present=%v, want the configured resource and the audit of the stored records", link, ok)
+	}
+	if carried := f.graphFact(t, oraSiteAsset); !reflect.DeepEqual(carried, before) {
+		t.Fatalf("the carried link changed graph membership or route authority")
+	}
+	cleared, err := f.records.Replace(context.Background(), portalconfig.OperatorRecordSet{Format: portalconfig.OperatorRecordsFormat, Revision: saved.Revision})
+	if err != nil || len(cleared.Records) != 0 {
+		t.Fatalf("remove the configured link: %+v %v", cleared, err)
+	}
+	if err = f.publish(t, site, func(tx *semhub.Tx, batch *semreg.PublicationBatch) {
+		batch.IdentityLinkUpserts = tx.OperatorLinks(batch.BindingUpserts)
+	}); err != nil {
+		t.Fatalf("owner batch after the configured link was removed: %v", err)
+	}
+	link, ok = linked()
+	if !ok || *link.Resource != oraConnection || link.State != semreg.LinkWithdrawn || !reflect.DeepEqual(link.Basis, []semreg.EvidenceRef{audit.evidence()}) {
+		t.Fatalf("link=%+v present=%v, want the association withdrawn and the selected resource still named", link, ok)
+	}
+	if after := f.graphFact(t, oraSiteAsset); !reflect.DeepEqual(after, before) {
+		t.Fatalf("the withdrawal changed graph membership or route authority")
 	}
 }

@@ -353,6 +353,7 @@ func TestOperatorRecordDecodeIsClosedAndBounded(t *testing.T) {
 		name, body, code, field string
 	}{
 		{"unknown section member", strings.Replace(string(valid), `"records":`, `"private_marker":1,"records":`, 1), "invalid_record", "operator_records"},
+		{"host-local section", strings.Replace(string(valid), `"records":`, `"certified_joins":[],"records":`, 1), "invalid_record", "operator_records"},
 		{"duplicate section member", strings.Replace(string(valid), `"revision":"0"`, `"revision":"0","revision":"0"`, 1), "invalid_record", "operator_records"},
 		{"null member", strings.Replace(string(valid), `"revision":"0"`, `"revision":null`, 1), "invalid_record", "operator_records"},
 		{"member of another form", strings.Replace(string(valid), `"slot":"array-south"`, `"slot":"array-south","from":"resource:portal-opr:inverter-1"`, 1), "invalid_record", "records[0]"},

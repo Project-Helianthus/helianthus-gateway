@@ -82,11 +82,13 @@ func openGatewayPortalConfigRuntime(cfg ebusgateway.Config) *gatewayPortalConfig
 			for _, driver := range record.Drivers {
 				runtime.selected[runtimecontrol.DriverID(driver.ID)] = driver.Enabled
 			}
+			bindGatewayTrustedJoins(cfg.PortalConfigRoot)
 			return runtime
 		}
 		runtime.loadErr = err
 	}
 	runtime.failClosed = portalConfigRecordMayExist(cfg.PortalConfigRoot)
+	bindGatewayTrustedJoins(cfg.PortalConfigRoot)
 	if !runtime.failClosed {
 		log.Printf("portal configuration: no record file (%s); host driver configuration applies", runtime.errorCode())
 	}
@@ -296,6 +298,7 @@ func (r *gatewayPortalConfigRuntime) Close() error {
 	if r == nil {
 		return nil
 	}
+	clearGatewayTrustedJoins()
 	r.mu.Lock()
 	operators := r.operators
 	r.mu.Unlock()
