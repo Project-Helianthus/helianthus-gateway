@@ -3,6 +3,7 @@ package runtimecontrol
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/Project-Helianthus/helianthus-gateway/internal/drivermanager"
@@ -91,14 +92,39 @@ type HubSourceOwnership interface {
 	SourceOwner(SourceID) (DriverID, bool)
 }
 
-// ResolveHook reports whether a hook of a registered driver is available.
-// No hook is implemented by this host: every reserved name fails as
-// unimplemented, evidence included, and any other name is unknown.
-func (r *Registry) ResolveHook(id DriverID, name HookName) error {
-	if _, err := r.Get(id); err != nil {
-		return err
+// ResolveHook returns the surface bound for a reserved hook the driver
+// declared. An unknown driver is not found. A name that is not reserved,
+// output included, is unknown. A reserved name the driver did not declare,
+// or a declared name with no usable surface of that same name, is
+// unimplemented. The surface value is the one the host bound.
+func (r *Registry) ResolveHook(id DriverID, name HookName) (Surface, error) {
+	if !canonicalDriverID(id) {
+		return nil, ErrNotFound
 	}
-	return hookError(name)
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	stored, ok := r.entries[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	if !reservedHook(name) {
+		return nil, ErrUnknownHook
+	}
+	declared := false
+	for _, hook := range stored.entry.Hooks {
+		if hook.Name == name {
+			declared = true
+			break
+		}
+	}
+	if !declared {
+		return nil, fmt.Errorf("%w: %s is reserved", ErrHookUnimplemented, name)
+	}
+	surface := r.surfaces[name]
+	if !surfaceUsable(surface) || surface.Hook() != name {
+		return nil, fmt.Errorf("%w: %s is reserved", ErrHookUnimplemented, name)
+	}
+	return surface, nil
 }
 
 // Binding returns the frozen construction and adapter of a registered driver
