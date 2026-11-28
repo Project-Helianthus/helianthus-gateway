@@ -6,8 +6,9 @@
 // START, STOP and RESTART through an injected durable store and reconciles
 // each driver through an injected lifecycle executor and recovery adapter.
 // The package performs no construction, endpoint I/O or semantic declaration
-// of its own, has no production registration and no MCP surface, and carries
-// no receipts, idempotency keys, principals or authorization adapters.
+// of its own and serves no MCP surface. A host binds the surfaces of the
+// reserved hooks; this package does not name a driver. It carries no
+// receipts, idempotency keys, principals or authorization adapters.
 package runtimecontrol
 
 import (
@@ -86,7 +87,10 @@ type NativeContractRef struct {
 // HookName names a driver hook declaration.
 type HookName string
 
-// Reserved future hook names. Reserving a name does not implement it.
+// Reserved hook names. A descriptor may declare any subset, each name once,
+// at RegistrationHookVersion, on any direction. Declaring a name does not
+// bind its surface; the host does that. ResolveHook returns the bound
+// surface when that driver declared the name.
 const (
 	HookMCP      HookName = "mcp"
 	HookSetup    HookName = "setup"
@@ -95,10 +99,14 @@ const (
 	HookEvidence HookName = "evidence"
 )
 
-// HookOutput is the northbound output hook. It is the one hook name a
-// descriptor may declare: only alone, only at OutputHookVersion and only on a
-// northbound descriptor, never on southbound or both. Admitting it publishes
-// nothing; start, stop and health stay with the driver manager.
+// RegistrationHookVersion is the only supported version of a reserved hook.
+const RegistrationHookVersion = "1"
+
+// HookOutput is the northbound output hook. It is admitted only alone, only
+// at OutputHookVersion and only on a northbound descriptor, never on
+// southbound or both, and never beside a reserved hook. Admitting it publishes
+// nothing; start, stop and health stay with the driver manager. ResolveHook
+// does not resolve it.
 const HookOutput HookName = "output"
 
 // OutputHookVersion is the only supported version of the output hook.

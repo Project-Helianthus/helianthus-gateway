@@ -161,12 +161,12 @@ func TestOutputHookLeavesResolveHookClassification(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 	for _, name := range []HookName{HookMCP, HookSetup, HookPortal, HookSemantic, HookEvidence} {
-		if err := registry.ResolveHook("fake.output-resolve", name); !errors.Is(err, ErrHookUnimplemented) {
+		if _, err := registry.ResolveHook("fake.output-resolve", name); !errors.Is(err, ErrHookUnimplemented) {
 			t.Fatalf("ResolveHook(%s) = %v, want ErrHookUnimplemented", name, err)
 		}
 	}
 	for _, name := range []HookName{"", "telemetry", "OUTPUT", "output.v1"} {
-		if err := registry.ResolveHook("fake.output-resolve", name); !errors.Is(err, ErrUnknownHook) {
+		if _, err := registry.ResolveHook("fake.output-resolve", name); !errors.Is(err, ErrUnknownHook) {
 			t.Fatalf("ResolveHook(%q) = %v, want ErrUnknownHook", name, err)
 		}
 	}

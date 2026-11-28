@@ -208,7 +208,7 @@ func TestRegisterRejectsBeforeEffects(t *testing.T) {
 		{"source owned in hub", single(func(d *Descriptor) { d.Sources = []SourceID{"hub-src"} }), ErrHubSourceCollision},
 		{"unknown hook", single(func(d *Descriptor) { d.Hooks = []HookDeclaration{{Name: "telemetry", Version: "v1"}} }), ErrUnknownHook},
 		{"empty hook name", single(func(d *Descriptor) { d.Hooks = []HookDeclaration{{Name: "", Version: "v1"}} }), ErrUnknownHook},
-		{"reserved hook unknown version", single(func(d *Descriptor) { d.Hooks = []HookDeclaration{{Name: HookMCP, Version: "v999"}} }), ErrHookUnimplemented},
+		{"reserved hook unknown version", single(func(d *Descriptor) { d.Hooks = []HookDeclaration{{Name: HookMCP, Version: "v999"}} }), ErrUnsupportedHookVersion},
 		{"output hook on southbound", single(func(d *Descriptor) {
 			d.Direction = DirectionSouthbound
 			d.Hooks = []HookDeclaration{{Name: HookOutput, Version: OutputHookVersion}}
@@ -254,7 +254,7 @@ func TestRegisterRejectsBeforeEffects(t *testing.T) {
 			name  string
 			batch mutation
 			want  error
-		}{"reserved hook " + string(name), single(func(d *Descriptor) { d.Hooks = []HookDeclaration{{Name: name, Version: "v1"}} }), ErrHookUnimplemented})
+		}{"reserved hook " + string(name), single(func(d *Descriptor) { d.Hooks = []HookDeclaration{{Name: name, Version: "v1"}} }), ErrUnsupportedHookVersion})
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -450,7 +450,7 @@ func TestUnknownAndInvalidIDsConstructNothing(t *testing.T) {
 		if _, err := registry.Binding(id); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("Binding(%q) = %v, want ErrNotFound", id, err)
 		}
-		if err := registry.ResolveHook(id, HookMCP); !errors.Is(err, ErrNotFound) {
+		if _, err := registry.ResolveHook(id, HookMCP); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("ResolveHook(%q) = %v, want ErrNotFound", id, err)
 		}
 	}
@@ -472,13 +472,13 @@ func TestEveryHookFailsAsUnimplemented(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []HookName{HookMCP, HookSetup, HookPortal, HookSemantic, HookEvidence} {
-		err := registry.ResolveHook("fake.hooks", name)
+		_, err := registry.ResolveHook("fake.hooks", name)
 		if !errors.Is(err, ErrHookUnimplemented) {
 			t.Fatalf("ResolveHook(%s) = %v, want ErrHookUnimplemented", name, err)
 		}
 	}
 	for _, name := range []HookName{"", "telemetry", "MCP", "evidence.v1"} {
-		if err := registry.ResolveHook("fake.hooks", name); !errors.Is(err, ErrUnknownHook) {
+		if _, err := registry.ResolveHook("fake.hooks", name); !errors.Is(err, ErrUnknownHook) {
 			t.Fatalf("ResolveHook(%q) = %v, want ErrUnknownHook", name, err)
 		}
 	}

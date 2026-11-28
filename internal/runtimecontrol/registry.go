@@ -77,6 +77,7 @@ type Registry struct {
 	revision CatalogRevision
 	entries  map[DriverID]registered
 	sources  map[SourceID]DriverID
+	surfaces map[HookName]Surface
 }
 
 // NewRegistry returns an empty registry that checks source ownership against
@@ -267,22 +268,31 @@ func safeNativeContractRef(ref NativeContractRef) bool {
 	return true
 }
 
-// admitHooks validates a descriptor's hook list. An empty list is valid. The
-// only accepted non-empty list is a single output declaration at
-// OutputHookVersion on a northbound descriptor. Every other name fails
-// through hookError first, whatever its position or the direction; then
-// output on any direction other than northbound, both included; then an
-// unsupported output version; then a repeated output declaration.
+// admitHooks validates a descriptor's hook list. An empty list is valid on
+// every direction. A reserved name is admitted at RegistrationHookVersion,
+// once, on any direction, in any subset. Any other name is unknown, before
+// direction. The output declaration keeps its rules: only alone, only at
+// OutputHookVersion, and only on northbound. Direction is checked before the
+// output version, and the version before a repeated output. Output beside a
+// reserved hook at the admitted version stays unimplemented.
 func admitHooks(direction Direction, hooks []HookDeclaration) error {
 	outputs := 0
+	seen := make(map[HookName]struct{}, len(hooks))
 	for _, hook := range hooks {
 		if hook.Name == HookOutput {
 			outputs++
 			continue
 		}
-		if err := hookError(hook.Name); err != nil {
-			return err
+		if !reservedHook(hook.Name) {
+			return ErrUnknownHook
 		}
+		if hook.Version != RegistrationHookVersion {
+			return fmt.Errorf("%w: %s", ErrUnsupportedHookVersion, hook.Name)
+		}
+		if _, exists := seen[hook.Name]; exists {
+			return fmt.Errorf("%w: %s", ErrDuplicateHook, hook.Name)
+		}
+		seen[hook.Name] = struct{}{}
 	}
 	if outputs == 0 {
 		return nil
@@ -298,18 +308,10 @@ func admitHooks(direction Direction, hooks []HookDeclaration) error {
 	if outputs > 1 {
 		return fmt.Errorf("%w: %s", ErrDuplicateHook, HookOutput)
 	}
-	return nil
-}
-
-// hookError classifies a hook name that registration does not admit:
-// reserved names fail as unimplemented, all others as unknown. ResolveHook
-// still classifies every name through it, output included, because this host
-// resolves no hook.
-func hookError(name HookName) error {
-	switch name {
-	case HookMCP, HookSetup, HookPortal, HookSemantic, HookEvidence:
-		return fmt.Errorf("%w: %s is reserved", ErrHookUnimplemented, name)
-	default:
-		return ErrUnknownHook
+	for _, hook := range hooks {
+		if reservedHook(hook.Name) {
+			return fmt.Errorf("%w: %s is reserved", ErrHookUnimplemented, hook.Name)
+		}
 	}
+	return nil
 }
