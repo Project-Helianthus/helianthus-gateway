@@ -5,10 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +20,10 @@ import (
 	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portalgraphql"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/life"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/tree"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/packs"
 )
@@ -44,7 +50,7 @@ func newPortalCatalogV1Handler(source catalogv1.SourceCapture) http.Handler {
 			http.Error(w, "portal descriptor registry unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		portalgraphql.Handler{Catalog: composer}.ServeHTTP(w, r)
+		portalgraphql.Handler{Catalog: composer, TargetCatalog: contributions.index.catalogElements}.ServeHTTP(w, r)
 	})
 }
 
@@ -53,6 +59,8 @@ func newPortalCatalogV1Handler(source catalogv1.SourceCapture) http.Handler {
 type gatewayPortalSemanticIndex struct {
 	metadata *semreg.PackMetadataRegistry
 	catalog  *graph.Catalog
+	hostMu   sync.RWMutex
+	host     *tree.Tree
 }
 
 func newGatewayPortalSemanticIndex() (*gatewayPortalSemanticIndex, error) {
@@ -65,6 +73,33 @@ func newGatewayPortalSemanticIndex() (*gatewayPortalSemanticIndex, error) {
 		return nil, err
 	}
 	return &gatewayPortalSemanticIndex{metadata: r, catalog: catalog}, nil
+}
+
+func (i *gatewayPortalSemanticIndex) bindHostTree(graphTree *tree.Tree) {
+	if i == nil {
+		return
+	}
+	i.hostMu.Lock()
+	i.host = graphTree
+	i.hostMu.Unlock()
+}
+
+func (i *gatewayPortalSemanticIndex) hostTree() *tree.Tree {
+	if i == nil {
+		return nil
+	}
+	i.hostMu.RLock()
+	defer i.hostMu.RUnlock()
+	return i.host
+}
+
+// catalogElements is the element catalog the Portal target report reads.
+// Presentation rows stay in that report and are not graph content.
+func (i *gatewayPortalSemanticIndex) catalogElements(context.Context) ([]graph.Element, error) {
+	if i == nil || i.catalog == nil {
+		return nil, fmt.Errorf("portal target catalog unavailable")
+	}
+	return i.catalog.Elements(), nil
 }
 
 func (i *gatewayPortalSemanticIndex) HasLens(id string) bool {
@@ -116,11 +151,62 @@ func (i *gatewayPortalSemanticIndex) OperationMatches(o, c, s, a, e contribution
 	return i != nil && i.metadata != nil && i.metadata.OperationMatches(semanticRef(o), semanticRef(c), semanticRef(s), semanticRef(a), semanticRef(e))
 }
 
-// Only the Huawei instance contribution exposes native diagnostics, and only
-// its closed status members. Every other member fails closed, so a descriptor
-// cannot invent a native member.
-func (*gatewayPortalSemanticIndex) HasNativeMember(contract contributionv1.NativeContractRef, kind, member string) bool {
-	return huaweiPortalNativeMember(contract, kind, member)
+// HasNativeMember admits the Huawei closed status members and a live member of
+// the namespace registry. The registry descriptor does not carry the native
+// contract version, so version is not a predicate. A member matches when its
+// local id and kind match and either the namespace owner or the published
+// schema equals the contract.
+func (i *gatewayPortalSemanticIndex) HasNativeMember(contract contributionv1.NativeContractRef, kind, member string) bool {
+	if huaweiPortalNativeMember(contract, kind, member) {
+		return true
+	}
+	return i.namespaceHasMember(contract, kind, member)
+}
+
+func (i *gatewayPortalSemanticIndex) namespaceHasMember(contract contributionv1.NativeContractRef, kind, member string) bool {
+	if i == nil || member == "" {
+		return false
+	}
+	graphTree := i.hostTree()
+	if graphTree == nil || graphTree.Registry == nil {
+		return false
+	}
+	var want tree.ChangeKind
+	switch kind {
+	case "field", "diagnostic":
+		want = tree.ChangeMember
+	case "action":
+		want = tree.ChangeMethod
+	default:
+		return false
+	}
+	changes, ok := graphTree.Registry.Since(0)
+	if !ok {
+		return false
+	}
+	ctx := context.Background()
+	cut, err := graphTree.Capture(ctx, tree.CutOptions{})
+	if err != nil {
+		return false
+	}
+	defer func() { _ = cut.Close() }()
+	owners := map[driver.NamespaceID]driver.DriverKind{}
+	for _, entry := range cut.Roster() {
+		owners[entry.Key] = entry.Owner
+	}
+	for _, change := range changes {
+		if change.Kind != want {
+			continue
+		}
+		descriptor, err := cut.Describe(ctx, change.Ref)
+		if err != nil || descriptor.Withdrawn || descriptor.Local != member {
+			continue
+		}
+		if owners[descriptor.Namespace] == driver.DriverKind(contract.Owner) || string(descriptor.Schema) == contract.Contract || string(descriptor.Contract) == contract.Contract {
+			return true
+		}
+	}
+	return false
 }
 
 func gatewayPortalPVDescriptor() contributionv1.Manifest {
@@ -151,6 +237,10 @@ type gatewayPortalCatalogSource struct {
 	// drivers resolves the driver of a binding's source. Without it a
 	// resource is kept only while its asset holds one current source.
 	drivers gatewayPortalSourceDrivers
+	// served reads catalog rows from the host cut, keyed by resource id.
+	// An unbound reader leaves the concrete owners unchanged.
+	servedMu sync.Mutex
+	served   func(context.Context) ([]catalogv1.Resource, error)
 	// dropped is the last logged set of dropped-resource diagnostics, so an
 	// unchanged set is logged once and not on every capture.
 	droppedMu sync.Mutex
@@ -169,6 +259,430 @@ func (s *gatewayPortalCatalogSource) PortalCatalogContributions() *gatewayPortal
 		return nil
 	}
 	return s.contributions
+}
+
+// bindServedCut installs the host cut reader. Nil restores the concrete owners.
+func (s *gatewayPortalCatalogSource) bindServedCut(read func(context.Context) ([]catalogv1.Resource, error)) {
+	if s == nil {
+		return
+	}
+	s.servedMu.Lock()
+	s.served = read
+	s.servedMu.Unlock()
+}
+
+func (s *gatewayPortalCatalogSource) servedResources(ctx context.Context) ([]catalogv1.Resource, error) {
+	if s == nil {
+		return nil, nil
+	}
+	s.servedMu.Lock()
+	read := s.served
+	s.servedMu.Unlock()
+	if read == nil {
+		return nil, nil
+	}
+	return read(ctx)
+}
+
+// gatewayServedCutResources reads every page of one capture and keeps a row
+// for each resource id an admitted descriptor names as its resource context.
+// A repeated page token or a cut that moved fails closed.
+func gatewayServedCutResources(ctx context.Context, graphTree *tree.Tree, contributions *gatewayPortalCatalogContributions) ([]catalogv1.Resource, error) {
+	if graphTree == nil || contributions == nil {
+		return nil, nil
+	}
+	cut, entries, err := gatewayListCut(ctx, graphTree, "")
+	if err != nil || cut == "" {
+		return nil, err
+	}
+	generations, err := gatewayAssetGenerations(ctx, graphTree)
+	if err != nil {
+		return nil, err
+	}
+	accepted := contributions.snapshot().Accepted
+	seen := map[string]bool{}
+	var out []catalogv1.Resource
+	for _, entry := range entries {
+		id := string(entry.ResourceID)
+		if id == "" || seen[id] {
+			continue
+		}
+		descriptor, ok := gatewayDescriptorForResource(accepted, id)
+		if !ok {
+			continue
+		}
+		row, ok := gatewayResourceFromCut(descriptor, entry, cut)
+		if !ok {
+			continue
+		}
+		if generation, ok := generations[entry.AssetID]; ok {
+			row.Source.DriverGeneration = generation
+		}
+		seen[id] = true
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+func gatewayDescriptorForResource(accepted []contributionv1.AcceptedDescriptor, resourceID string) (contributionv1.AcceptedDescriptor, bool) {
+	for _, descriptor := range accepted {
+		for _, group := range descriptor.Manifest.Groups {
+			if group.ResourceContext == resourceID {
+				return descriptor, true
+			}
+		}
+	}
+	return contributionv1.AcceptedDescriptor{}, false
+}
+
+// gatewayResourceRefs selects the service and capability of the group whose
+// resource context is this resource. A field of that group wins, then an
+// action of that group. Another group's references are not this resource's.
+func gatewayResourceRefs(manifest contributionv1.Manifest, resourceID string) (string, string, bool) {
+	groups := map[string]bool{}
+	for _, group := range manifest.Groups {
+		if group.ResourceContext == resourceID {
+			groups[group.ID] = true
+		}
+	}
+	for _, field := range manifest.Fields {
+		if groups[field.Group] && field.ServiceRef.ID != "" && field.CapabilityRef.ID != "" {
+			return field.ServiceRef.ID, field.CapabilityRef.ID, true
+		}
+	}
+	for _, action := range manifest.Actions {
+		if groups[action.Group] && action.ServiceRef.ID != "" && action.CapabilityRef.ID != "" {
+			return action.ServiceRef.ID, action.CapabilityRef.ID, true
+		}
+	}
+	return "", "", false
+}
+
+func gatewayResourceFromCut(descriptor contributionv1.AcceptedDescriptor, entry graph.ResourceEntry, cut semreg.Digest) (catalogv1.Resource, bool) {
+	if len(descriptor.Manifest.Requires.Packs) != 1 {
+		return catalogv1.Resource{}, false
+	}
+	service, capability, ok := gatewayResourceRefs(descriptor.Manifest, string(entry.ResourceID))
+	if !ok {
+		return catalogv1.Resource{}, false
+	}
+	snapshot, err := json.Marshal(entry)
+	if err != nil {
+		return catalogv1.Resource{}, false
+	}
+	return catalogv1.Resource{
+		ID:                          string(entry.ResourceID),
+		Domain:                      descriptor.Manifest.Requires.Packs[0].ID,
+		ServiceID:                   service,
+		CapabilityID:                capability,
+		ContributionDriverID:        descriptor.Key.DriverID,
+		ContributionManifestID:      descriptor.Key.ManifestID,
+		ContributionManifestVersion: descriptor.Key.ManifestVersion,
+		State:                       "CURRENT",
+		Source: catalogv1.Source{
+			AssetID:    string(entry.AssetID),
+			SnapshotID: string(cut),
+			Revision:   string(cut),
+			Snapshot:   snapshot,
+			Evaluation: json.RawMessage(`{}`),
+			Selections: json.RawMessage(`[]`),
+			Projection: json.RawMessage(`{}`),
+		},
+	}, true
+}
+
+// errGatewaySemanticActionUnavailable is the portal result for an admitted
+// action that names a semantic operation. This invoker dispatches native
+// setup procedures only.
+var errGatewaySemanticActionUnavailable = errors.New("portal semantic action unavailable")
+
+// gatewayNativeDispatchBarrier runs after catalog validation and before the
+// native lookup. A test replaces the driver the claim was admitted for.
+var gatewayNativeDispatchBarrier func()
+
+// gatewayNativeCallMemory remembers one native execution of a claim. The
+// idempotency key selects that execution. It is not the procedure argument.
+type gatewayNativeCallMemory struct {
+	mu    sync.Mutex
+	calls map[string]*gatewayNativeCall
+}
+
+type gatewayNativeCall struct {
+	wait chan struct{}
+	body json.RawMessage
+	err  error
+}
+
+func (m *gatewayNativeCallMemory) once(key string, fn func() (json.RawMessage, error)) (json.RawMessage, error) {
+	if m == nil {
+		return fn()
+	}
+	m.mu.Lock()
+	if m.calls == nil {
+		m.calls = map[string]*gatewayNativeCall{}
+	}
+	if call, ok := m.calls[key]; ok {
+		m.mu.Unlock()
+		<-call.wait
+		return append(json.RawMessage(nil), call.body...), call.err
+	}
+	call := &gatewayNativeCall{wait: make(chan struct{})}
+	m.calls[key] = call
+	m.mu.Unlock()
+	call.body, call.err = fn()
+	close(call.wait)
+	return append(json.RawMessage(nil), call.body...), call.err
+}
+
+func gatewayNativeClaimKey(claim catalogv1.Claims) string {
+	return strings.Join([]string{
+		claim.IdempotencyKey,
+		claim.ActionID,
+		claim.ResourceID,
+		claim.DriverID,
+		claim.ManifestID,
+		claim.ManifestVersion,
+		claim.CapabilityID,
+		claim.SnapshotID,
+		strconv.FormatUint(claim.DriverGeneration, 10),
+	}, "\x00")
+}
+
+// gatewayHostActionAdmission is the host invoker and revalidator. A native
+// action is a setup procedure on an instance or transport node. A semantic
+// action has no dispatcher here and is unavailable. The revalidator repeats
+// the detached source identity of the action the catalog just built. Copies
+// of the admission share the call memory, because the composer stores the
+// value.
+type gatewayHostActionAdmission struct {
+	tree  *tree.Tree
+	calls *gatewayNativeCallMemory
+}
+
+func newGatewayHostActionAdmission(graphTree *tree.Tree) gatewayHostActionAdmission {
+	return gatewayHostActionAdmission{tree: graphTree, calls: &gatewayNativeCallMemory{}}
+}
+
+func (a gatewayHostActionAdmission) Revalidate(action catalogv1.Action, claim catalogv1.Claims) error {
+	if claim.ResourceID == "" || claim.ResourceID != action.ResourceID || claim.Revision != action.Source.Revision || claim.BindingID != action.Source.BindingID || claim.SourceEpoch != action.Source.SourceEpoch || claim.SnapshotID != action.Source.SnapshotID {
+		return catalogv1.ErrStale
+	}
+	if claim.Deadline.IsZero() || !time.Now().Before(claim.Deadline) {
+		return catalogv1.ErrStale
+	}
+	return nil
+}
+
+func (a gatewayHostActionAdmission) Invoke(action catalogv1.Action, claim catalogv1.Claims) (json.RawMessage, error) {
+	if action.NativeMemberID == "" {
+		return nil, errGatewaySemanticActionUnavailable
+	}
+	if a.tree == nil {
+		return nil, fmt.Errorf("portal action %s has no host tree", action.ID)
+	}
+	return a.calls.once(gatewayNativeClaimKey(claim), func() (json.RawMessage, error) {
+		if gatewayNativeDispatchBarrier != nil {
+			gatewayNativeDispatchBarrier()
+		}
+		key, err := gatewayNativeActionKey(a.tree, action.ContributionDriverID, action.NativeMemberID, action.ResourceID, action.Source.AssetID, claim.DriverGeneration, claim.SnapshotID)
+		if err != nil {
+			return nil, err
+		}
+		// The idempotency key selects this execution. The procedure argument
+		// is empty: the key is not procedure input.
+		outcome, err := (gatewaySetupSurface{tree: a.tree}).Dispatch(context.Background(), key, nil)
+		if err != nil {
+			return nil, err
+		}
+		if outcome.Error != "" {
+			return nil, fmt.Errorf("portal action %s: %s", action.ID, outcome.Error)
+		}
+		return json.Marshal(map[string]string{"native": string(outcome.Native)})
+	})
+}
+
+// gatewayNativeActionKey selects the setup method on the instance that owns
+// the selected resource. Ownership is the host asset of that instance. The
+// resource is read from the claimed cut, and the method's lifecycle
+// generation must be the claimed generation: a replacement that is running
+// under another generation is not this claim. An instance node wins over a
+// transport node of the same instance. A device node is not a setup
+// procedure, and more than one node at the chosen level is refused.
+func gatewayNativeActionKey(graphTree *tree.Tree, driverID, local, resourceID, sourceAsset string, claimedGeneration uint64, claimedCut string) (driver.MemberKey, error) {
+	if graphTree == nil || graphTree.Registry == nil || resourceID == "" {
+		return driver.MemberKey{}, fmt.Errorf("native action %s is not registered", local)
+	}
+	ctx := context.Background()
+	asset, err := gatewayResourceAsset(ctx, graphTree, resourceID, claimedCut)
+	if err != nil {
+		return driver.MemberKey{}, err
+	}
+	if asset == "" || (sourceAsset != "" && sourceAsset != string(asset)) {
+		return driver.MemberKey{}, fmt.Errorf("native action %s is not registered", local)
+	}
+	changes, ok := graphTree.Registry.Since(0)
+	if !ok {
+		return driver.MemberKey{}, fmt.Errorf("native action %s is not registered", local)
+	}
+	cut, err := graphTree.Capture(ctx, tree.CutOptions{})
+	if err != nil {
+		return driver.MemberKey{}, err
+	}
+	defer func() { _ = cut.Close() }()
+	owners := map[driver.NamespaceID]driver.DriverKind{}
+	for _, entry := range cut.Roster() {
+		owners[entry.Key] = entry.Owner
+	}
+	instanceKeys := map[driver.MemberKey]struct{}{}
+	transportKeys := map[driver.MemberKey]struct{}{}
+	for _, change := range changes {
+		if change.Kind != tree.ChangeMethod {
+			continue
+		}
+		descriptor, err := cut.Describe(ctx, change.Ref)
+		if err != nil || descriptor.Withdrawn || descriptor.Local != local || descriptor.State == nil || descriptor.State.Generation != claimedGeneration {
+			continue
+		}
+		if owners[descriptor.Namespace] != driver.DriverKind(driverID) {
+			continue
+		}
+		parsed, err := tree.ParseKey(string(change.Ref))
+		if err != nil {
+			continue
+		}
+		level, err := parsed.Node.Level()
+		if err != nil || (level != tree.LevelInstance && level != tree.LevelTransport) {
+			continue
+		}
+		if gatewayInstanceAsset(parsed.Node.Driver, parsed.Node.Instance) != asset {
+			continue
+		}
+		key := driver.MemberKey{
+			Namespace: descriptor.Namespace,
+			Instance:  parsed.Node.Instance,
+			Node:      driver.NodeID(parsed.Node.NodeID()),
+			Local:     driver.MemberID(local),
+		}
+		if level == tree.LevelInstance {
+			instanceKeys[key] = struct{}{}
+			continue
+		}
+		transportKeys[key] = struct{}{}
+	}
+	switch {
+	case len(instanceKeys) == 1:
+		return gatewayOneMemberKey(instanceKeys), nil
+	case len(instanceKeys) == 0 && len(transportKeys) == 1:
+		return gatewayOneMemberKey(transportKeys), nil
+	case len(instanceKeys) == 0 && len(transportKeys) == 0:
+		return driver.MemberKey{}, fmt.Errorf("native action %s is not registered", local)
+	default:
+		return driver.MemberKey{}, fmt.Errorf("native action %s matches more than one node", local)
+	}
+}
+
+func gatewayOneMemberKey(keys map[driver.MemberKey]struct{}) driver.MemberKey {
+	for key := range keys {
+		return key
+	}
+	return driver.MemberKey{}
+}
+
+// gatewayListCut reads every page of the newest cut. An empty claimed cut
+// accepts that cut. A claimed cut that is not the one being read is refused
+// before a procedure runs: a cut id alone is not a host pin, so the read
+// stays unpinned and compares the cut the page names. A repeated page token
+// or a cut that moved fails closed.
+func gatewayListCut(ctx context.Context, graphTree *tree.Tree, claimed string) (semreg.Digest, []graph.ResourceEntry, error) {
+	if graphTree == nil {
+		return "", nil, nil
+	}
+	seen := map[string]struct{}{}
+	var token string
+	var cut semreg.Digest
+	var entries []graph.ResourceEntry
+	for {
+		if _, again := seen[token]; again {
+			return "", nil, fmt.Errorf("portal catalog page repeated")
+		}
+		seen[token] = struct{}{}
+		result, err := graphTree.ListResources(ctx, graph.ListRequest{PageSize: graph.MaxPageSize, PageToken: token})
+		if err != nil {
+			return "", nil, err
+		}
+		if cut == "" {
+			cut = result.Page.CutID
+			if claimed != "" && string(cut) != claimed {
+				return "", nil, fmt.Errorf("portal catalog cut moved")
+			}
+		} else if result.Page.CutID != cut {
+			return "", nil, fmt.Errorf("portal catalog cut moved")
+		}
+		entries = append(entries, result.Page.Resources...)
+		if result.Page.NextPage == "" {
+			return cut, entries, nil
+		}
+		token = result.Page.NextPage
+	}
+}
+
+// gatewayResourceAsset reads every page of the claimed cut until it finds the
+// resource. An empty claimed cut reads the newest cut. An empty asset means
+// the resource is not in the cut. A cut that is no longer the claimed one is
+// refused before a procedure runs.
+func gatewayResourceAsset(ctx context.Context, graphTree *tree.Tree, resourceID, claimedCut string) (semreg.AssetID, error) {
+	_, entries, err := gatewayListCut(ctx, graphTree, claimedCut)
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		if string(entry.ResourceID) == resourceID {
+			return entry.AssetID, nil
+		}
+	}
+	return "", nil
+}
+
+// gatewayAssetGenerations maps each live instance asset to its lifecycle
+// generation. A missing history leaves the map empty; the native lookup
+// fails on the same condition and does not run a procedure.
+func gatewayAssetGenerations(ctx context.Context, graphTree *tree.Tree) (map[semreg.AssetID]uint64, error) {
+	if graphTree == nil || graphTree.Registry == nil {
+		return nil, nil
+	}
+	changes, ok := graphTree.Registry.Since(0)
+	if !ok {
+		return nil, nil
+	}
+	cut, err := graphTree.Capture(ctx, tree.CutOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = cut.Close() }()
+	out := map[semreg.AssetID]uint64{}
+	for _, change := range changes {
+		if change.Kind != tree.ChangeMethod && change.Kind != tree.ChangeNode {
+			continue
+		}
+		descriptor, err := cut.Describe(ctx, change.Ref)
+		if err != nil || descriptor.Withdrawn || descriptor.State == nil || descriptor.Instance == (tree.InstanceRef{}) {
+			continue
+		}
+		asset := gatewayInstanceAsset(descriptor.Instance.Driver, descriptor.Instance.Instance)
+		if asset == "" {
+			continue
+		}
+		if generation, seen := out[asset]; !seen || descriptor.State.Generation > generation {
+			out[asset] = descriptor.State.Generation
+		}
+	}
+	return out, nil
+}
+
+// gatewayInstanceAsset is the asset the host stamps on one driver instance.
+func gatewayInstanceAsset(kind driver.DriverKind, instance driver.InstanceKey) semreg.AssetID {
+	sum := sha256.Sum256([]byte(life.Ref{Driver: kind, Instance: instance}.ID()))
+	return semreg.AssetID("asset:instance:" + hex.EncodeToString(sum[:8]))
 }
 
 func gatewayPortalStoragePublication(provider *growattBMSRS485ProductionProvider) *growattStoragePublication {
@@ -246,6 +760,12 @@ func (s *gatewayPortalCatalogSource) CaptureDiagnostics(at time.Time) ([]catalog
 		if v, ok := s.evse.SemanticEVSECurrentAt(at); ok {
 			out.add(attribution.ownedBy(semreg.SourceID(s.evse.cfg.SourceID)), gatewayPortalEVSEDescriptor(), v.Snapshot, v.Evaluation, v.Selections, v.Projection)
 		}
+	}
+	served, err := s.servedResources(context.Background())
+	if err != nil {
+		log.Printf("portal catalog: served cut not read: %s", err.Error())
+	} else {
+		out.merge(served, nil, nil)
 	}
 	return out.resources, out.fields, out.diagnostics, nil
 }

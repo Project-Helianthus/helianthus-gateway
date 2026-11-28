@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/Project-Helianthus/helianthus-gateway/portal/catalogv1"
 	"github.com/Project-Helianthus/helianthus-gateway/portal/contributionv1"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/tree"
 )
 
 // gatewayPortalCatalogContributions is the long-lived Gateway-owned admission
@@ -15,8 +17,11 @@ import (
 // transport access: drivers publish already-detached manifests here as part of
 // their lifecycle, and each catalog request snapshots this registry.
 type gatewayPortalCatalogContributions struct {
-	index    *gatewayPortalSemanticIndex
-	registry *contributionv1.Registry
+	index       *gatewayPortalSemanticIndex
+	registry    *contributionv1.Registry
+	admissionMu sync.RWMutex
+	invoker     catalogv1.Invoker
+	revalidator catalogv1.Revalidator
 }
 
 func newGatewayPortalCatalogContributions() (*gatewayPortalCatalogContributions, error) {
@@ -52,6 +57,34 @@ func (c *gatewayPortalCatalogContributions) snapshot() contributionv1.RegistrySn
 
 func (c *gatewayPortalCatalogContributions) revision() uint64 { return c.snapshot().Revision }
 
+// bindHostTree supplies the namespace registry the semantic index reads.
+func (c *gatewayPortalCatalogContributions) bindHostTree(graph *tree.Tree) {
+	if c == nil || c.index == nil {
+		return
+	}
+	c.index.bindHostTree(graph)
+}
+
+// bindActionAdmission installs the host invoker and revalidator both catalog
+// composers read. A nil pair leaves actions undiscoverable.
+func (c *gatewayPortalCatalogContributions) bindActionAdmission(invoker catalogv1.Invoker, revalidator catalogv1.Revalidator) {
+	if c == nil {
+		return
+	}
+	c.admissionMu.Lock()
+	c.invoker, c.revalidator = invoker, revalidator
+	c.admissionMu.Unlock()
+}
+
+func (c *gatewayPortalCatalogContributions) actionAdmission() (catalogv1.Invoker, catalogv1.Revalidator) {
+	if c == nil {
+		return nil, nil
+	}
+	c.admissionMu.RLock()
+	defer c.admissionMu.RUnlock()
+	return c.invoker, c.revalidator
+}
+
 func (c *gatewayPortalCatalogContributions) accepts(driver, manifest string) bool {
 	for _, descriptor := range c.snapshot().Accepted {
 		if descriptor.Key.DriverID == driver && descriptor.Key.ManifestID == manifest {
@@ -70,7 +103,9 @@ func (c *gatewayPortalCatalogContributions) composer(source catalogv1.SourceCapt
 	// replacement or withdrawal cannot publish an old descriptor snapshot beside
 	// newly captured source rows.
 	boundSource := &gatewayPortalCatalogBoundCapture{source: source, contributions: c, revision: snapshot.Revision}
-	composer := catalogv1.New(c.index, boundSource, nil)
+	invoker, revalidator := c.actionAdmission()
+	composer := catalogv1.New(c.index, boundSource, invoker)
+	composer.SetRevalidator(revalidator)
 	if err := composer.InstallDetachedRegistrySnapshot(snapshot.Accepted, snapshot.Quarantined); err != nil {
 		return nil, err
 	}

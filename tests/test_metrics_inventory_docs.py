@@ -387,7 +387,7 @@ def test_finite_format_renderers_and_route_composition(analysis):
             "newGatewayMetricsHandler(busObservability, semanticMetrics)",
         ],
         "cmd/gateway/gateway_http_providers.go": [
-            "newGatewaySemanticMetrics(sharedSemanticProvider, gatewaySemanticMetricRegistry())",
+            "newGatewaySemanticMetrics(sharedSemanticProvider, gatewaySemanticMetricRegistry(stateDir))",
             "sharedSemanticProvider: sharedSemanticProvider,",
             "semanticMetrics:        semanticMetrics,",
         ],

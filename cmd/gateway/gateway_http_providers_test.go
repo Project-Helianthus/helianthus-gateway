@@ -23,6 +23,7 @@ import (
 	"github.com/Project-Helianthus/helianthus-ebusreg/registry"
 	ebusgateway "github.com/Project-Helianthus/helianthus-gateway"
 	"github.com/Project-Helianthus/helianthus-gateway/graphql"
+	"github.com/Project-Helianthus/helianthus-gateway/internal/semanticmetrics"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/semhub"
 	"github.com/Project-Helianthus/helianthus-gateway/mcp"
 	"github.com/Project-Helianthus/helianthus-gateway/portal"
@@ -145,6 +146,12 @@ func httpProviderTools(t *testing.T, server *mcp.Server) json.RawMessage {
 		t.Fatalf("tools/list = %d %s", rec.Code, rec.Body.String())
 	}
 	return response.Result
+}
+
+// composedSurfaceHTTPParts supplies the empty registry the HTTP listener requires.
+func composedSurfaceHTTPParts() (*ebusgateway.Gateway, *graphql.Builder, *graphql.BroadcastHub) {
+	reg := registry.NewDeviceRegistry(nil)
+	return &ebusgateway.Gateway{Registry: reg}, graphql.NewBuilder(reg, nil), graphql.NewBroadcastHub(nil)
 }
 
 func TestHTTPProviderCompositionAvailability(t *testing.T) {
@@ -393,4 +400,63 @@ func httpProviderCallerBindings(caller *ast.FuncDecl) (map[string][]*ast.CallExp
 		return true
 	})
 	return callerCalls, aliases
+}
+
+func TestGatewayMetricRegistryIsServedOnlyWhileTheStoreLockIsHeld(t *testing.T) {
+	t.Cleanup(func() {
+		gatewayMetricStoreBeforeHold = nil
+		resetGatewayComposedSurfaces()
+	})
+	t.Run("held", func(t *testing.T) {
+		t.Cleanup(resetGatewayComposedSurfaces)
+		dir := t.TempDir()
+		gatewayMetricStoreBeforeHold = nil
+		gatewayComposedSurfaceState.Store(&gatewayComposedSurface{stateDir: dir})
+		gw, builder, hub := composedSurfaceHTTPParts()
+		got, err := newHTTPControlPlaneProviders(ebusgateway.DefaultConfig(), gw, builder, hub, nil, nil, nil, nil, nil, nil, nil, gatewayBuildInfo{ReleaseVersion: "0.7.0"}, nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, _ := got.semanticMetrics.configured()
+		if registry.StoreError != "" || gatewayMetricStoreHold.Load() == nil {
+			t.Fatalf("store error %q hold %v", registry.StoreError, gatewayMetricStoreHold.Load() != nil)
+		}
+		if _, err := semanticmetrics.NewSlotFileStore(dir, gatewaySemanticMetricTarget); err == nil {
+			t.Fatal("registry is served without its lock")
+		}
+	})
+	t.Run("competitor", func(t *testing.T) {
+		t.Cleanup(func() {
+			gatewayMetricStoreBeforeHold = nil
+			resetGatewayComposedSurfaces()
+		})
+		dir := t.TempDir()
+		var competitor *semanticmetrics.SlotFileStore
+		t.Cleanup(func() {
+			if competitor != nil {
+				_ = competitor.Close()
+			}
+		})
+		gatewayMetricStoreBeforeHold = func(directory string) {
+			opened, err := semanticmetrics.NewSlotFileStore(directory, gatewaySemanticMetricTarget)
+			if err != nil {
+				t.Errorf("competitor: %v", err)
+				return
+			}
+			competitor = opened
+		}
+		gatewayComposedSurfaceState.Store(&gatewayComposedSurface{stateDir: dir})
+		gw, builder, hub := composedSurfaceHTTPParts()
+		got, err := newHTTPControlPlaneProviders(ebusgateway.DefaultConfig(), gw, builder, hub, nil, nil, nil, nil, nil, nil, nil, gatewayBuildInfo{ReleaseVersion: "0.7.0"}, nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, _ := got.semanticMetrics.configured()
+		if registry.StoreError == "" || registry.StoreDirectory != dir || len(registry.Bindings) != 0 || gatewayMetricStoreHold.Load() != nil {
+			t.Fatalf("served error %q directory %q bindings %d hold %v", registry.StoreError, registry.StoreDirectory, len(registry.Bindings), gatewayMetricStoreHold.Load() != nil)
+		}
+		if _, err := semanticmetrics.NewSlotFileStore(dir, gatewaySemanticMetricTarget); err == nil {
+			t.Fatal("competitor lost the lock")
+		}
+	})
 }
