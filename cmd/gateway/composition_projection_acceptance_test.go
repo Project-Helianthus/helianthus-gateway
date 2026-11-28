@@ -402,6 +402,10 @@ type m57Sidecar struct {
 	mu     sync.Mutex
 	source semreg.SourceID
 	handle *semhub.Handle
+	// fenced records that Stop already fenced the running generation's
+	// publication cursor. A Stop interrupted after the fence is resumed by the
+	// next call, and the hub refuses a second fence of the same cursor.
+	fenced bool
 	cancel context.CancelFunc
 	tasks  sync.WaitGroup
 	keys   []runtimecontrol.LifecycleCorrelation
@@ -469,6 +473,7 @@ func (s *m57Sidecar) Start(context.Context) (uint64, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
+	s.fenced = false
 	s.tasks.Add(1)
 	s.workers.Add(1)
 	go s.work(ctx, handle, generation)
@@ -506,13 +511,14 @@ func (s *m57Sidecar) Stop(ctx context.Context) error {
 	if !s.running.Load() {
 		return nil
 	}
-	if s.withdrawals.Load() <= s.stops.Load() {
+	if !s.fenced && s.withdrawals.Load() <= s.stops.Load() {
 		s.unwithdrawn.Add(1)
 	}
-	if s.handle != nil {
+	if s.handle != nil && !s.fenced {
 		if err := s.publication.fence(s.hub.Load(), s.handle); err != nil {
 			return err
 		}
+		s.fenced = true
 	}
 	s.cancel()
 	joined := make(chan struct{})
