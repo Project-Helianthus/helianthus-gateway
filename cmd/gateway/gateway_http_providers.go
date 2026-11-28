@@ -72,8 +72,15 @@ func newHTTPControlPlaneProviders(
 		semanticMetrics.tree = graphTree
 	}
 	if stateDir != "" {
-		if err := holdGatewayMetricStore(stateDir); err != nil {
-			log.Printf("semantic metric store lock: %s", err.Error())
+		if gatewayMetricStoreBeforeHold != nil {
+			gatewayMetricStoreBeforeHold(stateDir)
+		}
+		if holdErr := holdGatewayMetricStore(stateDir); holdErr != nil {
+			log.Printf("semantic metric store lock: %s", holdErr.Error())
+			// The registry was loaded before this lock. Serving it would
+			// publish bindings the process does not hold. A failed hold is
+			// the same registry a failed load returns.
+			semanticMetrics.adopt(semanticmetrics.Registry{StoreError: holdErr.Error(), StoreDirectory: stateDir})
 		}
 	}
 	if err := mcpServer.SetServerVersion(buildInfo.ReleaseVersion); err != nil {
@@ -146,6 +153,9 @@ type gatewayComposedSurface struct {
 var (
 	gatewayComposedSurfaceState atomic.Pointer[gatewayComposedSurface]
 	gatewayMetricStoreHold      atomic.Pointer[semanticmetrics.SlotFileStore]
+	// gatewayMetricStoreBeforeHold runs after the registry is loaded and
+	// before the lock is taken again. A test takes the lock in that interval.
+	gatewayMetricStoreBeforeHold func(directory string)
 )
 
 func gatewayComposedTree() *tree.Tree {

@@ -32,6 +32,7 @@ import (
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
 	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime/life"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/graph"
@@ -232,8 +233,9 @@ func TestAppendPortalSnapshotUsesMatchedCurrentBindingAndEpochScalars(t *testing
 //     ErrStale before it looks the action up.
 //
 // The accepted call is the one that reaches gatewayHostActionAdmission.Revalidate
-// and then Invoke. Replacing the idempotency key changes the native procedure
-// input. The member key of the setup procedure is varied the same way:
+// and then Invoke. The idempotency key selects one native execution and is not
+// the procedure input. Two different keys each execute once. The member key of
+// the setup procedure is varied the same way:
 //
 //   - Namespace: Dispatch builds the native segment from the key. A different
 //     namespace does not call the registered procedure.
@@ -305,7 +307,7 @@ func TestPortalCatalogRuntimeHandlerInstallsProductionDescriptors(t *testing.T) 
 		action, digest := portalSurfaceAction(t, served)
 		claim := portalSurfaceClaim(served, action, digest, keys[i])
 		native := portalInvokeNative(t, mux, path, claim)
-		if !strings.Contains(native, keys[i]) {
+		if strings.Contains(native, keys[i]) || native == "" || !strings.HasPrefix(native, "surface.") || !strings.HasSuffix(native, ":") {
 			t.Fatalf("%s native = %s", path, native)
 		}
 	}
@@ -461,7 +463,7 @@ func portalInvokeSurfacePairing(t *testing.T, mux *http.ServeMux, catalog catalo
 	beforeOther := other.pairing.Load()
 	beforeDevices := selected.deviceCalls.Load() + other.deviceCalls.Load()
 	native := portalInvokeNative(t, mux, "/graphql/portal/v1", portalSurfaceClaim(catalog, action, digest, marker))
-	if native != string(selected.key)+":"+marker {
+	if native != string(selected.key)+":" || strings.Contains(native, marker) {
 		t.Fatalf("%s native = %s", resourceID, native)
 	}
 	if selected.pairing.Load() != beforeSelected+1 || other.pairing.Load() != beforeOther || selected.deviceCalls.Load()+other.deviceCalls.Load() != beforeDevices {
@@ -1600,4 +1602,461 @@ func TestPortalCatalogLogsDroppedResourceOnceWhileItsReasonIsUnchanged(t *testin
 	if got := buffer.String(); strings.Count(got, "not kept: "+portalDropCapabilityAmbiguous) != 2 {
 		t.Fatalf("log=%q; want the reason logged again after it cleared", got)
 	}
+}
+
+func TestPortalClaimRetryDoesNotRepeatTheNativeCall(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(resetGatewayComposedSurfaces)
+	opened, factory, _ := openSurfaceHost(t, dir, false)
+	t.Cleanup(func() { _ = opened.Close(context.Background()) })
+	contributions, err := newGatewayPortalCatalogContributions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := newGatewayPortalCatalogSource(nil, nil, nil, contributions)
+	bindGatewayComposedSurfaces(opened, source)
+	publishSurfaceManifests(t, contributions)
+	mux := http.NewServeMux()
+	registerHTTPPortalRoutes(mux, "/portal", portal.Options{SharedSemanticView: func(context.Context) (semanticview.View, error) {
+		return semanticview.View{}, nil
+	}}, source)
+	catalog := portalDecodeCatalog(t, portalMuxPost(t, mux, "/graphql/portal/v1", `{"operationName":"PortalCatalogV1","variables":{}}`))
+	selected := factory.state(driver.InstanceKey("surface.one"))
+	if selected == nil {
+		t.Fatal("surface.one is required")
+	}
+	action, digest := portalSurfaceActionFor(t, catalog, "resource:surface:surface.one")
+	claim := portalSurfaceClaim(catalog, action, digest, "marker-retry")
+	before := selected.pairing.Load()
+	first := portalInvokeNative(t, mux, "/graphql/portal/v1", claim)
+	second := portalInvokeNative(t, mux, "/graphql/portal/v1", claim)
+	if first != second || first != string(selected.key)+":" || strings.Contains(first, claim.IdempotencyKey) {
+		t.Fatalf("native = %q then %q", first, second)
+	}
+	if selected.pairing.Load() != before+1 {
+		t.Fatalf("pairing calls = %d, want %d", selected.pairing.Load(), before+1)
+	}
+}
+
+func TestPortalClaimDoesNotCallAReplacedDriverGeneration(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(func() {
+		gatewayNativeDispatchBarrier = nil
+		resetGatewayComposedSurfaces()
+	})
+	opened, factory, _ := openSurfaceHost(t, dir, false)
+	t.Cleanup(func() { _ = opened.Close(context.Background()) })
+	contributions, err := newGatewayPortalCatalogContributions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := newGatewayPortalCatalogSource(nil, nil, nil, contributions)
+	bindGatewayComposedSurfaces(opened, source)
+	publishSurfaceManifests(t, contributions)
+	mux := http.NewServeMux()
+	registerHTTPPortalRoutes(mux, "/portal", portal.Options{SharedSemanticView: func(context.Context) (semanticview.View, error) {
+		return semanticview.View{}, nil
+	}}, source)
+	catalog := portalDecodeCatalog(t, portalMuxPost(t, mux, "/graphql/portal/v1", `{"operationName":"PortalCatalogV1","variables":{}}`))
+	const resourceID = "resource:surface:surface.one"
+	old := factory.state(driver.InstanceKey("surface.one"))
+	other := factory.state(driver.InstanceKey("surface.two"))
+	if old == nil || other == nil {
+		t.Fatal("both instances are required")
+	}
+	var replaced *surfaceInstanceState
+	gatewayNativeDispatchBarrier = func() {
+		gatewayNativeDispatchBarrier = nil
+		ref := life.Ref{Driver: surfaceDriverKind, Instance: old.key}
+		status, err := opened.site.Snapshot(ref)
+		if err != nil {
+			t.Errorf("snapshot: %v", err)
+			return
+		}
+		before := status.Generation
+		beforeEpoch := status.Epoch
+		if _, err := opened.site.SetDesired(context.Background(), ref, life.MethodRestart, status.DesiredRevision); err != nil {
+			t.Errorf("restart: %v", err)
+			return
+		}
+		deadline := time.Now().Add(8 * time.Second)
+		for time.Now().Before(deadline) {
+			next, err := opened.site.Snapshot(ref)
+			current := factory.state(old.key)
+			// A restart opens a new epoch at generation 1. The replacement is
+			// the new instance, not a higher generation number.
+			if err == nil && next.ObservedState == life.ObservedRunning && next.Epoch != beforeEpoch && current != nil && current != old {
+				replaced = current
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		t.Errorf("generation %d epoch %s was not replaced", before, beforeEpoch)
+	}
+	action, digest := portalSurfaceActionFor(t, catalog, resourceID)
+	claim := portalSurfaceClaim(catalog, action, digest, "marker-replaced")
+	raw, err := json.Marshal(map[string]any{"operationName": "PortalActionInvokeV1", "variables": map[string]any{"claim": claim}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded struct {
+		Data struct {
+			PortalActionInvokeV1 map[string]string `json:"portalActionInvokeV1"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(portalMuxPost(t, mux, "/graphql/portal/v1", string(raw)), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.Errors) == 0 || decoded.Data.PortalActionInvokeV1["native"] != "" {
+		t.Fatalf("replaced generation returned %+v errors %+v", decoded.Data.PortalActionInvokeV1, decoded.Errors)
+	}
+	if replaced == nil || replaced == old || old.pairing.Load() != 0 || replaced.pairing.Load() != 0 || other.pairing.Load() != 0 {
+		t.Fatalf("pairing old=%d replaced=%d other=%d replaced=%v", old.pairing.Load(), pairingOf(replaced), other.pairing.Load(), replaced != nil)
+	}
+}
+
+func pairingOf(state *surfaceInstanceState) int64 {
+	if state == nil {
+		return -1
+	}
+	return state.pairing.Load()
+}
+
+func TestPortalCatalogResourceUsesItsGroupCapability(t *testing.T) {
+	contributions, err := newGatewayPortalCatalogContributions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := portalTwoContextManifest()
+	if err := contributions.PublishGeneration(contributionv1.DriverGeneration{DriverID: manifest.Contributor.DriverID, Generation: 1}, []contributionv1.Manifest{manifest}); err != nil {
+		t.Fatal(err)
+	}
+	admission := newGatewayHostActionAdmission(nil)
+	contributions.bindActionAdmission(admission, admission)
+	accepted := contributions.snapshot().Accepted
+	cut := semreg.Digest("sha256:" + strings.Repeat("ab", 32))
+	rows := make([]catalogv1.Resource, 0, 2)
+	for _, id := range []string{"resource:evse", "resource:connector"} {
+		descriptor, ok := gatewayDescriptorForResource(accepted, id)
+		if !ok {
+			t.Fatalf("descriptor for %s was not admitted", id)
+		}
+		row, ok := gatewayResourceFromCut(descriptor, graph.ResourceEntry{ResourceID: semreg.ResourceID(id), AssetID: "asset:shared"}, cut)
+		if !ok {
+			t.Fatalf("resource %s was not kept", id)
+		}
+		rows = append(rows, row)
+	}
+	if rows[0].ServiceID != "evse.service.evse" || rows[0].CapabilityID != "evse.capability.read.evse" {
+		t.Fatalf("evse row service %s capability %s", rows[0].ServiceID, rows[0].CapabilityID)
+	}
+	if rows[1].ServiceID != "evse.service.connector" || rows[1].CapabilityID != "evse.capability.set_allocated_current" {
+		t.Fatalf("connector row service %s capability %s", rows[1].ServiceID, rows[1].CapabilityID)
+	}
+	composer, err := contributions.composer(portalStaticCapture{captured: catalogv1.Capture{Domains: manifest.Requires.Packs, Resources: rows}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := composer.Catalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]catalogv1.Resource{}
+	for _, resource := range catalog.Resources {
+		got[resource.ID] = resource
+	}
+	if len(got) != 2 || got["resource:evse"].ServiceID != rows[0].ServiceID || got["resource:evse"].CapabilityID != rows[0].CapabilityID || got["resource:connector"].ServiceID != rows[1].ServiceID || got["resource:connector"].CapabilityID != rows[1].CapabilityID {
+		t.Fatalf("catalog resources %+v", catalog.Resources)
+	}
+	actions := map[string][]string{}
+	for _, action := range catalog.Actions {
+		actions[action.ResourceID] = append(actions[action.ResourceID], action.ID)
+		if action.ServiceID != got[action.ResourceID].ServiceID || action.CapabilityID != got[action.ResourceID].CapabilityID {
+			t.Fatalf("action %+v does not follow its resource", action)
+		}
+	}
+	if len(actions["resource:evse"]) != 0 || len(actions["resource:connector"]) != 1 || actions["resource:connector"][0] != "allocate" {
+		t.Fatalf("actions %+v", actions)
+	}
+}
+
+func portalTwoContextManifest() contributionv1.Manifest {
+	manifest := gatewayPortalEVSEDescriptor()
+	manifest.Groups[0].ResourceContext = "resource:evse"
+	connector := portalAllocationDescriptor(manifest.Contributor.DriverID, manifest.ManifestID, manifest.ManifestVersion)
+	connector.Groups[0].Order = 1
+	connector.Groups[0].ResourceContext = "resource:connector"
+	connector.Fields[0].Order = 1
+	connector.Views[0].Order = 1
+	connector.Views[0].ID = manifest.ManifestID + ".connector"
+	connector.Views[0].Lens = ""
+	manifest.Groups = append(manifest.Groups, connector.Groups[0])
+	manifest.Fields = append(manifest.Fields, connector.Fields[0])
+	manifest.Views = append(manifest.Views, connector.Views[0])
+	manifest.Actions = append(manifest.Actions, connector.Actions...)
+	return manifest
+}
+
+const pageDriverKind driver.DriverKind = "family.page"
+
+func TestPortalCatalogKeepsAResourcePastTheFirstPage(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(resetGatewayComposedSurfaces)
+	factory := &pageDriverFactory{}
+	instances := pageHostInstances()
+	opened, err := openGatewayHost(context.Background(), filepath.Join(dir, "runtime_state.json"), instances, factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = opened.Close(context.Background()) })
+	if err := opened.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(45 * time.Second)
+	for _, instance := range instances {
+		for hookObserved(opened, pageDriverKind, driver.InstanceKey(instance.Instance)) != string(life.ObservedRunning) {
+			if time.Now().After(deadline) {
+				t.Fatalf("page driver %s did not start (%s): %v", instance.Instance, hookObserved(opened, pageDriverKind, driver.InstanceKey(instance.Instance)), factory.failure())
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	contributions, err := newGatewayPortalCatalogContributions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := surfacePortalManifest("portal.page", "resource:page:target")
+	manifest.Contributor.DriverID = string(pageDriverKind)
+	manifest.Contributor.NativeContract.Owner = string(pageDriverKind)
+	source := newGatewayPortalCatalogSource(nil, nil, nil, contributions)
+	bindGatewayComposedSurfaces(opened, source)
+	if err := contributions.PublishGeneration(contributionv1.DriverGeneration{DriverID: string(pageDriverKind), Generation: 1}, []contributionv1.Manifest{manifest}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := opened.site.Tree().ListResources(context.Background(), graph.ListRequest{PageSize: graph.MaxPageSize})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Page.NextPage == "" {
+		t.Fatalf("cut fit in one page (%d resources)", len(first.Page.Resources))
+	}
+	for _, entry := range first.Page.Resources {
+		if string(entry.ResourceID) == "resource:page:target" {
+			t.Fatal("target was on the first page")
+		}
+	}
+	mux := http.NewServeMux()
+	registerHTTPPortalRoutes(mux, "/portal", portal.Options{SharedSemanticView: func(context.Context) (semanticview.View, error) {
+		return semanticview.View{}, nil
+	}}, source)
+	catalog := portalDecodeCatalog(t, portalMuxPost(t, mux, "/graphql/portal/v1", `{"operationName":"PortalCatalogV1","variables":{}}`))
+	var resource catalogv1.Resource
+	for _, row := range catalog.Resources {
+		if row.ID == "resource:page:target" {
+			resource = row
+		}
+	}
+	if resource.ID == "" || resource.ServiceID == "" || resource.CapabilityID == "" {
+		t.Fatalf("target missing from catalog: %+v", catalog.Resources)
+	}
+	var actions []string
+	for _, action := range catalog.Actions {
+		if action.ResourceID == resource.ID {
+			actions = append(actions, action.ID)
+			if action.ServiceID != resource.ServiceID || action.CapabilityID != resource.CapabilityID {
+				t.Fatalf("action %+v does not follow its resource", action)
+			}
+		}
+	}
+	if len(actions) != 1 || actions[0] != "pairing" {
+		t.Fatalf("target actions %+v", actions)
+	}
+}
+
+func pageHostInstances() []gatewayHostInstance {
+	return []gatewayHostInstance{
+		{Kind: string(pageDriverKind), Instance: "page.fill", Enabled: true},
+		{Kind: string(pageDriverKind), Instance: "page.target", Enabled: true},
+	}
+}
+
+type pageDriverFactory struct {
+	mu  sync.Mutex
+	err error
+}
+
+func (f *pageDriverFactory) Descriptor() driver.Descriptor { return driver.Descriptor{} }
+
+func (f *pageDriverFactory) Plan(config driver.Config) ([]driver.InstancePlan, error) {
+	if !config.Enabled {
+		return nil, nil
+	}
+	return []driver.InstancePlan{{Driver: pageDriverKind, Instance: driver.InstanceKey(config.Instance)}}, nil
+}
+
+func (f *pageDriverFactory) Construct(_ context.Context, plan driver.InstancePlan) (driver.Instance, error) {
+	return &pageInstance{factory: f, key: plan.Instance}, nil
+}
+
+func (f *pageDriverFactory) note(err error) {
+	if f == nil || err == nil {
+		return
+	}
+	f.mu.Lock()
+	if f.err == nil {
+		f.err = err
+	}
+	f.mu.Unlock()
+}
+
+func (f *pageDriverFactory) failure() error {
+	if f == nil {
+		return nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.err
+}
+
+type pageInstance struct {
+	factory *pageDriverFactory
+	key     driver.InstanceKey
+}
+
+func (i *pageInstance) Start(ctx context.Context, session driver.Session) error {
+	if err := i.start(ctx, session); err != nil {
+		i.factory.note(err)
+		return err
+	}
+	return nil
+}
+
+func (i *pageInstance) start(ctx context.Context, session driver.Session) error {
+	ids, method, err := pageInstanceIDs(i.key)
+	if err != nil {
+		return err
+	}
+	if err := pagePublish(ctx, session, ids); err != nil {
+		return err
+	}
+	if !method {
+		return nil
+	}
+	rooted, ok := session.Native().(interface{ Root() driver.NodeRef })
+	if !ok {
+		return errors.New("native registry has no instance root")
+	}
+	return session.Native().Method(rooted.Root(), hookMethodSpec("pairing"), func(context.Context, []byte) ([]byte, error) {
+		return []byte("page:"), nil
+	})
+}
+
+func pageInstanceIDs(key driver.InstanceKey) ([]string, bool, error) {
+	if key == "page.target" {
+		return []string{"resource:page:target"}, true, nil
+	}
+	if key != "page.fill" {
+		return nil, false, fmt.Errorf("unknown page instance %s", key)
+	}
+	// One asset admits this many resources. They sort before the target, so
+	// the target is the first resource of the next page.
+	ids := make([]string, graph.MaxPageSize)
+	for n := 0; n < graph.MaxPageSize; n++ {
+		ids[n] = fmt.Sprintf("resource:page:%05d", n)
+	}
+	return ids, false, nil
+}
+
+func (pageInstance) FenceWithdrawal() {}
+
+func (pageInstance) Stop(context.Context) driver.CloseReport {
+	return driver.CloseReport{Confirmed: true}
+}
+
+func pagePublish(ctx context.Context, session driver.Session, ids []string) error {
+	kind, class, err := surfaceResourceKind()
+	if err != nil {
+		return err
+	}
+	if len(ids) > 1 {
+		return pagePublishFill(ctx, session, kind, class, ids)
+	}
+	return pagePublishChunk(ctx, session, kind, class, ids, true)
+}
+
+func pagePublishFill(ctx context.Context, session driver.Session, kind semreg.DefinitionID, class semreg.AnchorClass, ids []string) error {
+	shared := surfaceEvidence("page fill")
+	resources := make([]semreg.Resource, 0, len(ids))
+	for _, id := range ids {
+		resourceID := semreg.ResourceID(id)
+		slot := new(string)
+		*slot = strings.TrimPrefix(id, "resource:page:")
+		resources = append(resources, semreg.Resource{
+			ResourceID: resourceID, Kind: kind, State: semreg.ResourceCurrent, Revision: "1",
+			Anchor: semreg.ResourceAnchor{Class: class, Basis: semreg.AnchorOperatorSlot, Slot: slot, Evidence: []semreg.EvidenceRef{shared}},
+			Origin: semreg.OriginRef{Kind: semreg.OriginOperator, OriginID: semreg.OriginID("origin:operator:" + *slot), Evidence: []semreg.EvidenceRef{shared}},
+		})
+	}
+	tx, err := session.Publisher().Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Abort(ctx) }()
+	if err := tx.Stage(semreg.PublicationBatch{
+		SourceUpserts: []semreg.SourceDescriptor{{
+			ProtocolID: "protocol.test", ProfileID: "profile.test", ProfileVersion: "1",
+			RegistryEvidence: shared,
+			StartedAt:        surfaceTime(time.Unix(1_700_000_000, 0)),
+			State:            semreg.SourceCurrent, Revision: "1",
+		}},
+		ResourceUpserts: resources,
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func pagePublishChunk(ctx context.Context, session driver.Session, kind semreg.DefinitionID, class semreg.AnchorClass, ids []string, withSource bool) error {
+	resources := make([]semreg.Resource, 0, len(ids))
+	bindings := make([]semreg.NativeBinding, 0, len(ids))
+	links := make([]semreg.IdentityLink, 0, len(ids))
+	for _, id := range ids {
+		resourceID := new(semreg.ResourceID)
+		*resourceID = semreg.ResourceID(id)
+		slot := new(string)
+		*slot = strings.TrimPrefix(id, "resource:page:")
+		anchor := surfaceEvidence("anchor " + id)
+		originEvidence := surfaceEvidence("origin " + id)
+		linkEvidence := surfaceEvidence("link " + id)
+		nativeEvidence := surfaceEvidence("native " + id)
+		binding := semreg.NativeBindingID("binding:" + *slot)
+		resources = append(resources, semreg.Resource{
+			ResourceID: *resourceID, Kind: kind, State: semreg.ResourceCurrent, Revision: "1",
+			Anchor: semreg.ResourceAnchor{Class: class, Basis: semreg.AnchorOperatorSlot, Slot: slot, Evidence: []semreg.EvidenceRef{anchor}},
+			Origin: semreg.OriginRef{Kind: semreg.OriginOperator, OriginID: semreg.OriginID("origin:operator:" + *slot), Evidence: []semreg.EvidenceRef{originEvidence}},
+		})
+		bindings = append(bindings, semreg.NativeBinding{BindingID: binding, NativeResource: nativeEvidence, State: semreg.BindingCurrent, Revision: "1"})
+		links = append(links, semreg.IdentityLink{BindingID: binding, Resource: resourceID, State: semreg.LinkQualified, Basis: []semreg.EvidenceRef{linkEvidence}, Revision: "1"})
+	}
+	batch := semreg.PublicationBatch{BindingUpserts: bindings, IdentityLinkUpserts: links, ResourceUpserts: resources}
+	if withSource {
+		batch.SourceUpserts = []semreg.SourceDescriptor{{
+			ProtocolID: "protocol.test", ProfileID: "profile.test", ProfileVersion: "1",
+			RegistryEvidence: surfaceEvidence("registry page"),
+			StartedAt:        surfaceTime(time.Now().Add(-time.Second)),
+			State:            semreg.SourceCurrent, Revision: "1",
+		}}
+	}
+	tx, err := session.Publisher().Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Abort(ctx) }()
+	if err := tx.Stage(batch); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
