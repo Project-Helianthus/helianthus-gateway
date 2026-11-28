@@ -179,6 +179,10 @@ type Store struct {
 	pending     []byte
 	blocked     error
 	uncertain   bool
+	// trustedJoins is the host-local section last read from the operator-record
+	// file. An ordinary replacement writes it back unchanged. It is not part of
+	// the record returned to callers.
+	trustedJoins []CertifiedJoin
 	// fault is a package-private deterministic persistence boundary used by offline tests.
 	fault func(string) error
 }

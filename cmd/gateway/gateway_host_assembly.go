@@ -4,13 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
+	"github.com/Project-Helianthus/helianthus-gateway/internal/portalconfig"
 	"github.com/Project-Helianthus/helianthus-gateway/internal/runtimecontrol"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/host"
+	"github.com/Project-Helianthus/helianthus-semreg/semreg/runtime"
+	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
 )
 
@@ -74,8 +79,80 @@ func gatewayHostConfig(statePath string, instances []gatewayHostInstance) host.C
 	return cfg
 }
 
+// gatewayTrustedIdentity is the typed handoff of the trusted loader. It has
+// no wire form. The portal runtime binds it when the configuration root is
+// opened and clears it when that runtime closes; a host opened with none
+// uses the runtime's ordinary open.
+var gatewayTrustedIdentity struct {
+	mu         sync.Mutex
+	statements []runtime.OperatorIdentityStatement
+}
+
+func bindGatewayTrustedJoins(root string) {
+	joins, err := portalconfig.LoadTrustedCertifiedJoins(root)
+	if err != nil {
+		log.Printf("portal configuration: trusted certified joins did not load (%s); none handed to the host", portalconfig.SafeOperatorRecordError(err).Code)
+		clearGatewayTrustedJoins()
+		return
+	}
+	statements, err := gatewayOperatorStatements(joins)
+	if err != nil {
+		log.Printf("portal configuration: trusted certified joins did not load (%s); none handed to the host", portalconfig.SafeOperatorRecordError(err).Code)
+		clearGatewayTrustedJoins()
+		return
+	}
+	gatewayTrustedIdentity.mu.Lock()
+	gatewayTrustedIdentity.statements = statements
+	gatewayTrustedIdentity.mu.Unlock()
+}
+
+func clearGatewayTrustedJoins() {
+	gatewayTrustedIdentity.mu.Lock()
+	gatewayTrustedIdentity.statements = nil
+	gatewayTrustedIdentity.mu.Unlock()
+}
+
+func gatewayOperatorIdentityStatements() []runtime.OperatorIdentityStatement {
+	gatewayTrustedIdentity.mu.Lock()
+	defer gatewayTrustedIdentity.mu.Unlock()
+	if len(gatewayTrustedIdentity.statements) == 0 {
+		return nil
+	}
+	return append([]runtime.OperatorIdentityStatement(nil), gatewayTrustedIdentity.statements...)
+}
+
+func gatewayOperatorStatements(joins []portalconfig.TrustedCertifiedJoin) ([]runtime.OperatorIdentityStatement, error) {
+	if len(joins) == 0 {
+		return nil, nil
+	}
+	out := make([]runtime.OperatorIdentityStatement, 0, len(joins))
+	for _, item := range joins {
+		statement := runtime.OperatorIdentityStatement{
+			Action: runtime.OperatorAction(item.Join.Action),
+			Join: driver.CertifiedJoin{
+				A:        driver.NodeRef{Bridge: driver.BridgeID(item.Join.A.Bridge), ID: semreg.ResourceID(item.Join.A.ID)},
+				B:        driver.NodeRef{Bridge: driver.BridgeID(item.Join.B.Bridge), ID: semreg.ResourceID(item.Join.B.ID)},
+				Survivor: driver.NodeRef{Bridge: driver.BridgeID(item.Join.Survivor.Bridge), ID: semreg.ResourceID(item.Join.Survivor.ID)},
+				Statement: driver.StatementRef{
+					Revision: semreg.Uint64(item.Join.Revision),
+					Evidence: item.Evidence,
+				},
+			},
+		}
+		if item.Join.Action == portalconfig.CertifiedJoinRevoke {
+			statement.TargetRevision = semreg.Uint64(item.Join.TargetRevision)
+		}
+		if err := statement.Validate(); err != nil {
+			return nil, err
+		}
+		out = append(out, statement)
+	}
+	return out, nil
+}
+
 func openGatewayHost(ctx context.Context, statePath string, instances []gatewayHostInstance, factories ...driver.Factory) (*gatewayHost, error) {
 	cfg := gatewayHostConfig(statePath, instances)
+	cfg.OperatorIdentityStatements = gatewayOperatorIdentityStatements()
 	site, err := host.Open(ctx, cfg, factories...)
 	if err != nil {
 		return nil, err

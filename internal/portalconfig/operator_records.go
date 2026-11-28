@@ -162,9 +162,17 @@ var operatorShapes = map[string]map[string]bool{
 // DecodeOperatorRecords accepts only the bounded, closed section shape,
 // including duplicate-member rejection. It checks structure, format and
 // revision; ValidateOperatorRecords checks the records against the catalog.
+// The host-local certified_joins member is not part of this shape: a request
+// cannot add, replace or clear it, and it cannot certify a join by presenting
+// an origin.
 func DecodeOperatorRecords(data []byte) (OperatorRecordSet, error) {
-	whole := func() (OperatorRecordSet, error) {
-		return OperatorRecordSet{}, operatorFailure("invalid_record", "operator_records")
+	set, _, err := decodeOperatorRecords(data, false)
+	return set, err
+}
+
+func decodeOperatorRecords(data []byte, trusted bool) (OperatorRecordSet, []CertifiedJoin, error) {
+	whole := func() (OperatorRecordSet, []CertifiedJoin, error) {
+		return OperatorRecordSet{}, nil, operatorFailure("invalid_record", "operator_records")
 	}
 	if len(data) > MaxBytes || !utf8.Valid(data) {
 		return whole()
@@ -174,7 +182,11 @@ func DecodeOperatorRecords(data []byte) (OperatorRecordSet, error) {
 		return whole()
 	}
 	top, ok := v.(map[string]any)
-	if !ok || !hasExactly(top, map[string]bool{"format": true, "revision": true, "records": true}) {
+	members := map[string]bool{"format": true, "revision": true, "records": true}
+	if trusted {
+		members["certified_joins"] = false
+	}
+	if !ok || !hasExactly(top, members) {
 		return whole()
 	}
 	records, ok := top["records"].([]any)
@@ -182,50 +194,59 @@ func DecodeOperatorRecords(data []byte) (OperatorRecordSet, error) {
 		return whole()
 	}
 	if len(records) > MaxOperatorRecords {
-		return OperatorRecordSet{}, operatorFailure("bounds_exceeded", "records")
+		return OperatorRecordSet{}, nil, operatorFailure("bounds_exceeded", "records")
 	}
 	for i, item := range records {
 		field := fmt.Sprintf("records[%d]", i)
 		record, ok := item.(map[string]any)
 		if !ok {
-			return OperatorRecordSet{}, operatorFailure("invalid_record", field)
+			return OperatorRecordSet{}, nil, operatorFailure("invalid_record", field)
 		}
 		form, _ := record["form"].(string)
 		shape, known := operatorShapes[form]
 		if !known {
-			return OperatorRecordSet{}, operatorFailure("invalid_record", field+".form")
+			return OperatorRecordSet{}, nil, operatorFailure("invalid_record", field+".form")
 		}
 		if !hasExactly(record, shape) {
-			return OperatorRecordSet{}, operatorFailure("invalid_record", field)
+			return OperatorRecordSet{}, nil, operatorFailure("invalid_record", field)
 		}
 		if definition, present := record["definition"]; present {
 			ref, ok := definition.(map[string]any)
 			pack, packOK := ref["pack"].(map[string]any)
 			if !ok || !packOK || !hasExactly(ref, map[string]bool{"pack": true, "id": true, "version": true}) || !hasExactly(pack, map[string]bool{"id": true, "version": true}) {
-				return OperatorRecordSet{}, operatorFailure("invalid_record", field+".definition")
+				return OperatorRecordSet{}, nil, operatorFailure("invalid_record", field+".definition")
 			}
 		}
 		if views, present := record["views"]; present {
 			list, ok := views.([]any)
 			if !ok || len(list) != 2 {
-				return OperatorRecordSet{}, operatorFailure("invalid_record", field+".views")
+				return OperatorRecordSet{}, nil, operatorFailure("invalid_record", field+".views")
 			}
 			for j, view := range list {
 				object, ok := view.(map[string]any)
 				if !ok || !hasExactly(object, map[string]bool{"home": true, "resource_id": true}) {
-					return OperatorRecordSet{}, operatorFailure("invalid_record", fmt.Sprintf("%s.views[%d]", field, j))
+					return OperatorRecordSet{}, nil, operatorFailure("invalid_record", fmt.Sprintf("%s.views[%d]", field, j))
 				}
 			}
 		}
 		if native, present := record["native"]; present {
 			ref, ok := native.(map[string]any)
 			if !ok || !hasExactly(ref, map[string]bool{"owner": true, "kind": true, "digest": true, "contract": true, "access": true, "redaction": true}) {
-				return OperatorRecordSet{}, operatorFailure("invalid_record", field+".native")
+				return OperatorRecordSet{}, nil, operatorFailure("invalid_record", field+".native")
 			}
 			for _, key := range []string{"owner", "kind", "digest", "contract", "access", "redaction"} {
 				if _, stringValue := ref[key].(string); !stringValue {
-					return OperatorRecordSet{}, operatorFailure("invalid_record", field+".native")
+					return OperatorRecordSet{}, nil, operatorFailure("invalid_record", field+".native")
 				}
+			}
+		}
+	}
+	var joins []CertifiedJoin
+	if trusted {
+		if raw, present := top["certified_joins"]; present {
+			joins, err = decodeCertifiedJoins(raw)
+			if err != nil {
+				return OperatorRecordSet{}, nil, err
 			}
 		}
 	}
@@ -234,16 +255,16 @@ func DecodeOperatorRecords(data []byte) (OperatorRecordSet, error) {
 		return whole()
 	}
 	if set.Format != OperatorRecordsFormat {
-		return OperatorRecordSet{}, operatorFailure("unsupported_format", "format")
+		return OperatorRecordSet{}, nil, operatorFailure("unsupported_format", "format")
 	}
 	n, err := strconv.ParseUint(set.Revision, 10, 64)
 	if err != nil || strconv.FormatUint(n, 10) != set.Revision {
-		return OperatorRecordSet{}, operatorFailure("invalid_record", "revision")
+		return OperatorRecordSet{}, nil, operatorFailure("invalid_record", "revision")
 	}
 	if set.Records == nil {
 		set.Records = []OperatorRecord{}
 	}
-	return set, nil
+	return set, joins, nil
 }
 
 // strictJSON decodes one JSON value of bounded depth, refusing null values,
@@ -660,7 +681,16 @@ func (s *Store) readOperatorRecordsLocked() (OperatorRecordSet, error) {
 	if s.lock == nil {
 		return emptyOperatorRecords(), operatorFailure("persistence_failed", "operator_records")
 	}
-	return loadOperatorRecordsFile(s.root)
+	set, joins, err := loadOperatorRecordsDocument(s.root)
+	if err != nil {
+		return emptyOperatorRecords(), err
+	}
+	if len(joins) == 0 {
+		s.trustedJoins = nil
+	} else {
+		s.trustedJoins = append([]CertifiedJoin(nil), joins...)
+	}
+	return set, nil
 }
 
 // LoadOperatorRecords reads the operator-record section of a configuration
@@ -668,38 +698,39 @@ func (s *Store) readOperatorRecordsLocked() (OperatorRecordSet, error) {
 // empty section. A section that does not decode or validate, or a file that
 // cannot be read, fails closed.
 func LoadOperatorRecords(root string) (OperatorRecordSet, error) {
-	if root == "" {
-		return emptyOperatorRecords(), nil
-	}
-	return loadOperatorRecordsFile(root)
+	set, _, err := loadOperatorRecordsDocument(root)
+	return set, err
 }
 
-func loadOperatorRecordsFile(root string) (OperatorRecordSet, error) {
+func loadOperatorRecordsDocument(root string) (OperatorRecordSet, []CertifiedJoin, error) {
+	if root == "" {
+		return emptyOperatorRecords(), nil, nil
+	}
 	f, err := os.OpenFile(filepath.Join(root, OperatorRecordsFile), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if os.IsNotExist(err) {
-		return emptyOperatorRecords(), nil
+		return emptyOperatorRecords(), nil, nil
 	}
 	if err != nil {
-		return emptyOperatorRecords(), operatorFailure("persistence_failed", "operator_records")
+		return emptyOperatorRecords(), nil, operatorFailure("persistence_failed", "operator_records")
 	}
 	// Closing a read-only descriptor cannot change the bytes or read error.
 	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() {
-		return emptyOperatorRecords(), operatorFailure("persistence_failed", "operator_records")
+		return emptyOperatorRecords(), nil, operatorFailure("persistence_failed", "operator_records")
 	}
 	data, err := io.ReadAll(io.LimitReader(f, MaxBytes+1))
 	if err != nil {
-		return emptyOperatorRecords(), operatorFailure("persistence_failed", "operator_records")
+		return emptyOperatorRecords(), nil, operatorFailure("persistence_failed", "operator_records")
 	}
-	set, err := DecodeOperatorRecords(data)
+	set, joins, err := decodeOperatorRecords(data, true)
 	if err != nil {
-		return emptyOperatorRecords(), err
+		return emptyOperatorRecords(), nil, err
 	}
 	if err = ValidateOperatorRecords(set); err != nil {
-		return emptyOperatorRecords(), err
+		return emptyOperatorRecords(), nil, err
 	}
-	return set, nil
+	return set, joins, nil
 }
 
 // persistOperatorRecordsLocked replaces the section file atomically. A
@@ -708,6 +739,11 @@ func loadOperatorRecordsFile(root string) (OperatorRecordSet, error) {
 // revision that may not survive.
 func (s *Store) persistOperatorRecordsLocked(b []byte) error {
 	fail := func() error { return operatorFailure("persistence_failed", "operator_records") }
+	merged, err := withCertifiedJoins(b, s.trustedJoins)
+	if err != nil {
+		return fail()
+	}
+	b = merged
 	if s.stage("create") != nil {
 		return fail()
 	}
